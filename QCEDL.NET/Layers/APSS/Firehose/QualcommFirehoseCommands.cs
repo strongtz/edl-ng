@@ -67,7 +67,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
         {
             List<byte> bufferList = [];
             int bytesReadSoFar = 0; // Track bytes read
-            int maxSingleRead = 1048576; // Read in chunks up to 32KB, adjust as needed
+            int maxSingleRead = 1048576; // Read in chunks up to 1MB, adjust as needed
             do
             {
                 int remaining = length - bytesReadSoFar;

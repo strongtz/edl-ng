@@ -180,6 +180,8 @@ namespace Qualcomm.EmergencyDownload.Transport
                                     int desiredBufferSize = 1024 * 1024;
                                     Port.WriteBufferSize = desiredBufferSize;
                                     LibraryLogger.Debug($"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {Port.WriteBufferSize}");
+                                    Port.ReadBufferSize = desiredBufferSize;
+                                    LibraryLogger.Debug($"SerialPort: Attempted to set ReadBufferSize to {desiredBufferSize}. Actual: {Port.ReadBufferSize}");
                                 }
                                 catch (Exception ex)
                                 {
