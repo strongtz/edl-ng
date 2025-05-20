@@ -3,6 +3,7 @@ using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -29,6 +30,7 @@ namespace QCEDL.CLI.Commands
         private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions, string[] xmlFilePatterns)
         {
             Logging.Log("Executing 'rawprogram' command...", LogLevel.Trace);
+            Stopwatch commandStopwatch = Stopwatch.StartNew();
 
             List<FileInfo> resolvedXmlFiles = [];
             string currentDirectory = Environment.CurrentDirectory;
@@ -181,9 +183,36 @@ namespace QCEDL.CLI.Commands
                     var programElements = rawDoc.Root.Elements("program").ToList();
                     Logging.Log($"Found {programElements.Count} <program> elements in {rawFile.Name}.", LogLevel.Debug);
 
+                    int maxFilenameDisplayLength = 0;
+                    if (programElements.Any())
+                    {
+                        foreach (var progElementForLengthCalc in programElements)
+                        {
+                            string? filenameCalc = progElementForLengthCalc.Attribute("filename")?.Value;
+                            if (string.IsNullOrEmpty(filenameCalc))
+                            {
+                                continue;
+                            }
+                            string? labelCalc = progElementForLengthCalc.Attribute("label")?.Value ?? "N/A";
+                            // We want to align based on the "Writing label (filename): " part
+                            string currentDisplayString = $"Writing {labelCalc} ({filenameCalc}): ";
+                            if (currentDisplayString.Length > maxFilenameDisplayLength)
+                            {
+                                maxFilenameDisplayLength = currentDisplayString.Length;
+                            }
+                        }
+                    }
+                    // Add a small buffer to ensure some space after the longest prefix, e.g., 2 spaces
+                    maxFilenameDisplayLength += 2;
+
+                    int programElementIndex = 0;
+
                     foreach (var progElement in programElements)
                     {
+                        programElementIndex++;
                         string? filename = progElement.Attribute("filename")?.Value;
+                        string? label = progElement.Attribute("label")?.Value ?? "N/A";
+
                         if (string.IsNullOrEmpty(filename))
                         {
                             Logging.Log($"Skipping <program> element with empty filename (Label: {progElement.Attribute("label")?.Value ?? "N/A"}).", LogLevel.Debug);
@@ -197,18 +226,18 @@ namespace QCEDL.CLI.Commands
                         if (string.IsNullOrEmpty(startSectorStr) || string.IsNullOrEmpty(sectorSizeStr) || string.IsNullOrEmpty(physicalPartitionNumberStr))
                         {
                             Logging.Log($"Error: <program> element (Label: {progElement.Attribute("label")?.Value}) in {rawFile.Name} is missing required attributes (start_sector, SECTOR_SIZE_IN_BYTES, physical_partition_number).", LogLevel.Error);
-                            return 1;
+                            continue;
                         }
 
                         if (!uint.TryParse(sectorSizeStr, out uint sectorSize) || sectorSize == 0)
                         {
                             Logging.Log($"Error: Invalid SECTOR_SIZE_IN_BYTES '{sectorSizeStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
-                            return 1;
+                            continue;
                         }
                         if (!uint.TryParse(physicalPartitionNumberStr, out uint targetLun))
                         {
                             Logging.Log($"Error: Invalid physical_partition_number '{physicalPartitionNumberStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
-                            return 1;
+                            continue;
                         }
 
                         ulong numDiskSectorsForTargetLun = 0;
@@ -255,51 +284,91 @@ namespace QCEDL.CLI.Commands
                             continue;
                         }
 
-                        Logging.Log($"Programming '{filename}' to LUN {targetLun}, StartSector {resolvedStartSector}, SectorSize {sectorSize}.", LogLevel.Info);
-
-                        byte[] originalData = await File.ReadAllBytesAsync(imageFile.FullName);
-                        if (originalData.Length == 0)
+                        if (imageFile.Length == 0 && !string.Equals(filename, "ZERO", StringComparison.OrdinalIgnoreCase))
                         {
-                            Logging.Log($"Warning: Image file '{imageFile.FullName}' is empty. Skipping write for this file.", LogLevel.Warning);
+                            Logging.Log($"Warning: Image file '{imageFile.FullName}' (Label: {label}) is empty. Skipping write for this file.", LogLevel.Warning);
                             continue;
                         }
 
-                        byte[] dataToWrite;
-                        long originalLength = originalData.Length;
-                        long remainder = originalLength % sectorSize;
+                        long originalFileLength = imageFile.Length;
+                        long totalBytesToWriteIncludingPadding;
+                        uint numSectorsForXmlAttribute; // This is what goes into the <program num_partition_sectors="..."> attribute
+
+                        long remainder = originalFileLength % sectorSize;
                         if (remainder != 0)
                         {
-                            long paddedLength = originalLength + (sectorSize - remainder);
-                            Logging.Log($"Padding '{filename}' from {originalLength} to {paddedLength} bytes (SectorSize: {sectorSize}).", LogLevel.Debug);
-                            dataToWrite = new byte[paddedLength];
-                            Buffer.BlockCopy(originalData, 0, dataToWrite, 0, (int)originalLength);
+                            totalBytesToWriteIncludingPadding = originalFileLength + (sectorSize - remainder);
+                            Logging.Log($"Padding '{filename}' (Label: {label}) from {originalFileLength} to {totalBytesToWriteIncludingPadding} bytes (SectorSize: {sectorSize}).", LogLevel.Debug);
                         }
                         else
                         {
-                            dataToWrite = originalData;
+                            totalBytesToWriteIncludingPadding = originalFileLength;
+                        }
+                        numSectorsForXmlAttribute = (uint)(totalBytesToWriteIncludingPadding / sectorSize);
+
+                        Logging.Log($"Programming '{filename}' (Label: {label}) to LUN {targetLun}, StartSector {resolvedStartSector}, SectorSize {sectorSize}. Total to stream: {totalBytesToWriteIncludingPadding} bytes.", LogLevel.Debug);
+
+                        long bytesWrittenReported = 0;
+                        Stopwatch writeStopwatch = new Stopwatch();
+
+                        Action<long, long> progressAction = (current, total) =>
+                        {
+                            bytesWrittenReported = current;
+                            double percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                            TimeSpan elapsed = writeStopwatch.Elapsed;
+                            double speed = current / elapsed.TotalSeconds;
+                            string speedStr = "N/A";
+                            if (elapsed.TotalSeconds > 0.1)
+                            {
+                                speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                                           speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
+                                           $"{speed:F0} B/s";
+                            }
+
+                            string fileDisplayString = $"Writing {label} ({filename}): ";
+                            // Pad the display string to the calculated maximum width
+                            string paddedFileDisplay = fileDisplayString.PadRight(maxFilenameDisplayLength);
+
+                            // Format numbers for consistent width, e.g., percentage with 5 chars, MiB with 6 chars
+                            string progressDetails = $"{percentage,5:F1}% ({(current / (1024.0 * 1024.0)),6:F2} / {(total / (1024.0 * 1024.0)),6:F2} MiB) [{speedStr,-10}]";
+
+                            Console.Write($"\r{paddedFileDisplay}{progressDetails}    "); // Added extra spaces at the end to clear previous longer lines
+                        };
+
+                        bool success;
+                        try
+                        {
+                            using var fileStream = imageFile.OpenRead();
+
+                            writeStopwatch.Start();
+                            success = await Task.Run(() => manager.Firehose.ProgramFromStream(
+                                storageType,
+                                targetLun,
+                                sectorSize,
+                                (uint)resolvedStartSector,
+                                numSectorsForXmlAttribute,
+                                totalBytesToWriteIncludingPadding,
+                                filename,
+                                fileStream,
+                                progressAction
+                            ));
+                            writeStopwatch.Stop();
+                        }
+                        catch (IOException ioEx)
+                        {
+                            Logging.Log($"IO Error reading input file '{imageFile.FullName}' (Label: {label}): {ioEx.Message}", LogLevel.Error);
+                            Console.WriteLine();
+                            continue;
                         }
 
-                        // The num_partition_sectors from XML is for the <program> tag sent to device.
-                        // The C# Firehose.Program method calculates its own based on dataToWrite.
-                        // We'll use the one from XML for the XML attribute if needed, but dataToWrite drives the actual write.
-                        // string numPartitionSectorsFromXml = progElement.Attribute("num_partition_sectors")?.Value ?? "0";
-
-
-                        bool success = await Task.Run(() => manager.Firehose.Program(
-                            storageType,
-                            targetLun,
-                            sectorSize,
-                            (uint)resolvedStartSector,
-                            filename, // filename for XML attribute in Firehose command
-                            dataToWrite
-                        ));
+                        Console.WriteLine(); // Newline after progress bar for this file
 
                         if (!success)
                         {
-                            Logging.Log($"Failed to program '{filename}'. Aborting.", LogLevel.Error);
+                            Logging.Log($"Failed to program '{filename}' (Label: {label}). Aborting 'rawprogram' for LUN {lunKey}.", LogLevel.Error);
                             return 1;
                         }
-                        Logging.Log($"Successfully programmed '{filename}'.", LogLevel.Info);
+                        Logging.Log($"Successfully programmed '{filename}' (Label: {label}). {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
                     } // End foreach progElement
 
                     // Process corresponding patch file, if it exists
@@ -348,7 +417,8 @@ namespace QCEDL.CLI.Commands
                                 return 1;
                             }
                         }
-                        Logging.Log($"Patching for LUN {lunKey} using {patchFile.Name} completed.\n", LogLevel.Info);
+                        Logging.Log($"Patching for LUN {lunKey} using {patchFile.Name} completed.", LogLevel.Debug);
+                        Console.WriteLine();
                     }
                     else
                     {
@@ -382,6 +452,11 @@ namespace QCEDL.CLI.Commands
                 Logging.Log($"An unexpected error occurred in 'rawprogram': {ex.Message}", LogLevel.Error);
                 Logging.Log(ex.ToString(), LogLevel.Debug);
                 return 1;
+            }
+            finally
+            {
+                commandStopwatch.Stop();
+                Logging.Log($"'rawprogram' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
             }
 
             Logging.Log("'rawprogram' command finished successfully.", LogLevel.Info);

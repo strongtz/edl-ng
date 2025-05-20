@@ -30,26 +30,6 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
   * Set maximum payload size for Firehose.
   * Adjust logging levels.
 
-## Prerequisites
-
-* **.NET 9 SDK** (no need to install .NET runtime if using pre-built binaries).
-* **Qualcomm USB Drivers:**
-  * **Windows:** Both Qualcomm® USB Driver (QUD) and WinUSB driver (Zadig) are supported.
-  * **Linux/macOS:** `libusb` is used. You may also need to configure udev rules on Linux to allow user access to the device.
-* **Firehose Programmer:** An appropriate `.elf` programmer file for your specific device (e.g., `prog_firehose_*.elf` or `xbl_s_devprg_ns.melf`).
-
-## Building
-
-1. Clone the repository.
-2. Ensure you have the .NET 9 SDK installed.
-3. Navigate to the solution directory (`/`) and run:
-
-    ```bash
-    dotnet build -c Release
-    ```
-
-4. The executable `edl-ng` will be located in `QCEDL.CLI/bin/<Platform>/<Configuration>/net9.0/`. For example: `QCEDL.CLI/bin/x64/Release/net9.0/edl-ng`.
-
 ## Usage
 
 The general command structure is:
@@ -102,6 +82,26 @@ Run `edl-ng --help` for a full list of commands and options.
 * Dragonwing QCS8550
 
 SoCs older than msm8998 may not yet be supported.
+
+## Prerequisites
+
+* **.NET 9 SDK** (no need to install .NET runtime if using pre-built binaries).
+* **Qualcomm USB Drivers:**
+  * **Windows:** Both Qualcomm® USB Driver (QUD) and WinUSB driver (Zadig) are supported.
+  * **Linux/macOS:** `libusb` is used. You may also need to configure udev rules on Linux to allow user access to the device.
+* **Firehose Programmer:** An appropriate `.elf` programmer file for your specific device (e.g., `prog_firehose_*.elf` or `xbl_s_devprg_ns.melf`).
+
+## Building
+
+1. Clone the repository.
+2. Ensure you have the .NET 9 SDK installed.
+3. Navigate to the solution directory (`/`) and run:
+
+    ```bash
+    dotnet build -c Release
+    ```
+
+4. The executable `edl-ng` will be located in `QCEDL.CLI/bin/<Platform>/<Configuration>/net9.0/`. For example: `QCEDL.CLI/bin/x64/Release/net9.0/edl-ng`.
 
 ## License
 

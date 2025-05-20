@@ -3,6 +3,7 @@ using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
+using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands
 {
@@ -45,10 +46,17 @@ namespace QCEDL.CLI.Commands
             uint lun)
         {
             Logging.Log($"Executing 'write-sector' command: LUN {lun}, Start LBA {startSector}, File '{inputFile.FullName}'...", LogLevel.Trace);
+            Stopwatch commandStopwatch = Stopwatch.StartNew();
 
             if (!inputFile.Exists)
             {
                 Logging.Log($"Error: Input file '{inputFile.FullName}' not found.", LogLevel.Error);
+                return 1;
+            }
+
+            if (inputFile.Length == 0)
+            {
+                Logging.Log("Error: Input file is empty. Nothing to write.", LogLevel.Error);
                 return 1;
             }
 
@@ -84,53 +92,82 @@ namespace QCEDL.CLI.Commands
                 }
                 Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
 
-                byte[] originalData = await File.ReadAllBytesAsync(inputFile.FullName);
-                if (originalData.Length == 0)
-                {
-                    Logging.Log("Error: Input file is empty. Nothing to write.", LogLevel.Error);
-                    return 1;
-                }
+                long originalFileLength = inputFile.Length;
+                long totalBytesToWriteIncludingPadding;
+                uint numSectorsForXml;
 
-                byte[] dataToWrite;
-                long originalLength = originalData.Length;
-                long remainder = originalLength % sectorSize;
-
+                long remainder = originalFileLength % sectorSize;
                 if (remainder != 0)
                 {
-                    long paddedLength = originalLength + (sectorSize - remainder);
-                    Logging.Log($"Input file size ({originalLength} bytes) is not a multiple of sector size ({sectorSize} bytes). Padding with zeros to {paddedLength} bytes.", LogLevel.Warning);
-                    dataToWrite = new byte[paddedLength];
-                    Buffer.BlockCopy(originalData, 0, dataToWrite, 0, (int)originalLength);
-                    // The rest of dataToWrite will be initialized to 0 by default.
+                    totalBytesToWriteIncludingPadding = originalFileLength + (sectorSize - remainder);
+                    Logging.Log($"Input file size ({originalFileLength} bytes) is not a multiple of sector size ({sectorSize} bytes). Padding with zeros to {totalBytesToWriteIncludingPadding} bytes.", LogLevel.Warning);
                 }
                 else
                 {
-                    dataToWrite = originalData;
+                    totalBytesToWriteIncludingPadding = originalFileLength;
                 }
+                numSectorsForXml = (uint)(totalBytesToWriteIncludingPadding / sectorSize);
 
-                uint numSectorsToWrite = (uint)(dataToWrite.Length / sectorSize);
-                Logging.Log($"Data size to write: {dataToWrite.Length} bytes, Sectors to write: {numSectorsToWrite}", LogLevel.Debug);
-
+                Logging.Log($"Data to write: {originalFileLength} bytes from file, padded to {totalBytesToWriteIncludingPadding} bytes ({numSectorsForXml} sectors).", LogLevel.Debug);
+ 
                 if (startSector > uint.MaxValue)
                 {
-                    Logging.Log($"Error: Start sector LBA ({startSector}) exceeds uint.MaxValue, which is not supported by the current Firehose.Program implementation's start_sector parameter.", LogLevel.Error);
+                    Logging.Log($"Error: Start sector LBA ({startSector}) exceeds uint.MaxValue, which is not supported by the current Firehose.ProgramFromStream implementation's start_sector parameter.", LogLevel.Error);
                     return 1;
                 }
 
-                Logging.Log($"Attempting to write {numSectorsToWrite} sectors ({dataToWrite.Length} bytes) to LUN {lun}, starting at LBA {startSector}...", LogLevel.Info);
+                Logging.Log($"Attempting to write {numSectorsForXml} sectors ({totalBytesToWriteIncludingPadding} bytes) to LUN {lun}, starting at LBA {startSector}...", LogLevel.Info);
 
-                bool success = await Task.Run(() => manager.Firehose.Program(
-                    storageType,
-                    lun,
-                    sectorSize,
-                    (uint)startSector,
-                    inputFile.Name,
-                    dataToWrite
-                ));
+                long bytesWrittenReported = 0;
+                Stopwatch writeStopwatch = new Stopwatch();
+
+                Action<long, long> progressAction = (current, total) =>
+                {
+                    bytesWrittenReported = current;
+                    double percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                    TimeSpan elapsed = writeStopwatch.Elapsed;
+                    double speed = current / elapsed.TotalSeconds;
+                    string speedStr = "N/A";
+                    if (elapsed.TotalSeconds > 0.1)
+                    {
+                        speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                                   speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
+                                   $"{speed:F0} B/s";
+                    }
+                    Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
+                };
+
+                bool success;
+                try
+                {
+                    using var fileStream = inputFile.OpenRead();
+
+                    writeStopwatch.Start();
+                    success = await Task.Run(() => manager.Firehose.ProgramFromStream(
+                        storageType,
+                        lun,
+                        sectorSize,
+                        (uint)startSector,
+                        numSectorsForXml,
+                        totalBytesToWriteIncludingPadding,
+                        inputFile.Name,
+                        fileStream,
+                        progressAction
+                    ));
+                    writeStopwatch.Stop();
+                }
+                catch (IOException ioEx)
+                {
+                    Logging.Log($"IO Error reading input file '{inputFile.FullName}': {ioEx.Message}", LogLevel.Error);
+                    Console.WriteLine();
+                    return 1;
+                }
+
+                Console.WriteLine(); // Newline after progress bar
 
                 if (success)
                 {
-                    Logging.Log("Data written to sectors successfully.", LogLevel.Info);
+                    Logging.Log($"Data ({bytesWrittenReported / (1024.0 * 1024.0):F2} MiB) written to sectors successfully in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
                 }
                 else
                 {

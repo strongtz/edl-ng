@@ -4,6 +4,7 @@ using QCEDL.NET.PartitionTable;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
+using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands
 {
@@ -41,6 +42,7 @@ namespace QCEDL.CLI.Commands
             uint? specifiedLun)
         {
             Logging.Log($"Executing 'read-part' command: Partition '{partitionName}', File '{outputFile.FullName}'...", LogLevel.Trace);
+            Stopwatch commandStopwatch = Stopwatch.StartNew();
 
             try
             {
@@ -86,9 +88,16 @@ namespace QCEDL.CLI.Commands
                     }
                     else
                     {
-                        // Fallback: scan a common range of LUNs if num_physical couldn't be determined
-                        lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
-                        Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
+                        if (storageType == StorageType.SPINOR)
+                        {
+                            lunsToScan.Add(0);
+                        }
+                        else
+                        {
+                            // Fallback: scan a common range of LUNs if num_physical couldn't be determined
+                            lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
+                            Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
+                        }
                     }
                 }
 
@@ -186,7 +195,8 @@ namespace QCEDL.CLI.Commands
 
                 ulong partStartSector = foundPartition.Value.FirstLBA;
                 ulong partLastSector = foundPartition.Value.LastLBA;
-                ulong sectorsToRead = partLastSector - partStartSector + 1;
+                ulong numSectorsToRead = partLastSector - partStartSector + 1;
+                long totalBytesToRead = (long)numSectorsToRead * actualSectorSize;
 
                 if (partStartSector > uint.MaxValue || partLastSector > uint.MaxValue)
                 {
@@ -194,26 +204,68 @@ namespace QCEDL.CLI.Commands
                     return 1;
                 }
 
-                Logging.Log($"Reading partition '{partitionName}' from LUN {actualLun}: LBA {partStartSector} to {partLastSector} ({sectorsToRead} sectors)...", LogLevel.Info);
-
-                // Note: Firehose.Read expects uint for start/last sector
-                byte[] partitionData = await Task.Run(() => manager.Firehose.Read(
-                    storageType,
-                    actualLun,
-                    actualSectorSize,
-                    (uint)partStartSector,
-                    (uint)partLastSector
-                ));
-
-                if (partitionData == null || partitionData.Length == 0)
+                if (totalBytesToRead <= 0)
                 {
-                    Logging.Log("Failed to read partition data or no data returned.", LogLevel.Error);
-                    return 1;
+                    Logging.Log($"Warning: Partition '{partitionName}' has zero or negative size ({totalBytesToRead} bytes). Nothing to read.", LogLevel.Warning);
+                    // Create an empty file
+                    await File.WriteAllBytesAsync(outputFile.FullName, []);
+                    return 0;
                 }
 
-                Logging.Log($"Successfully read {partitionData.Length} bytes for partition '{partitionName}'. Writing to '{outputFile.FullName}'...", LogLevel.Info);
-                await File.WriteAllBytesAsync(outputFile.FullName, partitionData);
-                Logging.Log("Partition data written to file successfully.", LogLevel.Info);
+                Logging.Log($"Preparing to read partition '{partitionName}' from LUN {actualLun}: LBA {partStartSector} to {partLastSector} ({numSectorsToRead} sectors, {totalBytesToRead} bytes) into '{outputFile.FullName}'...", LogLevel.Info);
+
+                long bytesReadReported = 0;
+                Stopwatch readStopwatch = new Stopwatch(); // For timing the read operation itself
+                Action<long, long> progressAction = (current, total) =>
+                {
+                    bytesReadReported = current;
+                    double percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                    TimeSpan elapsed = readStopwatch.Elapsed;
+                    double speed = current / elapsed.TotalSeconds; // Bytes/sec
+                    string speedStr = "N/A";
+                    if (elapsed.TotalSeconds > 0.1) // Avoid division by zero or tiny numbers
+                    {
+                        speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                               speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
+                               $"{speed:F0} B/s";
+                    }
+                    Console.Write($"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
+                };
+
+                bool success;
+                try
+                {
+                    // Ensure directory exists
+                    outputFile.Directory?.Create();
+                    using var fileStream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None);
+
+                    readStopwatch.Start();
+                    success = await Task.Run(() => manager.Firehose.ReadToStream(
+                        storageType,
+                        actualLun,
+                        actualSectorSize,
+                        (uint)partStartSector,
+                        (uint)partLastSector,
+                        fileStream,
+                        progressAction
+                    ));
+                    readStopwatch.Stop();
+                }
+                catch (IOException ioEx) // Catch specific IO exceptions from FileStream
+                {
+                    Logging.Log($"IO Error creating/writing to file '{outputFile.FullName}': {ioEx.Message}", LogLevel.Error);
+                    Console.WriteLine(); // Clear progress line
+                    return 1;
+                }
+                Console.WriteLine(); // Newline after progress bar
+                if (!success)
+                {
+                    Logging.Log($"Failed to read partition '{partitionName}' or write to stream.", LogLevel.Error);
+                    // Attempt to clean up partially written file
+                    try { if (outputFile.Exists && outputFile.Length < totalBytesToRead) outputFile.Delete(); } catch (Exception ex) { Logging.Log($"Could not delete partial file '{outputFile.FullName}': {ex.Message}", LogLevel.Warning); }
+                    return 1;
+                }
+                Logging.Log($"Successfully read {bytesReadReported / (1024.0 * 1024.0):F2} MiB for partition '{partitionName}' and wrote to '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
 
             }
             catch (FileNotFoundException ex)
@@ -236,6 +288,11 @@ namespace QCEDL.CLI.Commands
                 Logging.Log($"An unexpected error occurred in 'read-part': {ex.Message}", LogLevel.Error);
                 Logging.Log(ex.ToString(), LogLevel.Debug);
                 return 1;
+            }
+            finally
+            {
+                commandStopwatch.Stop();
+                Logging.Log($"'read-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
             }
 
             return 0;

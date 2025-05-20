@@ -4,6 +4,7 @@ using QCEDL.NET.PartitionTable;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
+using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands
 {
@@ -45,10 +46,17 @@ namespace QCEDL.CLI.Commands
             uint? specifiedLun)
         {
             Logging.Log($"Executing 'write-part' command: Partition '{partitionName}', File '{inputFile.FullName}'...", LogLevel.Trace);
+            Stopwatch commandStopwatch = Stopwatch.StartNew();
 
             if (!inputFile.Exists)
             {
                 Logging.Log($"Error: Input file '{inputFile.FullName}' not found.", LogLevel.Error);
+                return 1;
+            }
+
+            if (inputFile.Length == 0)
+            {
+                Logging.Log("Error: Input file is empty. Nothing to write.", LogLevel.Error);
                 return 1;
             }
 
@@ -91,8 +99,16 @@ namespace QCEDL.CLI.Commands
                     }
                     else
                     {
-                        lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
-                        Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
+                        if (storageType == StorageType.SPINOR)
+                        {
+                            lunsToScan.Add(0);
+                        }
+                        else
+                        {
+                            // Fallback: scan a common range of LUNs if num_physical couldn't be determined
+                            lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
+                            Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
+                        }
                     }
                 }
 
@@ -169,60 +185,102 @@ namespace QCEDL.CLI.Commands
                     return 1;
                 }
 
-                byte[] originalData = await File.ReadAllBytesAsync(inputFile.FullName);
-                if (originalData.Length == 0)
+                long originalFileLength = inputFile.Length;
+                long totalBytesToWriteIncludingPadding;
+                uint numSectorsForXml;
+
+                long partitionSizeInBytes = (long)(foundPartition.Value.LastLBA - foundPartition.Value.FirstLBA + 1) * actualSectorSize;
+
+                if (originalFileLength > partitionSizeInBytes)
                 {
-                    Logging.Log("Error: Input file is empty. Nothing to write.", LogLevel.Error);
+                    Logging.Log($"Error: Input file size ({originalFileLength} bytes) is larger than the partition '{partitionName}' size ({partitionSizeInBytes} bytes).", LogLevel.Error);
                     return 1;
                 }
 
-                byte[] dataToWrite;
-                long originalLength = originalData.Length;
-                long remainder = originalLength % actualSectorSize;
+                long remainder = originalFileLength % actualSectorSize;
                 if (remainder != 0)
                 {
-                    long paddedLength = originalLength + (actualSectorSize - remainder);
-                    Logging.Log($"Input file size ({originalLength} bytes) is not a multiple of partition's sector size ({actualSectorSize} bytes). Padding with zeros to {paddedLength} bytes.", LogLevel.Warning);
-                    dataToWrite = new byte[paddedLength];
-                    Buffer.BlockCopy(originalData, 0, dataToWrite, 0, (int)originalLength);
-                    // The rest of dataToWrite will be initialized to 0 by default.
+                    totalBytesToWriteIncludingPadding = originalFileLength + (actualSectorSize - remainder);
+                    Logging.Log($"Input file size ({originalFileLength} bytes) is not a multiple of partition's sector size ({actualSectorSize} bytes). Will pad with zeros to {totalBytesToWriteIncludingPadding} bytes.", LogLevel.Warning);
                 }
                 else
                 {
-                    dataToWrite = originalData;
+                    totalBytesToWriteIncludingPadding = originalFileLength;
                 }
-                ulong partitionSizeInBytes = (foundPartition.Value.LastLBA - foundPartition.Value.FirstLBA + 1) * actualSectorSize;
-                if ((ulong)dataToWrite.Length > partitionSizeInBytes)
+
+                if (totalBytesToWriteIncludingPadding > partitionSizeInBytes)
                 {
-                    Logging.Log($"Error: Padded data size ({dataToWrite.Length} bytes) is larger than the partition '{partitionName}' size ({partitionSizeInBytes} bytes). Original file size was {originalLength} bytes.", LogLevel.Error);
+                    Logging.Log($"Error: Padded data size ({totalBytesToWriteIncludingPadding} bytes) would be larger than the partition '{partitionName}' size ({partitionSizeInBytes} bytes). This should not happen if original file fits.", LogLevel.Error);
                     return 1;
                 }
-                uint numSectorsToWrite = (uint)(dataToWrite.Length / actualSectorSize);
-                Logging.Log($"Data size to write: {dataToWrite.Length} bytes. Will write {numSectorsToWrite} sectors to partition '{partitionName}'.", LogLevel.Debug);
-                if ((ulong)dataToWrite.Length < partitionSizeInBytes)
+
+                numSectorsForXml = (uint)(totalBytesToWriteIncludingPadding / actualSectorSize);
+
+                Logging.Log($"Data to write: {originalFileLength} bytes from file, padded to {totalBytesToWriteIncludingPadding} bytes ({numSectorsForXml} sectors).", LogLevel.Debug);
+                if (totalBytesToWriteIncludingPadding < partitionSizeInBytes)
                 {
-                    Logging.Log($"Warning: Padded data size is smaller than partition size. The remaining space in partition '{partitionName}' will not be explicitly overwritten or zeroed out by this operation.", LogLevel.Warning);
+                    Logging.Log($"Warning: Padded data size is smaller than partition size. The remaining space in partition '{partitionName}' will not be explicitly overwritten or zeroed out by this operation beyond the {totalBytesToWriteIncludingPadding} bytes written.", LogLevel.Warning);
                 }
+
                 ulong partStartSector = foundPartition.Value.FirstLBA;
                 if (partStartSector > uint.MaxValue)
                 {
-                    Logging.Log($"Error: Partition start LBA ({partStartSector}) exceeds uint.MaxValue, not supported by current Firehose.Program.", LogLevel.Error);
+                    Logging.Log($"Error: Partition start LBA ({partStartSector}) exceeds uint.MaxValue, not supported by current Firehose.ProgramFromStream.", LogLevel.Error);
                     return 1;
                 }
-                Logging.Log($"Attempting to write {dataToWrite.Length} bytes to partition '{partitionName}' (LUN {actualLun}, LBA {partStartSector})...", LogLevel.Info);
 
-                bool success = await Task.Run(() => manager.Firehose.Program(
-                    storageType,
-                    actualLun,
-                    actualSectorSize,
-                    (uint)partStartSector,
-                    inputFile.Name, // filename for XML attribute
-                    dataToWrite
-                ));
+                Logging.Log($"Attempting to write {totalBytesToWriteIncludingPadding} bytes to partition '{partitionName}' (LUN {actualLun}, LBA {partStartSector})...", LogLevel.Info);
+
+                long bytesWrittenReported = 0;
+                Stopwatch writeStopwatch = new Stopwatch();
+
+                Action<long, long> progressAction = (current, total) =>
+                {
+                    bytesWrittenReported = current;
+                    double percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                    TimeSpan elapsed = writeStopwatch.Elapsed;
+                    double speed = current / elapsed.TotalSeconds;
+                    string speedStr = "N/A";
+                    if (elapsed.TotalSeconds > 0.1)
+                    {
+                        speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                                   speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
+                                   $"{speed:F0} B/s";
+                    }
+                    Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
+                };
+
+                bool success;
+                try
+                {
+                    using var fileStream = inputFile.OpenRead();
+
+                    writeStopwatch.Start();
+                    success = await Task.Run(() => manager.Firehose.ProgramFromStream(
+                        storageType,
+                        actualLun,
+                        actualSectorSize,
+                        (uint)partStartSector,
+                        numSectorsForXml,
+                        totalBytesToWriteIncludingPadding,
+                        inputFile.Name,
+                        fileStream,
+                        progressAction
+                    ));
+                    writeStopwatch.Stop();
+                }
+                catch (IOException ioEx)
+                {
+                    Logging.Log($"IO Error reading input file '{inputFile.FullName}': {ioEx.Message}", LogLevel.Error);
+                    Console.WriteLine();
+                    return 1;
+                }
+
+                Console.WriteLine(); // Newline after progress bar
 
                 if (success)
                 {
-                    Logging.Log($"Data successfully written to partition '{partitionName}'.", LogLevel.Info);
+                    Logging.Log($"Data ({bytesWrittenReported / (1024.0 * 1024.0):F2} MiB) successfully written to partition '{partitionName}' in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
                 }
                 else
                 {
@@ -250,6 +308,11 @@ namespace QCEDL.CLI.Commands
                 Logging.Log($"An unexpected error occurred in 'write-part': {ex.Message}", LogLevel.Error);
                 Logging.Log(ex.ToString(), LogLevel.Debug);
                 return 1;
+            }
+            finally
+            {
+                commandStopwatch.Stop();
+                Logging.Log($"'write-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
             }
             return 0;
         }

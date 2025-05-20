@@ -27,6 +27,13 @@ using QCEDL.NET.Logging;
 
 namespace Qualcomm.EmergencyDownload.Transport
 {
+    public enum CommunicationMode
+    {
+        None,
+        SerialPort,
+        LibUsbDotNet
+    }
+
     public class QualcommSerial : IDisposable
     {
         private bool Disposed = false;
@@ -36,16 +43,11 @@ namespace Qualcomm.EmergencyDownload.Transport
         private UsbDevice? _libUsbDevice = null;
         private UsbEndpointReader? _libUsbReader = null;
         private UsbEndpointWriter? _libUsbWriter = null;
-        private CommunicationMode _mode;
+        private CommunicationMode _mode = CommunicationMode.None;
 
         private int _libUsbTimeoutMs = 1000;
 
-        private enum CommunicationMode
-        {
-            None,
-            SerialPort,
-            LibUsbDotNet
-        }
+        public CommunicationMode ActiveCommunicationMode { get; private set; } = CommunicationMode.None;
 
         // Static constructor for LibUsb context
         static QualcommSerial()
@@ -89,6 +91,7 @@ namespace Qualcomm.EmergencyDownload.Transport
 
                     Port.Open();
                     _mode = CommunicationMode.SerialPort;
+                    ActiveCommunicationMode = _mode;
                     LibraryLogger.Debug($"Using System.IO.Ports for {deviceIdOrPath} on Linux. Timeout: {_libUsbTimeoutMs}ms");
                 }
                 else
@@ -146,6 +149,7 @@ namespace Qualcomm.EmergencyDownload.Transport
                             throw new Exception("LibUsbDotNet: Could not open required bulk IN/OUT endpoints.");
                         }
                         _mode = CommunicationMode.LibUsbDotNet;
+                        ActiveCommunicationMode = _mode;
                         LibraryLogger.Debug($"Using LibUsbDotNet backend for VID=0x{vid:X4}, PID=0x{pid:X4}");
                     }
                     catch (Exception ex)
@@ -155,6 +159,8 @@ namespace Qualcomm.EmergencyDownload.Transport
                         _libUsbDevice = null;
                         _libUsbReader = null;
                         _libUsbWriter = null;
+                        _mode = CommunicationMode.None;
+                        ActiveCommunicationMode = _mode;
                     }
                 }
             }
@@ -178,10 +184,10 @@ namespace Qualcomm.EmergencyDownload.Transport
                                 try
                                 {
                                     int desiredBufferSize = 1024 * 1024;
-                                    Port.WriteBufferSize = desiredBufferSize;
-                                    LibraryLogger.Debug($"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {Port.WriteBufferSize}");
                                     Port.ReadBufferSize = desiredBufferSize;
-                                    LibraryLogger.Debug($"SerialPort: Attempted to set ReadBufferSize to {desiredBufferSize}. Actual: {Port.ReadBufferSize}");
+                                    Port.WriteBufferSize = desiredBufferSize;
+                                    LibraryLogger.Debug($"SerialPort: Attempted ReadBufferSize={desiredBufferSize}. Actual: {Port.ReadBufferSize}");
+                                    LibraryLogger.Debug($"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {Port.WriteBufferSize}");
                                 }
                                 catch (Exception ex)
                                 {
@@ -189,6 +195,8 @@ namespace Qualcomm.EmergencyDownload.Transport
                                 }
                             }
                             Port.Open();
+                            _mode = CommunicationMode.SerialPort;
+                            ActiveCommunicationMode = _mode;
                         }
                         catch (UnauthorizedAccessException ex)
                         {
@@ -241,6 +249,7 @@ namespace Qualcomm.EmergencyDownload.Transport
                             throw new Exception("LibUsbDotNet: Could not open required bulk IN/OUT endpoints.");
                         }
                         _mode = CommunicationMode.LibUsbDotNet;
+                        ActiveCommunicationMode = _mode;
                         LibraryLogger.Debug($"Using LibUsbDotNet backend for VID=0x{vid:X4}, PID=0x{pid:X4}");
                     }
                     catch (Exception ex)
@@ -250,11 +259,15 @@ namespace Qualcomm.EmergencyDownload.Transport
                         _libUsbDevice = null;
                         _libUsbReader = null;
                         _libUsbWriter = null;
+                        _mode = CommunicationMode.None;
+                        ActiveCommunicationMode = _mode;
                     }
                 }
             }
             else
             {
+                _mode = CommunicationMode.None;
+                ActiveCommunicationMode = _mode;
                 throw new PlatformNotSupportedException($"Unsupported OS: {RuntimeInformation.OSDescription}");
             }
         }
@@ -395,8 +408,9 @@ namespace Qualcomm.EmergencyDownload.Transport
 
                 if (Port != null)
                 {
+                    LibraryLogger.Trace($"{Length}, {ResponseBuffer.Length}");
                     BytesRead = Port.Read(ResponseBuffer, Length, ResponseBuffer.Length - Length);
-                    LibraryLogger.Trace($"BytesRead: {BytesRead}");
+                    LibraryLogger.Trace($"{Length}, {ResponseBuffer.Length} BytesRead: {BytesRead}");
                 }
 
                 if (_libUsbReader != null)
@@ -410,9 +424,9 @@ namespace Qualcomm.EmergencyDownload.Transport
                     {
                         // Handle Zero Length Packets
                         ec = _libUsbReader.Read(ResponseBuffer, readTimeout, out BytesRead);
-                        LibraryLogger.Debug($"Retry after ZLP: status: {ec} - BytesRead: {BytesRead}");
+                        LibraryLogger.Trace($"Retry after ZLP: status: {ec} - BytesRead: {BytesRead}");
                     }
-                    
+
                     if (ec == Error.Timeout) throw new TimeoutException("LibUsbDotNet Read Timeout");
                 }
 

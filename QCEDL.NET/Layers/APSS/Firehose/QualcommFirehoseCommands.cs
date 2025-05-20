@@ -224,6 +224,219 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return readBuffer;
         }
 
+        public static bool ReadToStream(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize,
+                                        uint FirstSector, uint LastSector, Stream outputStream, Action<long, long>? progressCallback = null)
+        {
+            LibraryLogger.Debug($"ReadToStream: LUN{LUNi}, FirstSector: {FirstSector}, LastSector: {LastSector}, SectorSize: {sectorSize}");
+
+            string Command03 = QualcommFirehoseXml.BuildCommandPacket([
+                QualcommFirehoseXmlPackets.GetReadPacket(storageType, LUNi, sectorSize, FirstSector, LastSector)
+            ]);
+
+            Firehose.Serial.SendData(Encoding.UTF8.GetBytes(Command03));
+
+            bool RawMode = false;
+            bool GotResponse = false;
+
+            while (!GotResponse)
+            {
+                Data[] datas = Firehose.GetFirehoseResponseDataPayloads();
+                foreach (Data data in datas)
+                {
+                    if (data.Log != null)
+                    {
+                        LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
+                    }
+                    else if (data.Response != null)
+                    {
+                        if (data.Response.Value == "ACK")
+                        {
+                            if (data.Response.RawMode)
+                            {
+                                RawMode = true;
+                                LibraryLogger.Debug("Read command ACKed, raw mode enabled.");
+                            }
+                            else
+                            {
+                                LibraryLogger.Warning("Read command ACKed, but raw mode not indicated. Proceeding cautiously.");
+                            }
+                            GotResponse = true;
+                        }
+                        else if (data.Response.Value == "Nak")
+                        {
+                            LibraryLogger.Error($"Read command NAKed. Message: {data.Response.Value}"); // Assuming NAK might have more info
+                            return false;
+                        }
+                        else if (!string.IsNullOrEmpty(data.Response.Value))
+                        {
+                            LibraryLogger.Warning($"Unexpected response value: {data.Response.Value} while waiting for raw mode ACK.");
+                        }
+                    }
+                    else
+                    {
+                        LibraryLogger.Warning("Why are we here?");
+                    }
+                    if (GotResponse) break; // Break inner loop if response found
+                }
+                if (datas.Length == 0 && !GotResponse) // Safety break if GetFirehoseResponseDataPayloads returns empty without setting GotResponse
+                {
+                    LibraryLogger.Error("Received empty data payload from GetFirehoseResponseDataPayloads (Read rawmode ACK loop), breaking.");
+                    return false;
+                }
+            }
+
+            if (!RawMode)
+            {
+                LibraryLogger.Error("Error: Raw mode not enabled");
+                return false;
+            }
+
+            uint numSectorsToRead = LastSector - FirstSector + 1;
+            long totalReadLength = (long)(numSectorsToRead * sectorSize);
+            if (totalReadLength <= 0)
+            {
+                LibraryLogger.Warning($"Calculated totalReadLength is {totalReadLength}. Returning empty array.");
+                return false;
+            }
+
+            bool readSuccess = Firehose.ReadAndWriteChunksToStream((int)totalReadLength, outputStream, progressCallback);
+
+            // LOOP 2: Getting final ACK
+            GotResponse = false; // Reset for the final ACK
+            int finalAckAttempts = 0;
+            while (!GotResponse && finalAckAttempts < 5) // Add attempt limit
+            {
+                finalAckAttempts++;
+                Data[] datas = Firehose.GetFirehoseResponseDataPayloads(); // WaitTilFooter = false (default)
+                foreach (Data data in datas)
+                {
+                    if (data.Log != null)
+                    {
+                        LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
+                    }
+                    else if (data.Response != null)
+                    {
+                        if (data.Response.Value == "ACK")
+                        {
+                            LibraryLogger.Debug("Final ACK received for Read operation.");
+                            GotResponse = true;
+                        }
+                        else if (data.Response.Value == "Nak")
+                        {
+                            LibraryLogger.Error($"Final NAK received for Read operation. Message: {data.Response.Value}");
+                            return false;
+                        }
+                        else if (!string.IsNullOrEmpty(data.Response.Value))
+                        {
+                            LibraryLogger.Warning($"Unexpected response value: {data.Response.Value} while waiting for final ACK for Read.");
+                        }
+                    }
+                    else
+                    {
+                        LibraryLogger.Warning("Why are we here?");
+                    }
+                    if (GotResponse) break;
+                }
+                if (datas.Length == 0 && !GotResponse)
+                {
+                    LibraryLogger.Warning($"Received empty data payload from GetFirehoseResponseDataPayloads (final ACK loop attempt {finalAckAttempts}), breaking.");
+                    // Consider if a short delay is needed here if device is slow to send final ACK
+                    Thread.Sleep(50);
+                }
+            }
+            if (!GotResponse)
+            {
+                LibraryLogger.Warning("Did not receive a clear final ACK/NAK after data transfer.");
+            }
+
+            return true;
+        }
+
+        internal static bool ReadAndWriteChunksToStream(this QualcommFirehose Firehose, int totalLength, Stream outputStream, Action<long, long>? progressCallback = null)
+        {
+            long bytesReadSoFar = 0;
+            int readChunkSize;
+
+            if (Firehose.Serial.ActiveCommunicationMode == CommunicationMode.SerialPort)
+            {
+                readChunkSize = 1024 * 32; // 32KB
+            }
+            else
+            {
+                readChunkSize = 1024 * 1024; // 1MB
+            }
+
+            byte[] chunkBuffer = new byte[readChunkSize]; // Reusable buffer for reading chunks
+
+            Stopwatch sw = Stopwatch.StartNew();
+
+            while (bytesReadSoFar < totalLength)
+            {
+                int remainingBytes = (int)(totalLength - bytesReadSoFar);
+                int currentChunkToRequest = Math.Min(remainingBytes, readChunkSize);
+
+                // GetResponse will read up to currentChunkToRequest or timeout
+                byte[] actualChunkRead;
+                try
+                {
+                    // QualcommSerial.GetResponse reads what's available up to Length or times out.
+                    // It doesn't guarantee filling the buffer if less data arrives before timeout.
+                    actualChunkRead = Firehose.Serial.GetResponse(null, Length: currentChunkToRequest);
+                }
+                catch (TimeoutException)
+                {
+                    LibraryLogger.Error($"Timeout while reading data chunk. Read {bytesReadSoFar}/{totalLength} bytes.");
+                    return false;
+                }
+                catch (BadConnectionException bce)
+                {
+                    LibraryLogger.Error($"Bad connection while reading data chunk: {bce.Message}. Read {bytesReadSoFar}/{totalLength} bytes.");
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    LibraryLogger.Error($"Generic error while reading data chunk: {ex.Message}. Read {bytesReadSoFar}/{totalLength} bytes.");
+                    return false;
+                }
+
+                if (actualChunkRead == null || actualChunkRead.Length == 0)
+                {
+                    // This might happen if the device stops sending data prematurely or if GetResponse timed out
+                    // but didn't throw TimeoutException (depends on its internal logic).
+                    LibraryLogger.Warning($"GetResponse returned null or empty chunk. Read {bytesReadSoFar}/{totalLength} bytes. Assuming end of data or error.");
+                    // If we haven't read everything, this is an error.
+                    return bytesReadSoFar == totalLength;
+                }
+
+                try
+                {
+                    outputStream.Write(actualChunkRead, 0, actualChunkRead.Length);
+                }
+                catch (IOException ioEx)
+                {
+                    LibraryLogger.Error($"IO Error writing chunk to output stream: {ioEx.Message}");
+                    return false;
+                }
+
+                bytesReadSoFar += actualChunkRead.Length;
+                progressCallback?.Invoke(bytesReadSoFar, totalLength);
+
+                // If GetResponse consistently returns less than requested even if more is available,
+                // this loop will still work, just with smaller effective chunks.
+                // If the device sends less than `totalLength` in total, `bytesReadSoFar` will not equal `totalLength`.
+            }
+            sw.Stop();
+
+            if (bytesReadSoFar != totalLength)
+            {
+                LibraryLogger.Error($"Failed to read the complete expected buffer. Expected {totalLength}, got {bytesReadSoFar}.");
+                return false;
+            }
+
+            LibraryLogger.Debug($"Successfully read and wrote {bytesReadSoFar} bytes in {sw.ElapsedMilliseconds} ms.");
+            return true;
+        }
+
         public static bool Program(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize, uint startSector, string? filenameForXml, byte[] dataToWrite)
         {
             if (dataToWrite == null || dataToWrite.Length == 0)
@@ -365,6 +578,217 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
                     System.Threading.Thread.Sleep(200);
                 }
             }
+            if (!finalAckReceived)
+            {
+                LibraryLogger.Error("Did not receive a clear final ACK/NAK after Program data transfer.");
+                return false;
+            }
+            return true;
+        }
+
+        public static bool ProgramFromStream(this QualcommFirehose Firehose,
+                                                 StorageType storageType,
+                                                 uint LUNi,
+                                                 uint sectorSize,
+                                                 uint startSector,
+                                                 uint numSectorsForXml, // Number of sectors based on total padded size
+                                                 long totalBytesToStreamIncludingPadding,
+                                                 string? filenameForXml,
+                                                 Stream inputStream,
+                                                 Action<long, long>? progressCallback = null)
+        {
+            LibraryLogger.Debug($"PROGRAM (from stream): LUN{LUNi}, StartSector: {startSector}, NumSectorsInXml: {numSectorsForXml}, TotalBytesToStream: {totalBytesToStreamIncludingPadding}, SectorSize: {sectorSize}, File: {filenameForXml ?? "N/A"}");
+
+            if (totalBytesToStreamIncludingPadding == 0)
+            {
+                LibraryLogger.Warning("ProgramFromStream: totalBytesToStreamIncludingPadding is 0. Nothing to write.");
+                return true;
+            }
+            if (totalBytesToStreamIncludingPadding % sectorSize != 0)
+            {
+                LibraryLogger.Error($"ProgramFromStream: totalBytesToStreamIncludingPadding ({totalBytesToStreamIncludingPadding}) is not a multiple of sectorSize ({sectorSize}). This is a logic error.");
+                return false;
+            }
+
+            string programCommandXml = QualcommFirehoseXml.BuildCommandPacket([
+                QualcommFirehoseXmlPackets.GetProgramPacket(storageType, LUNi, sectorSize, startSector, numSectorsForXml, filenameForXml)
+            ]);
+
+            Firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
+
+            bool rawModeEnabled = false;
+            bool initialResponseReceived = false;
+
+            // LOOP 1: Wait for rawmode="true" ACK
+            while (!initialResponseReceived)
+            {
+                Data[] datas = Firehose.GetFirehoseResponseDataPayloads();
+                foreach (Data dataElement in datas)
+                {
+                    if (dataElement.Log != null)
+                    {
+                        LibraryLogger.Debug("DEVPRG LOG: " + dataElement.Log.Value);
+                    }
+                    else if (dataElement.Response != null)
+                    {
+                        if (dataElement.Response.Value == "ACK")
+                        {
+                            if (dataElement.Response.RawMode)
+                            {
+                                rawModeEnabled = true;
+                                LibraryLogger.Debug("Program command ACKed, raw mode enabled.");
+                            }
+                            else
+                            {
+                                LibraryLogger.Warning("Program command ACKed, but raw mode NOT indicated. This is unexpected.");
+                            }
+                            initialResponseReceived = true;
+                        }
+                        else if (dataElement.Response.Value == "Nak")
+                        {
+                            LibraryLogger.Error($"Program command NAKed. Message: {dataElement.Response.Value}");
+                            return false;
+                        }
+                        else if (!string.IsNullOrEmpty(dataElement.Response.Value))
+                        {
+                            LibraryLogger.Warning($"Unexpected response value: {dataElement.Response.Value} while waiting for Program raw mode ACK.");
+                        }
+                    }
+                    else
+                    {
+                        LibraryLogger.Warning("Received unexpected data payload during Program (rawmode ACK loop).");
+                    }
+                    if (initialResponseReceived) break;
+                }
+                if (datas.Length == 0 && !initialResponseReceived)
+                {
+                    LibraryLogger.Error("Received empty data payload from GetFirehoseResponseDataPayloads (Program rawmode ACK loop), breaking.");
+                    return false;
+                }
+            }
+
+            if (!rawModeEnabled)
+            {
+                LibraryLogger.Error("Raw mode was not enabled by the device for Program operation. Aborting write.");
+                return false;
+            }
+
+            // Send the actual data in chunks from the stream
+            LibraryLogger.Debug($"Starting to stream {totalBytesToStreamIncludingPadding} bytes of data...");
+            Stopwatch transferStopwatch = Stopwatch.StartNew();
+            long totalBytesSent = 0;
+
+            int streamChunkSize = (int)Math.Min(1024 * 1024, totalBytesToStreamIncludingPadding); // 1MB or total, whichever is smaller
+
+            byte[] chunkBuffer = new byte[streamChunkSize];
+
+            try
+            {
+                if (storageType == StorageType.SPINOR) Firehose.Serial.SetTimeOut(300000); // 5 minutes for SPINOR
+                else Firehose.Serial.SetTimeOut(30000); // 30 seconds for other types
+
+                while (totalBytesSent < totalBytesToStreamIncludingPadding)
+                {
+                    int bytesToReadForThisChunk = (int)Math.Min(streamChunkSize, totalBytesToStreamIncludingPadding - totalBytesSent);
+
+                    int bytesActuallyReadFromStream = 0;
+                    int currentBufferOffset = 0;
+                    while (bytesActuallyReadFromStream < bytesToReadForThisChunk) // Ensure we fill the chunk or hit EOF
+                    {
+                        int read = inputStream.Read(chunkBuffer, currentBufferOffset, bytesToReadForThisChunk - bytesActuallyReadFromStream);
+                        if (read == 0) break; // EOF
+                        bytesActuallyReadFromStream += read;
+                        currentBufferOffset += read;
+                    }
+
+                    byte[] chunkToSend;
+                    if (bytesActuallyReadFromStream < bytesToReadForThisChunk)
+                    {
+                        // Reached EOF of input stream, but still need to send `bytesToReadForThisChunk` (which includes padding)
+                        LibraryLogger.Debug($"EOF reached on input stream. Read {bytesActuallyReadFromStream}, expected {bytesToReadForThisChunk}. Padding remaining.");
+                        chunkToSend = new byte[bytesToReadForThisChunk];
+                        Buffer.BlockCopy(chunkBuffer, 0, chunkToSend, 0, bytesActuallyReadFromStream);
+                        // The rest of chunkToSend is already zeros (due to new byte[]).
+                    }
+                    else
+                    {
+                        chunkToSend = new byte[bytesActuallyReadFromStream]; // Should be bytesToReadForThisChunk
+                        Buffer.BlockCopy(chunkBuffer, 0, chunkToSend, 0, bytesActuallyReadFromStream);
+                    }
+
+                    Firehose.Serial.SendLargeRawData(chunkToSend);
+
+                    totalBytesSent += chunkToSend.Length;
+                    progressCallback?.Invoke(totalBytesSent, totalBytesToStreamIncludingPadding);
+                }
+            }
+            catch (IOException ioEx)
+            {
+                LibraryLogger.Error($"IO Error during data streaming for Program: {ioEx.Message}. Sent {totalBytesSent}/{totalBytesToStreamIncludingPadding} bytes.");
+                transferStopwatch.Stop();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LibraryLogger.Error($"Error sending raw data stream for Program command: {ex.Message}. Sent {totalBytesSent}/{totalBytesToStreamIncludingPadding} bytes.");
+                transferStopwatch.Stop();
+                return false;
+            }
+
+            transferStopwatch.Stop();
+            LibraryLogger.Debug($"Raw data stream ({totalBytesSent} bytes) sent in {transferStopwatch.ElapsedMilliseconds} ms.");
+
+            if (totalBytesSent != totalBytesToStreamIncludingPadding)
+            {
+                LibraryLogger.Error($"Data streaming incomplete. Sent {totalBytesSent}, expected {totalBytesToStreamIncludingPadding}.");
+                return false;
+            }
+            Firehose.Serial.SendZeroLengthPacket();
+
+            // LOOP 2: Wait for final ACK/NAK after data transfer
+            bool finalAckReceived = false;
+            int finalAckAttempts = 0;
+
+            while (!finalAckReceived && finalAckAttempts < 20)
+            {
+                finalAckAttempts++;
+                Data[] datas = Firehose.GetFirehoseResponseDataPayloads();
+                foreach (Data dataElement in datas)
+                {
+                    if (dataElement.Log != null)
+                    {
+                        LibraryLogger.Debug("DEVPRG LOG: " + dataElement.Log.Value);
+                    }
+                    else if (dataElement.Response != null)
+                    {
+                        if (dataElement.Response.Value == "ACK")
+                        {
+                            LibraryLogger.Debug("Program operation successful (final ACK received).");
+                            finalAckReceived = true;
+                        }
+                        else if (dataElement.Response.Value == "Nak")
+                        {
+                            LibraryLogger.Error($"Program operation failed (final NAK received). Message: {dataElement.Response.Value}");
+                            return false;
+                        }
+                        else if (!string.IsNullOrEmpty(dataElement.Response.Value))
+                        {
+                            LibraryLogger.Warning($"Unexpected response value: {dataElement.Response.Value} while waiting for final Program ACK.");
+                        }
+                    }
+                    else
+                    {
+                        LibraryLogger.Warning("Received unexpected data payload during Program (final ACK loop).");
+                    }
+                    if (finalAckReceived) break;
+                }
+                if (datas.Length == 0 && !finalAckReceived)
+                {
+                    LibraryLogger.Warning($"Received empty data payload (Program final ACK loop attempt {finalAckAttempts}). Waiting briefly...");
+                    System.Threading.Thread.Sleep(500);
+                }
+            }
+
             if (!finalAckReceived)
             {
                 LibraryLogger.Error("Did not receive a clear final ACK/NAK after Program data transfer.");

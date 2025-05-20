@@ -238,13 +238,29 @@ namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara
             return Result;
         }
 
-        public bool CommandHandshake()
+        public bool CommandHandshake(byte[]? preReadHelloPacket = null)
         {
             bool Result = true;
+            byte[] Hello;
 
             try
             {
-                byte[] Hello = Serial.GetResponse([0x01, 0x00, 0x00, 0x00]);
+                if (preReadHelloPacket != null)
+                {
+                    LibraryLogger.Debug("Using pre-read HELLO packet for handshake.");
+                    Hello = preReadHelloPacket;
+                    // Basic validation: check command ID
+                    if (Hello.Length < 4 || ByteOperations.ReadUInt32(Hello, 0) != (uint)QualcommSaharaCommand.Hello)
+                    {
+                        LibraryLogger.Error("Pre-read packet is not a valid Sahara HELLO packet.");
+                        throw new BadMessageException("Invalid pre-read HELLO packet.");
+                    }
+                }
+                else
+                {
+                    LibraryLogger.Debug("Reading HELLO packet from device for handshake.");
+                    Hello = Serial.GetResponse([0x01, 0x00, 0x00, 0x00]);
+                }
 
                 // Incoming Hello packet:
                 // 00000001 = Hello command id
@@ -267,10 +283,16 @@ namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara
 
                 uint ResponseID = ByteOperations.ReadUInt32(Ready, 0);
 
-                if (ResponseID != 0xB)
+                if (ResponseID != (uint)QualcommSaharaCommand.CommandReady)
                 {
-                    throw new BadConnectionException();
+                    LibraryLogger.Error($"Expected CommandReady (0x0B) but received {ResponseID:X2}.");
+                    throw new BadConnectionException($"Unexpected response after HelloResponse: {ResponseID:X2}");
                 }
+            }
+            catch (BadMessageException bmEx)
+            {
+                LibraryLogger.Error($"Handshake failed due to bad message: {bmEx.Message}");
+                Result = false;
             }
             catch (Exception ex)
             {

@@ -13,8 +13,6 @@ namespace QCEDL.CLI.Core
 {
     internal class EdlManager : IDisposable
     {
-        private int _libUsbVid;
-        private int _libUsbPid;
         private readonly GlobalOptionsBinder _globalOptions;
         private string? _devicePath;
         private Guid? _deviceGuid;
@@ -28,6 +26,7 @@ namespace QCEDL.CLI.Core
         private static readonly Guid WinUSBGuid = new("{a5dcbf10-6530-11d2-901f-00c04fb951ed}");
 
         private DeviceMode _currentMode = DeviceMode.Unknown;
+        private byte[]? _initialSaharaHelloPacket;
 
         public DeviceMode CurrentMode => _currentMode;
 
@@ -61,7 +60,7 @@ namespace QCEDL.CLI.Core
                     return DeviceMode.Error;
                 }
             }
-            // Close any existing connection if forcing reconnect
+
             if (forceReconnect)
             {
                 _serialPort?.Dispose();
@@ -69,7 +68,9 @@ namespace QCEDL.CLI.Core
                 _saharaClient = null;
                 _firehoseClient = null;
                 _currentMode = DeviceMode.Unknown;
+                _initialSaharaHelloPacket = null;
             }
+
             Logging.Log("Probing device mode...", LogLevel.Debug);
             QualcommSerial? probeSerial = null;
             DeviceMode detectedMode = DeviceMode.Unknown;
@@ -112,19 +113,13 @@ namespace QCEDL.CLI.Core
                     {
                         Logging.Log("Passive read matches Sahara HELLO pattern. Detected Mode: Sahara", LogLevel.Debug);
                         detectedMode = DeviceMode.Sahara;
+                        _initialSaharaHelloPacket = initialReadBuffer;
 
-                        Logging.Log("Sending ResetStateMachine command to prompt re-sending HELLO...", LogLevel.Debug);
-                        try
-                        {
-                            byte[] resetStateMachineCmd = QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.ResetStateMachine);
-                            probeSerial.SendData(resetStateMachineCmd);
-                            await Task.Delay(50); // Small delay
-                        }
-                        catch (Exception rsmEx)
-                        {
-                            Logging.Log($"Failed to send ResetStateMachine: {rsmEx.Message}", LogLevel.Warning);
-                            // Continue detection, but handshake might fail later
-                        }
+                        _serialPort = probeSerial; // Keep the probeSerial as the main _serialPort
+                        probeSerial = null; // Nullify probeSerial so it's not disposed in finally if kept
+                        _saharaClient = new QualcommSahara(_serialPort);
+                        _currentMode = DeviceMode.Sahara;
+
                     }
                     // Check for Firehose XML start
                     else if (Encoding.UTF8.GetString(initialReadBuffer).Contains("<?xml"))
@@ -141,80 +136,100 @@ namespace QCEDL.CLI.Core
                 // --- Probe 2: Active Firehose NOP (If Passive Read Failed/Inconclusive) ---
                 if (detectedMode == DeviceMode.Unknown)
                 {
-                    Logging.Log("Passive read inconclusive. Attempting active Firehose NOP probe...", LogLevel.Debug);
-                    try
+                    QualcommSerial serialForFirehoseProbe = _serialPort ?? probeSerial;
+                    if (serialForFirehoseProbe == null)
                     {
-                        probeSerial.SetTimeOut(1500); // Slightly longer timeout for active probe
-                        var firehoseProbe = new QualcommFirehose(probeSerial);
-                        string nopCommand = QualcommFirehoseXml.BuildCommandPacket([new Data() { Nop = new Nop() }]);
-                        firehoseProbe.Serial.SendData(Encoding.UTF8.GetBytes(nopCommand));
-                        var datas = await Task.Run(() => firehoseProbe.GetFirehoseResponseDataPayloads());
-                        if (datas.Length > 0)
+                        Logging.Log("No serial port available for Firehose NOP probe.", LogLevel.Error);
+                    }
+                    else
+                    {
+                        Logging.Log("Passive read inconclusive. Attempting active Firehose NOP probe...", LogLevel.Debug);
+                        try
                         {
-                            Logging.Log("Firehose NOP probe successful. Detected Mode: Firehose", LogLevel.Debug);
-                            detectedMode = DeviceMode.Firehose;
-
-                            Logging.Log("Flushing serial output...", LogLevel.Debug);
-                            // Logging.Log("Reading initial data from device...", LogLevel.Debug);
-                            // FlushForResponse();
-                            bool GotResponse = false;
-                            try
+                            serialForFirehoseProbe.SetTimeOut(1500);
+                            var firehoseProbe = new QualcommFirehose(serialForFirehoseProbe);
+                            string nopCommand = QualcommFirehoseXml.BuildCommandPacket([new Data() { Nop = new Nop() }]);
+                            firehoseProbe.Serial.SendData(Encoding.UTF8.GetBytes(nopCommand));
+                            var datas = await Task.Run(() => firehoseProbe.GetFirehoseResponseDataPayloads());
+                            if (datas.Length > 0)
                             {
-                                while (!GotResponse)
-                                {
-                                    Data[] flushingDatas = firehoseProbe.GetFirehoseResponseDataPayloads();
+                                Logging.Log("Firehose NOP probe successful. Detected Mode: Firehose", LogLevel.Debug);
+                                detectedMode = DeviceMode.Firehose;
 
-                                    foreach (Data data in flushingDatas)
+                                Logging.Log("Flushing serial output...", LogLevel.Debug);
+                                // Logging.Log("Reading initial data from device...", LogLevel.Debug);
+                                // FlushForResponse();
+                                bool GotResponse = false;
+                                try
+                                {
+                                    while (!GotResponse)
                                     {
-                                        if (data.Log != null)
+                                        Data[] flushingDatas = firehoseProbe.GetFirehoseResponseDataPayloads();
+
+                                        foreach (Data data in flushingDatas)
                                         {
-                                            Logging.Log("DEVPRG LOG: " + data.Log.Value, LogLevel.Debug);
-                                        }
-                                        else if (data.Response != null)
-                                        {
-                                            GotResponse = true;
+                                            if (data.Log != null)
+                                            {
+                                                Logging.Log("DEVPRG LOG: " + data.Log.Value, LogLevel.Debug);
+                                            }
+                                            else if (data.Response != null)
+                                            {
+                                                GotResponse = true;
+                                            }
                                         }
                                     }
                                 }
+                                catch (BadConnectionException) { }
                             }
-                            catch (BadConnectionException) { }
+                            else
+                            {
+                                Logging.Log("Firehose NOP probe: No XML response received.", LogLevel.Debug);
+                            }
                         }
-                        else
-                        {
-                            Logging.Log("Firehose NOP probe: No XML response received.", LogLevel.Debug);
-                        }
+                        catch (TimeoutException) { Logging.Log("Firehose NOP probe timed out.", LogLevel.Debug); }
+                        catch (BadConnectionException) { Logging.Log("Firehose NOP probe failed (bad connection).", LogLevel.Debug); }
+                        catch (BadMessageException) { Logging.Log("Firehose NOP probe failed (bad message).", LogLevel.Debug); }
+                        catch (Exception ex) { Logging.Log($"Firehose NOP probe failed unexpectedly: {ex.Message}", LogLevel.Debug); }
                     }
-                    catch (TimeoutException) { Logging.Log("Firehose NOP probe timed out.", LogLevel.Debug); }
-                    catch (BadConnectionException) { Logging.Log("Firehose NOP probe failed (bad connection).", LogLevel.Debug); }
-                    catch (BadMessageException) { Logging.Log("Firehose NOP probe failed (bad message).", LogLevel.Debug); }
-                    catch (Exception ex) { Logging.Log($"Firehose NOP probe failed unexpectedly: {ex.Message}", LogLevel.Debug); }
                 }
 
                 // --- Probe 3: Active Sahara Handshake (If Still Unknown) ---
                 if (detectedMode == DeviceMode.Unknown)
                 {
-                    Logging.Log("Probes inconclusive. Attempting *full* Sahara handshake as last resort...", LogLevel.Info);
-                    try
+                    QualcommSerial serialForSaharaProbe = _serialPort ?? probeSerial;
+                    if (serialForSaharaProbe == null)
                     {
-                        probeSerial.SetTimeOut(2000); // Timeout for handshake
-                        var saharaProbe = new QualcommSahara(probeSerial);
-                        // CommandHandshake tries to read HELLO first, then sends HelloResponse, waits for CommandReady
-                        // If the initial read fails quickly (because it's not Sahara), it should exit.
-                        if (await Task.Run(() => saharaProbe.CommandHandshake()))
-                        {
-                            Logging.Log("Full Sahara handshake probe successful. Detected Mode: Sahara", LogLevel.Info);
-                            detectedMode = DeviceMode.Sahara;
-                            try { saharaProbe.ResetSahara(); } catch { /* Ignore reset errors */ }
-                        }
-                        else
-                        {
-                            Logging.Log("Full Sahara handshake probe failed.", LogLevel.Warning);
-                        }
+                        Logging.Log("No serial port available for Sahara handshake probe.", LogLevel.Error);
                     }
-                    catch (TimeoutException) { Logging.Log("Full Sahara handshake probe timed out.", LogLevel.Debug); }
-                    catch (BadConnectionException) { Logging.Log("Full Sahara handshake probe failed (bad connection).", LogLevel.Debug); }
-                    catch (BadMessageException) { Logging.Log("Full Sahara handshake probe failed (bad message - likely not Sahara).", LogLevel.Debug); }
-                    catch (Exception ex) { Logging.Log($"Full Sahara handshake probe failed unexpectedly: {ex.Message}", LogLevel.Debug); }
+                    else
+                    {
+                        Logging.Log("Probes inconclusive. Attempting *full* Sahara handshake as last resort...", LogLevel.Info);
+                        try
+                        {
+                            serialForSaharaProbe.SetTimeOut(2000);
+                            var saharaProbeClient = new QualcommSahara(serialForSaharaProbe);
+                            // Pass null to CommandHandshake as we don't have a pre-read packet here
+                            if (await Task.Run(() => saharaProbeClient.CommandHandshake(null)))
+                            {
+                                Logging.Log("Full Sahara handshake probe successful. Detected Mode: Sahara", LogLevel.Info);
+                                detectedMode = DeviceMode.Sahara;
+                                // If successful, this becomes the main connection
+                                _serialPort = serialForSaharaProbe;
+                                probeSerial = null; // Don't dispose it
+                                _saharaClient = saharaProbeClient;
+                                _currentMode = DeviceMode.Sahara;
+                                try { _saharaClient.ResetSahara(); } catch { /* Ignore reset errors */ }
+                            }
+                            else
+                            {
+                                Logging.Log("Full Sahara handshake probe failed.", LogLevel.Warning);
+                            }
+                        }
+                        catch (TimeoutException) { Logging.Log("Full Sahara handshake probe timed out.", LogLevel.Debug); }
+                        catch (BadConnectionException) { Logging.Log("Full Sahara handshake probe failed (bad connection).", LogLevel.Debug); }
+                        catch (BadMessageException) { Logging.Log("Full Sahara handshake probe failed (bad message - likely not Sahara).", LogLevel.Debug); }
+                        catch (Exception ex) { Logging.Log($"Full Sahara handshake probe failed unexpectedly: {ex.Message}", LogLevel.Debug); }
+                    }
                 }
                 // --- Probe 4: Add streaming probe if needed ---
             }
@@ -225,11 +240,19 @@ namespace QCEDL.CLI.Core
             }
             finally
             {
-                probeSerial?.Dispose(); // Dispose the temporary connection
+                // Dispose probeSerial ONLY if it wasn't kept as the main _serialPort
+                if (probeSerial != null && probeSerial != _serialPort)
+                {
+                    probeSerial.Dispose();
+                }
             }
-            Logging.Log($"Detected device mode: {detectedMode}", LogLevel.Info);
-            _currentMode = detectedMode;
-            return detectedMode;
+
+            if (_currentMode == DeviceMode.Unknown)
+            {
+                _currentMode = detectedMode;
+            }
+            Logging.Log($"Detected device mode: {_currentMode}", LogLevel.Info);
+            return _currentMode;
         }
 
         /// <summary>
@@ -286,8 +309,6 @@ namespace QCEDL.CLI.Core
                 LibUsbDotNet.LibUsb.IUsbDevice usbDevice = QualcommSerial.LibUsbContext.Find(finder);
                 if (usbDevice != null)
                 {
-                    _libUsbVid = vidToFind;
-                    _libUsbPid = pidToFind;
                     // _libUsbSerialNumber = serialToFind; // If used
                     _devicePath = $"usb:vid_{vidToFind:X4},pid_{pidToFind:X4}";
                     _deviceGuid = WinUSBGuid; // Use WinUSBGuid to signify LibUsbDotNet backend to QualcommSerial
@@ -504,16 +525,6 @@ namespace QCEDL.CLI.Core
         /// </summary>
         public async Task EnsureFirehoseModeAsync()
         {
-            Logging.Log(@"
- __        ___    ____  _   _ ___ _   _  ____ 
- \ \      / / \  |  _ \| \ | |_ _| \ | |/ ___|
-  \ \ /\ / / _ \ | |_) |  \| || ||  \| | |  _ 
-   \ V  V / ___ \|  _ <| |\  || || |\  | |_| |
-    \_/\_/_/   \_\_| \_\_| \_|___|_| \_|\____|
-                                              ", LogLevel.Error);
-            Logging.Log("This tool is highly experimental and may not work as expected.", LogLevel.Error);
-            Logging.Log("Please do not use in production, and be sure to check for updates.", LogLevel.Error);
-
             if (_currentMode == DeviceMode.Firehose && _firehoseClient != null)
             {
                 Logging.Log("Already in Firehose mode.", LogLevel.Debug);
@@ -601,51 +612,54 @@ namespace QCEDL.CLI.Core
                 throw new FileNotFoundException($"Loader file not found: {_globalOptions.LoaderPath}");
             }
 
-            // Ensure device path is known before proceeding
-            if (string.IsNullOrEmpty(_devicePath))
+            if (_saharaClient == null || _serialPort == null)
             {
-                if (!FindDevice())
+                Logging.Log("Sahara client not pre-established, creating new connection.", LogLevel.Debug);
+                if (string.IsNullOrEmpty(_devicePath))
                 {
-                    throw new InvalidOperationException("Failed to find a suitable EDL device before Sahara upload.");
+                    if (!FindDevice())
+                    {
+                        throw new InvalidOperationException("Failed to find a suitable EDL device before Sahara upload.");
+                    }
                 }
+
+                _serialPort?.Dispose();
+                _serialPort = new QualcommSerial(_devicePath!);
+                _saharaClient = new QualcommSahara(_serialPort);
+                _initialSaharaHelloPacket = null;
+            }
+            else
+            {
+                Logging.Log("Using pre-established Sahara connection.", LogLevel.Debug);
             }
 
-            _serialPort?.Dispose();
-            _serialPort = null;
-            _firehoseClient = null;
-            _saharaClient = null;
-            Logging.Log($"Connecting to device {_devicePath} in Sahara mode...", LogLevel.Debug);
-            _serialPort = new QualcommSerial(_devicePath!);
-            _saharaClient = new QualcommSahara(_serialPort);
-
-            // Perform reset state machine here as well, otherwise it doesn't work with COM driver
-            // TODO: Why this doesn't work with WinUSB?
-            if (_deviceGuid == COMPortGuid)
+            if (_deviceGuid == COMPortGuid && _initialSaharaHelloPacket == null) // Only if using COM port and not using pre-read packet
             {
-                Logging.Log("Sending ResetStateMachine command to device...", LogLevel.Debug);
+                Logging.Log("Device is COM Port and no pre-read HELLO. Sending ResetStateMachine command to device...", LogLevel.Debug);
                 try
                 {
                     byte[] resetStateMachineCmd = QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.ResetStateMachine);
                     _serialPort.SendData(resetStateMachineCmd);
-                    await Task.Delay(50); // Small delay
+                    await Task.Delay(50);
                 }
                 catch (Exception rsmEx)
                 {
-                    Logging.Log($"Failed to send ResetStateMachine: {rsmEx.Message}", LogLevel.Warning);
+                    Logging.Log($"Failed to send ResetStateMachine for COM port: {rsmEx.Message}", LogLevel.Warning);
                 }
             }
 
             try
             {
                 Logging.Log("Attempting Sahara handshake...", LogLevel.Debug);
-                if (!_saharaClient.CommandHandshake())
+                if (!_saharaClient.CommandHandshake(_initialSaharaHelloPacket))
                 {
                     Logging.Log("Initial Sahara handshake failed, attempting reset and retry...", LogLevel.Warning);
+                    _initialSaharaHelloPacket = null;
                     try
                     {
                         _saharaClient.ResetSahara();
                         await Task.Delay(500);
-                        if (!_saharaClient.CommandHandshake())
+                        if (!_saharaClient.CommandHandshake(null))
                         {
                             throw new Exception("Sahara handshake failed even after reset.");
                         }
@@ -661,6 +675,7 @@ namespace QCEDL.CLI.Core
                 {
                     Logging.Log("Sahara handshake successful.", LogLevel.Debug);
                 }
+                _initialSaharaHelloPacket = null;
 
                 uint deviceVersion = _saharaClient.DetectedDeviceSaharaVersion;
 
@@ -712,7 +727,7 @@ namespace QCEDL.CLI.Core
             }
             finally
             {
-                Logging.Log("Closing Sahara connection.", LogLevel.Debug);
+                Logging.Log("Closing Sahara connection after loader upload attempt.", LogLevel.Debug);
                 _serialPort?.Close();
                 _serialPort = null;
                 _saharaClient = null;
