@@ -795,6 +795,68 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return true;
         }
 
+        public static bool Erase(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize, uint startSector, uint numSectorsToErase)
+        {
+            LibraryLogger.Debug($"ERASE: LUN{LUNi}, StartSector: {startSector}, NumSectors: {numSectorsToErase}, SectorSize: {sectorSize}");
+
+            if (numSectorsToErase == 0)
+            {
+                LibraryLogger.Warning("Erase command: numSectorsToErase is 0. Nothing to erase.");
+                return true;
+            }
+
+            string eraseCommandXml = QualcommFirehoseXml.BuildCommandPacket([
+                QualcommFirehoseXmlPackets.GetErasePacket(storageType, LUNi, sectorSize, startSector, numSectorsToErase)
+            ]);
+
+            Firehose.Serial.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
+
+            bool finalAckOrNakReceived = false;
+            bool success = false;
+            int attempts = 0;
+
+            // Erasing SPINOR can take a while
+            Firehose.Serial.SetTimeOut(10000);
+            const int maxAttempts = 100;
+
+            while (!finalAckOrNakReceived && attempts < maxAttempts)
+            {
+                attempts++;
+                Data[] datas;
+                try
+                {
+                    datas = Firehose.GetFirehoseResponseDataPayloads();
+                }
+                catch (TimeoutException)
+                {
+                    LibraryLogger.Warning($"Timeout waiting for response to Erase command (Attempt {attempts}/{maxAttempts}).");
+                    if (attempts < maxAttempts) Thread.Sleep(500);
+                    continue;
+                }
+                catch (BadMessageException bme)
+                {
+                    LibraryLogger.Warning($"Bad message received for Erase command (Attempt {attempts}/{maxAttempts}): {bme.Message}");
+                    if (attempts < maxAttempts) Thread.Sleep(200);
+                    continue;
+                }
+
+                foreach (Data data in datas)
+                {
+                    if (data.Log != null) LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
+                    else if (data.Response != null)
+                    {
+                        if (data.Response.Value == "ACK") { LibraryLogger.Debug("Erase command ACKed."); success = true; }
+                        else if (data.Response.Value == "Nak") { LibraryLogger.Error($"Erase command NAKed. Details: {data.Response.Value}"); success = false; }
+                        else { LibraryLogger.Warning($"Unexpected response value for Erase: {data.Response.Value}"); success = false; }
+                        finalAckOrNakReceived = true;
+                        break;
+                    }
+                }
+            }
+            if (!finalAckOrNakReceived) { LibraryLogger.Error("Failed to get ACK/NAK after sending Erase command and multiple attempts."); return false; }
+            return success;
+        }
+
         public static bool Reset(this QualcommFirehose Firehose, PowerValue powerValue = PowerValue.reset, uint delayInSeconds = 1)
         {
             LibraryLogger.Debug("Rebooting phone");

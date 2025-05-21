@@ -57,6 +57,22 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
             };
         }
 
+        public static Data GetErasePacket(StorageType storageType, uint LUNi, uint sectorSize, uint startSector, uint numSectorsToErase)
+        {
+            return new Data()
+            {
+                Erase = new Erase()
+                {
+                    PhysicalPartitionNumber = LUNi,
+                    StorageType = storageType,
+                    Slot = 0,
+                    SectorSizeInBytes = sectorSize,
+                    StartSector = startSector.ToString(),
+                    NumPartitionSectors = numSectorsToErase.ToString()
+                }
+            };
+        }
+
         public static Data GetPowerPacket(PowerValue powerValue = PowerValue.reset, uint delayInSeconds = 1)
         {
             return new Data()

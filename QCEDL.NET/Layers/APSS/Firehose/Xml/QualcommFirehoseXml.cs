@@ -83,6 +83,18 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
                     if (prog.ShouldSerializeFileName()) programElement.Add(new XAttribute("filename", prog.FileName));
                     dataElement.Add(programElement);
                 }
+                else if (data.Erase != null)
+                {
+                    var eraseCmd = data.Erase;
+                    var eraseElement = new XElement("erase");
+                    if (eraseCmd.ShouldSerializeStorageType()) eraseElement.Add(new XAttribute("storage_type", GetEnumXmlName(eraseCmd.StorageType)));
+                    if (eraseCmd.ShouldSerializePhysicalPartitionNumber()) eraseElement.Add(new XAttribute("physical_partition_number", eraseCmd.PhysicalPartitionNumber.ToString(CultureInfo.InvariantCulture)));
+                    if (eraseCmd.ShouldSerializeSlot()) eraseElement.Add(new XAttribute("slot", eraseCmd.Slot.ToString(CultureInfo.InvariantCulture)));
+                    if (eraseCmd.ShouldSerializeSectorSizeInBytes()) eraseElement.Add(new XAttribute("SECTOR_SIZE_IN_BYTES", eraseCmd.SectorSizeInBytes.ToString(CultureInfo.InvariantCulture)));
+                    if (eraseCmd.ShouldSerializeStartSector()) eraseElement.Add(new XAttribute("start_sector", eraseCmd.StartSector)); // Is a string
+                    if (eraseCmd.ShouldSerializeNumPartitionSectors()) eraseElement.Add(new XAttribute("num_partition_sectors", eraseCmd.NumPartitionSectors)); // Is a string
+                    dataElement.Add(eraseElement);
+                }
                 else if (data.Power != null)
                 {
                     var pwr = data.Power;
@@ -205,7 +217,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
                 XElement? programElement = dataElement.Element("program");
                 if (programElement != null)
                 {
-                    var program = new Elements.Program(); // Explicitly Elements.Program
+                    var program = new Program();
                     string? storageTypeStr = (string?)programElement.Attribute("storage_type");
                     if (storageTypeStr != null && Enum.TryParse<StorageType>(storageTypeStr, true, out var stVal)) program.StorageType = stVal;
                     if (uint.TryParse((string?)programElement.Attribute("physical_partition_number"), NumberStyles.Any, CultureInfo.InvariantCulture, out var ppnVal)) program.PhysicalPartitionNumber = ppnVal;
@@ -215,6 +227,20 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
                     program.NumPartitionSectors = (string?)programElement.Attribute("num_partition_sectors") ?? "";
                     program.FileName = (string?)programElement.Attribute("filename") ?? "";
                     data.Program = program;
+                }
+
+                XElement? eraseElement = dataElement.Element("erase");
+                if (eraseElement != null)
+                {
+                    var eraseCmd = new Erase();
+                    string? storageTypeStr = (string?)eraseElement.Attribute("storage_type");
+                    if (storageTypeStr != null && Enum.TryParse<StorageType>(storageTypeStr, true, out var stVal)) eraseCmd.StorageType = stVal;
+                    if (uint.TryParse((string?)eraseElement.Attribute("physical_partition_number"), NumberStyles.Any, CultureInfo.InvariantCulture, out var ppnVal)) eraseCmd.PhysicalPartitionNumber = ppnVal;
+                    if (uint.TryParse((string?)eraseElement.Attribute("slot"), NumberStyles.Any, CultureInfo.InvariantCulture, out var slotVal)) eraseCmd.Slot = slotVal;
+                    if (uint.TryParse((string?)eraseElement.Attribute("SECTOR_SIZE_IN_BYTES"), NumberStyles.Any, CultureInfo.InvariantCulture, out var ssVal)) eraseCmd.SectorSizeInBytes = ssVal;
+                    eraseCmd.StartSector = (string?)eraseElement.Attribute("start_sector") ?? "";
+                    eraseCmd.NumPartitionSectors = (string?)eraseElement.Attribute("num_partition_sectors") ?? "";
+                    data.Erase = eraseCmd;
                 }
 
                 XElement? powerElement = dataElement.Element("power");

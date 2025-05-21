@@ -52,5 +52,11 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements
         {
             get; set;
         }
+
+        [XmlElement(ElementName = "erase")]
+        public Erase? Erase
+        {
+            get; set;
+        }
     }
 }
