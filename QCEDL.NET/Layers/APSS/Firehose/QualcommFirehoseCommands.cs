@@ -94,12 +94,12 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return ResponseBuffer;
         }
 
-        public static byte[] Read(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize, uint FirstSector, uint LastSector)
+        public static byte[] Read(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint FirstSector, uint LastSector)
         {
-            LibraryLogger.Debug($"READ: LUN{LUNi}, FirstSector: {FirstSector}, LastSector: {LastSector}, SectorSize: {sectorSize}");
+            LibraryLogger.Debug($"READ: LUN{LUNi}, Slot: {slot}, FirstSector: {FirstSector}, LastSector: {LastSector}, SectorSize: {sectorSize}");
 
             string Command03 = QualcommFirehoseXml.BuildCommandPacket([
-                QualcommFirehoseXmlPackets.GetReadPacket(storageType, LUNi, sectorSize, FirstSector, LastSector)
+                QualcommFirehoseXmlPackets.GetReadPacket(storageType, LUNi, slot, sectorSize, FirstSector, LastSector)
             ]);
 
             Firehose.Serial.SendData(Encoding.UTF8.GetBytes(Command03));
@@ -224,13 +224,13 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return readBuffer;
         }
 
-        public static bool ReadToStream(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize,
+        public static bool ReadToStream(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint slot, uint sectorSize,
                                         uint FirstSector, uint LastSector, Stream outputStream, Action<long, long>? progressCallback = null)
         {
-            LibraryLogger.Debug($"ReadToStream: LUN{LUNi}, FirstSector: {FirstSector}, LastSector: {LastSector}, SectorSize: {sectorSize}");
+            LibraryLogger.Debug($"ReadToStream: LUN{LUNi}, Slot: {slot}, FirstSector: {FirstSector}, LastSector: {LastSector}, SectorSize: {sectorSize}");
 
             string Command03 = QualcommFirehoseXml.BuildCommandPacket([
-                QualcommFirehoseXmlPackets.GetReadPacket(storageType, LUNi, sectorSize, FirstSector, LastSector)
+                QualcommFirehoseXmlPackets.GetReadPacket(storageType, LUNi, slot, sectorSize, FirstSector, LastSector)
             ]);
 
             Firehose.Serial.SendData(Encoding.UTF8.GetBytes(Command03));
@@ -435,7 +435,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return true;
         }
 
-        public static bool Program(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize, uint startSector, string? filenameForXml, byte[] dataToWrite)
+        public static bool Program(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint startSector, string? filenameForXml, byte[] dataToWrite)
         {
             if (dataToWrite == null || dataToWrite.Length == 0)
             {
@@ -448,9 +448,9 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
                 return false;
             }
             uint numSectorsToWrite = (uint)(dataToWrite.Length / sectorSize);
-            LibraryLogger.Debug($"PROGRAM: LUN{LUNi}, StartSector: {startSector}, NumSectors: {numSectorsToWrite}, SectorSize: {sectorSize}, File: {filenameForXml ?? "N/A"}");
+            LibraryLogger.Debug($"PROGRAM: LUN{LUNi}, Slot: {slot}, StartSector: {startSector}, NumSectors: {numSectorsToWrite}, SectorSize: {sectorSize}, File: {filenameForXml ?? "N/A"}");
             string programCommandXml = QualcommFirehoseXml.BuildCommandPacket([
-                QualcommFirehoseXmlPackets.GetProgramPacket(storageType, LUNi, sectorSize, startSector, numSectorsToWrite, filenameForXml)
+                QualcommFirehoseXmlPackets.GetProgramPacket(storageType, LUNi, slot, sectorSize, startSector, numSectorsToWrite, filenameForXml)
             ]);
             Firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
             bool rawModeEnabled = false;
@@ -587,6 +587,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
         public static bool ProgramFromStream(this QualcommFirehose Firehose,
                                                  StorageType storageType,
                                                  uint LUNi,
+                                                 uint slot,
                                                  uint sectorSize,
                                                  uint startSector,
                                                  uint numSectorsForXml, // Number of sectors based on total padded size
@@ -595,7 +596,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
                                                  Stream inputStream,
                                                  Action<long, long>? progressCallback = null)
         {
-            LibraryLogger.Debug($"PROGRAM (from stream): LUN{LUNi}, StartSector: {startSector}, NumSectorsInXml: {numSectorsForXml}, TotalBytesToStream: {totalBytesToStreamIncludingPadding}, SectorSize: {sectorSize}, File: {filenameForXml ?? "N/A"}");
+            LibraryLogger.Debug($"PROGRAM (from stream): LUN{LUNi}, Slot: {slot}, StartSector: {startSector}, numSectorsForXml: {numSectorsForXml}, TotalBytesToStream: {totalBytesToStreamIncludingPadding}, SectorSize: {sectorSize}, File: {filenameForXml ?? "N/A"}");
 
             if (totalBytesToStreamIncludingPadding == 0)
             {
@@ -609,7 +610,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             }
 
             string programCommandXml = QualcommFirehoseXml.BuildCommandPacket([
-                QualcommFirehoseXmlPackets.GetProgramPacket(storageType, LUNi, sectorSize, startSector, numSectorsForXml, filenameForXml)
+                QualcommFirehoseXmlPackets.GetProgramPacket(storageType, LUNi, slot, sectorSize, startSector, numSectorsForXml, filenameForXml)
             ]);
 
             Firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
@@ -795,9 +796,9 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return true;
         }
 
-        public static bool Erase(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint sectorSize, uint startSector, uint numSectorsToErase)
+        public static bool Erase(this QualcommFirehose Firehose, StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint startSector, uint numSectorsToErase)
         {
-            LibraryLogger.Debug($"ERASE: LUN{LUNi}, StartSector: {startSector}, NumSectors: {numSectorsToErase}, SectorSize: {sectorSize}");
+            LibraryLogger.Debug($"ERASE: LUN{LUNi}, Slot: {slot}, StartSector: {startSector}, NumSectors: {numSectorsToErase}, SectorSize: {sectorSize}");
 
             if (numSectorsToErase == 0)
             {
@@ -806,7 +807,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             }
 
             string eraseCommandXml = QualcommFirehoseXml.BuildCommandPacket([
-                QualcommFirehoseXmlPackets.GetErasePacket(storageType, LUNi, sectorSize, startSector, numSectorsToErase)
+                QualcommFirehoseXmlPackets.GetErasePacket(storageType, LUNi, slot, sectorSize, startSector, numSectorsToErase)
             ]);
 
             Firehose.Serial.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
@@ -898,12 +899,12 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return true;
         }
 
-        public static JSON.StorageInfo.Root? GetStorageInfo(this QualcommFirehose Firehose, StorageType storageType = StorageType.UFS, uint PhysicalPartitionNumber = 0)
+        public static JSON.StorageInfo.Root? GetStorageInfo(this QualcommFirehose Firehose, StorageType storageType = StorageType.UFS, uint PhysicalPartitionNumber = 0, uint slot = 0)
         {
-            LibraryLogger.Debug("Getting Storage Info");
+            LibraryLogger.Debug($"Getting Storage Info for LUN {PhysicalPartitionNumber} (StorageType: {storageType}, Slot: {slot})");
 
             string Command03 = QualcommFirehoseXml.BuildCommandPacket([
-                QualcommFirehoseXmlPackets.GetStorageInfoPacket(storageType, PhysicalPartitionNumber)
+                QualcommFirehoseXmlPackets.GetStorageInfoPacket(storageType, PhysicalPartitionNumber, slot)
             ]);
 
             Firehose.Serial.SendData(Encoding.UTF8.GetBytes(Command03));

@@ -43,7 +43,7 @@ namespace QCEDL.CLI.Commands
                 try
                 {
                     // Wrap GetStorageInfo in Task.Run if it's potentially blocking or synchronous
-                    storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun));
+                    storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
                 }
                 catch (Exception storageEx)
                 {
@@ -74,6 +74,7 @@ namespace QCEDL.CLI.Commands
                 byte[] gptData = await Task.Run(() => manager.Firehose.Read(
                     storageType,
                     lun,
+                    globalOptions.Slot,
                     sectorSize,
                     0, // Start sector
                     sectorsToRead - 1 // Last sector (inclusive)

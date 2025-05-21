@@ -23,15 +23,15 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
             };
         }
 
-        public static Data GetReadPacket(StorageType storageType, uint LUNi, uint sectorSize, uint FirstSector, uint LastSector)
+        public static Data GetReadPacket(StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint FirstSector, uint LastSector)
         {
             return new Data()
             {
                 Read = new Read()
                 {
                     PhysicalPartitionNumber = LUNi,
+                    Slot = slot,
                     StorageType = storageType,
-                    Slot = 0,
                     SectorSizeInBytes = sectorSize,
                     StartSector = FirstSector.ToString(),
                     LastSector = LastSector,
@@ -40,7 +40,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
             };
         }
 
-        public static Data GetProgramPacket(StorageType storageType, uint LUNi, uint sectorSize, uint startSector, uint numSectors, string? filename)
+        public static Data GetProgramPacket(StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint startSector, uint numSectors, string? filename)
         {
             return new Data()
             {
@@ -48,7 +48,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
                 {
                     PhysicalPartitionNumber = LUNi,
                     StorageType = storageType,
-                    Slot = 0,
+                    Slot = slot,
                     SectorSizeInBytes = sectorSize,
                     StartSector = startSector.ToString(),
                     NumPartitionSectors = numSectors.ToString(),
@@ -57,7 +57,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
             };
         }
 
-        public static Data GetErasePacket(StorageType storageType, uint LUNi, uint sectorSize, uint startSector, uint numSectorsToErase)
+        public static Data GetErasePacket(StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint startSector, uint numSectorsToErase)
         {
             return new Data()
             {
@@ -65,7 +65,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
                 {
                     PhysicalPartitionNumber = LUNi,
                     StorageType = storageType,
-                    Slot = 0,
+                    Slot = slot,
                     SectorSizeInBytes = sectorSize,
                     StartSector = startSector.ToString(),
                     NumPartitionSectors = numSectorsToErase.ToString()
@@ -85,15 +85,15 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml
             };
         }
 
-        public static Data GetStorageInfoPacket(StorageType storageType, uint PhysicalPartitionNumber = 0)
+        public static Data GetStorageInfoPacket(StorageType storageType, uint physicalPartitionNumber = 0, uint slot = 0)
         {
             return new Data()
             {
                 GetStorageInfo = new GetStorageInfo()
                 {
-                    PhysicalPartitionNumber = PhysicalPartitionNumber,
+                    PhysicalPartitionNumber = physicalPartitionNumber,
                     StorageType = storageType,
-                    //Slot = 0
+                    Slot = slot
                 }
             };
         }

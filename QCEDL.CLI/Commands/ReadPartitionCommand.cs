@@ -71,7 +71,7 @@ namespace QCEDL.CLI.Commands
                     try
                     {
                         // Attempt to get info from LUN 0, as it often contains num_physical
-                        devInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, 0));
+                        devInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot));
                     }
                     catch (Exception ex)
                     {
@@ -107,7 +107,7 @@ namespace QCEDL.CLI.Commands
                     Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? lunStorageInfo = null;
                     try
                     {
-                        lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun));
+                        lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
                     }
                     catch (Exception storageEx)
                     {
@@ -136,6 +136,7 @@ namespace QCEDL.CLI.Commands
                         gptData = await Task.Run(() => manager.Firehose.Read(
                            storageType,
                            currentLun,
+                           globalOptions.Slot,
                            currentSectorSize,
                            0, // Start sector for GPT
                            sectorsForGptRead - 1 // Last sector for GPT
@@ -243,6 +244,7 @@ namespace QCEDL.CLI.Commands
                     success = await Task.Run(() => manager.Firehose.ReadToStream(
                         storageType,
                         actualLun,
+                        globalOptions.Slot,
                         actualSectorSize,
                         (uint)partStartSector,
                         (uint)partLastSector,

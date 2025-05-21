@@ -61,6 +61,20 @@ namespace QCEDL.CLI
                name: "--maxpayload",
                description: "Set max payload size in bytes for Firehose configure command.");
 
+            var slotOption = new Option<uint>(
+                            aliases: ["--slot", "-s"],
+                            description: "Specify the slot for operations (0 or 1). Defaults to 0.\n" +
+                                         "This is useful when memory is sdcc. Slot 0 is typically eMMC, and slot 1 is typically sdcard.",
+                            getDefaultValue: () => 0);
+            slotOption.AddValidator(result =>
+            {
+                uint slotValue = result.GetValueOrDefault<uint>();
+                if (slotValue != 0 && slotValue != 1)
+                {
+                    result.ErrorMessage = "Value for --slot must be 0 or 1.";
+                }
+            });
+
             // --- Create Global Options Binder ---
             var globalOptionsBinder = new GlobalOptionsBinder(
                loaderOption,
@@ -68,7 +82,8 @@ namespace QCEDL.CLI
                pidOption,
                memoryOption,
                logLevelOption,
-               maxPayloadOption
+               maxPayloadOption,
+               slotOption
            );
 
             // --- Define Root Command ---
@@ -80,6 +95,7 @@ namespace QCEDL.CLI
             rootCommand.AddGlobalOption(memoryOption);
             rootCommand.AddGlobalOption(logLevelOption);
             rootCommand.AddGlobalOption(maxPayloadOption);
+            rootCommand.AddGlobalOption(slotOption);
 
             // --- Define Commands (Add more commands here later) ---
             rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));

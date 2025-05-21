@@ -85,7 +85,7 @@ namespace QCEDL.CLI.Commands
                     Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? devInfo = null;
                     try
                     {
-                        devInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, 0)); // Check LUN 0 for num_physical
+                        devInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot)); // Check LUN 0 for num_physical
                     }
                     catch (Exception ex)
                     {
@@ -118,7 +118,7 @@ namespace QCEDL.CLI.Commands
                     Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? lunStorageInfo = null;
                     try
                     {
-                        lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun));
+                        lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
                     }
                     catch (Exception storageEx)
                     {
@@ -138,7 +138,7 @@ namespace QCEDL.CLI.Commands
                     byte[] gptData;
                     try
                     {
-                        gptData = await Task.Run(() => manager.Firehose.Read(storageType, currentLun, currentSectorSize, 0, sectorsForGptRead - 1));
+                        gptData = await Task.Run(() => manager.Firehose.Read(storageType, currentLun, globalOptions.Slot, currentSectorSize, 0, sectorsForGptRead - 1));
                     }
                     catch (Exception readEx)
                     {
@@ -259,6 +259,7 @@ namespace QCEDL.CLI.Commands
                     success = await Task.Run(() => manager.Firehose.ProgramFromStream(
                         storageType,
                         actualLun,
+                        globalOptions.Slot,
                         actualSectorSize,
                         (uint)partStartSector,
                         numSectorsForXml,

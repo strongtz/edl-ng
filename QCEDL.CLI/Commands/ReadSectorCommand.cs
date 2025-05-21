@@ -67,7 +67,7 @@ namespace QCEDL.CLI.Commands
                 Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
                 try
                 {
-                    storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun));
+                    storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
                 }
                 catch (Exception storageEx)
                 {
@@ -135,6 +135,7 @@ namespace QCEDL.CLI.Commands
                     success = await Task.Run(() => manager.Firehose.ReadToStream(
                         storageType,
                         lun,
+                        globalOptions.Slot,
                         sectorSize,
                         firstLba,
                         lastLba,
