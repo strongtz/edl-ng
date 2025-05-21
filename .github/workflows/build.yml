@@ -2,28 +2,18 @@ name: Build edl-ng
 
 on:
   push:
-    branches: [ main ] # Or your default branch
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
   build-and-package:
     strategy:
-      fail-fast: false # Keep running other jobs even if one fails
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         arch: [x64, arm64]
-        config: [Release, Debug]
-        # Exclude unsupported combinations or combinations that might not be fully optimized
-        # For example, macOS ARM64 on GitHub hosted runners might still be maturing for some toolchains
-        # but .NET cross-compilation is generally good.
-        # include:
-        #   - os: macos-latest # Typically an M1/M2 runner for native ARM64 builds
-        #     arch: arm64
-        #     config: Release
-        #   - os: macos-latest
-        #     arch: arm64
-        #     config: Debug
+        config: [Release]
 
     runs-on: ${{ matrix.os }}
 
@@ -34,7 +24,7 @@ jobs:
     - name: Setup .NET 9
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x' # Make sure this matches your project's TargetFramework
+        dotnet-version: '9.0.x'
 
     - name: Determine Runtime ID and OS Short Name
       id: vars
@@ -76,26 +66,18 @@ jobs:
         RID="${{ steps.vars.outputs.rid_os_prefix }}-${{ matrix.arch }}"
         OUTPUT_DIR_NAME="publish_output" # Just the directory name
         PROJECT_FILE="QCEDL.CLI/QCEDL.CLI.csproj"
-        PUBLISH_AOT_FLAG=""
-        ARTIFACT_NAME_SUFFIX=""
-        PDB_EXCLUDE_FLAGS=""
 
-        if [[ "${{ matrix.config }}" == "Release" ]]; then
-          PUBLISH_AOT_FLAG="-p:PublishAot=true"
-          PDB_EXCLUDE_FLAGS="-p:DebugType=None -p:DebugSymbols=false"
-        else # Debug
-          ARTIFACT_NAME_SUFFIX="-debug"
-        fi
+        PUBLISH_AOT_FLAG="-p:PublishAot=true"
+        PDB_EXCLUDE_FLAGS="-p:DebugType=None -p:DebugSymbols=false"
 
         echo "Building for RID: $RID, Config: ${{ matrix.config }}, AOT: $PUBLISH_AOT_FLAG"
-        # Use -p:PublishDir for absolute path control if needed, but relative should be fine
         dotnet publish "$PROJECT_FILE" \
           --configuration "${{ matrix.config }}" \
           --runtime "$RID" \
           --self-contained true \
           $PUBLISH_AOT_FLAG \
           $PDB_EXCLUDE_FLAGS \
-          -o "$OUTPUT_DIR_NAME" # Output to a directory named publish_output in the workspace root
+          -o "$OUTPUT_DIR_NAME"
         
         echo "Publish output directory is: $OUTPUT_DIR_NAME"
         ls -R "$OUTPUT_DIR_NAME"
@@ -103,6 +85,11 @@ jobs:
         echo "artifact_name_base=edl-ng-${{ steps.vars.outputs.os_short_name }}-${{ matrix.arch }}${ARTIFACT_NAME_SUFFIX}" >> $GITHUB_OUTPUT
         echo "output_dir_path=$OUTPUT_DIR_NAME" >> $GITHUB_OUTPUT
 
+    - name: Copy LICENSE to output directory
+      shell: bash
+      run: |
+        cp LICENSE ${{ steps.build-and-publish.outputs.output_dir_path }}/LICENSE
+        echo "Copied LICENSE to ${{ steps.build-and-publish.outputs.output_dir_path }}"
 
     - name: Package Artifact (Windows)
       if: runner.os == 'Windows'
@@ -129,7 +116,6 @@ jobs:
       env:
         ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
         OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
-        MATRIX_CONFIG: ${{ matrix.config }}
         MATRIX_OS: ${{ matrix.os }}
       shell: bash
       run: |
@@ -137,14 +123,14 @@ jobs:
         OUTPUT_DIR="${OUTPUT_PUBLISH_DIR_PATH}"
         echo "Unix Packaging: ARTIFACT_NAME = $ARTIFACT_NAME"
         echo "Unix Packaging: OUTPUT_DIR = $OUTPUT_DIR"
-        echo "Unix Packaging: Config = $MATRIX_CONFIG, OS = $MATRIX_OS"
+        echo "Unix Packaging: OS = $MATRIX_OS"
 
         if [ ! -d "$OUTPUT_DIR" ]; then
             echo "::error::Output directory $OUTPUT_DIR does not exist!"
             exit 1
         fi
 
-        if [[ "$MATRIX_OS" == "macos-latest" && "$MATRIX_CONFIG" == "Release" ]]; then
+        if [[ "$MATRIX_OS" == "macos-latest" ]]; then
           echo "Removing .dSYM directories for macOS Release build..."
           find "$OUTPUT_DIR" -name "*.dSYM" -type d -exec rm -rf {} +
         fi
@@ -163,10 +149,82 @@ jobs:
         else
           echo "zip_filename=${{ steps.package_unix.outputs.zip_filename }}" >> $GITHUB_OUTPUT
         fi
-    - name: Upload Artifact
+
+    - name: Upload Individual Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.build-and-publish.outputs.artifact_name_base }}
         path: ${{ steps.zip_info.outputs.zip_filename }}
         if-no-files-found: error
         retention-days: 7
+
+  package-dist:
+    name: Create edl-ng-dist Package
+    needs: build-and-package # Depends on all matrix builds finishing
+    runs-on: ubuntu-latest # Use a single OS for packaging
+    # Only run this job for pushes to the main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' 
+    
+    steps:
+      - name: Checkout repository (for LICENSE)
+        uses: actions/checkout@v4
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-build-artifacts # Downloads all artifacts into this directory, each in its own sub-directory
+      - name: Create staging directory and organize artifacts
+        shell: bash
+        run: |
+          STAGING_DIR="edl-ng-dist-staging"
+          mkdir -p "$STAGING_DIR"
+          
+          echo "Available downloaded artifacts:"
+          ls -R all-build-artifacts
+          # Loop through each downloaded artifact directory (named after the artifact)
+          for artifact_download_dir in all-build-artifacts/*; do
+            if [ -d "$artifact_download_dir" ]; then
+              artifact_original_name=$(basename "$artifact_download_dir") # e.g., edl-ng-windows-x64
+              
+              # Extract platform-arch part for folder name inside edl-ng-dist
+              # e.g., "edl-ng-windows-x64" -> "windows-x64"
+              platform_arch_folder="${artifact_original_name#edl-ng-}" 
+              
+              target_unpack_dir="$STAGING_DIR/$platform_arch_folder"
+              mkdir -p "$target_unpack_dir"
+              
+              # The zip file is inside the artifact_download_dir, named ${artifact_original_name}.zip
+              zip_file_path="$artifact_download_dir/${artifact_original_name}.zip"
+              
+              if [ -f "$zip_file_path" ]; then
+                echo "Unpacking $zip_file_path to $target_unpack_dir"
+                unzip -q "$zip_file_path" -d "$target_unpack_dir"
+              else
+                echo "::warning::Expected zip file $zip_file_path not found in $artifact_download_dir. Skipping."
+              fi
+            fi
+          done
+          
+          echo "Copying LICENSE to $STAGING_DIR"
+          cp LICENSE "$STAGING_DIR/LICENSE"
+          
+          echo "Staging directory structure:"
+          ls -R "$STAGING_DIR"
+          
+          echo "staging_dir_path=$STAGING_DIR" >> $GITHUB_OUTPUT
+        id: organize
+      - name: Create edl-ng-dist.zip
+        shell: bash
+        run: |
+          STAGING_DIR="${{ steps.organize.outputs.staging_dir_path }}"
+          DIST_ZIP_NAME="edl-ng-dist.zip"
+          echo "Creating $DIST_ZIP_NAME from $STAGING_DIR"
+          (cd "$STAGING_DIR" && zip -qr "../$DIST_ZIP_NAME" .)
+          echo "dist_zip_name=$DIST_ZIP_NAME" >> $GITHUB_OUTPUT
+        id: zip_dist
+      - name: Upload edl-ng-dist package
+        uses: actions/upload-artifact@v4
+        with:
+          name: edl-ng-dist
+          path: ${{ steps.zip_dist.outputs.dist_zip_name }}
+          if-no-files-found: error
+          retention-days: 30
