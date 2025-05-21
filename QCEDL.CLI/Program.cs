@@ -85,14 +85,14 @@ namespace QCEDL.CLI
             rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));
             rootCommand.AddCommand(ResetCommand.Create(globalOptionsBinder));
             rootCommand.AddCommand(PrintGptCommand.Create(globalOptionsBinder));
-            rootCommand.AddCommand(ReadSectorCommand.Create(globalOptionsBinder));
             rootCommand.AddCommand(ReadPartitionCommand.Create(globalOptionsBinder));
-            rootCommand.AddCommand(WriteSectorCommand.Create(globalOptionsBinder));
+            rootCommand.AddCommand(ReadSectorCommand.Create(globalOptionsBinder));
             rootCommand.AddCommand(WritePartitionCommand.Create(globalOptionsBinder));
+            rootCommand.AddCommand(WriteSectorCommand.Create(globalOptionsBinder));
+            rootCommand.AddCommand(ErasePartitionCommand.Create(globalOptionsBinder));
+            rootCommand.AddCommand(EraseSectorCommand.Create(globalOptionsBinder));
             rootCommand.AddCommand(ProvisionCommand.Create(globalOptionsBinder));
             rootCommand.AddCommand(RawProgramCommand.Create(globalOptionsBinder));
-            rootCommand.AddCommand(EraseSectorCommand.Create(globalOptionsBinder));
-            rootCommand.AddCommand(ErasePartitionCommand.Create(globalOptionsBinder));
             // ... etc ...
 
             // --- Default Handler (Show Help if no command given) ---
