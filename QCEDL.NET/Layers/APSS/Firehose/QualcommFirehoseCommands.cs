@@ -291,15 +291,16 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
                 return false;
             }
 
-            uint numSectorsToRead = LastSector - FirstSector + 1;
-            long totalReadLength = (long)(numSectorsToRead * sectorSize);
+            long numSectorsToRead = (long)LastSector - FirstSector + 1;
+            long totalReadLength = numSectorsToRead * sectorSize;
+
             if (totalReadLength <= 0)
             {
                 LibraryLogger.Warning($"Calculated totalReadLength is {totalReadLength}. Returning empty array.");
                 return false;
             }
 
-            bool readSuccess = Firehose.ReadAndWriteChunksToStream((int)totalReadLength, outputStream, progressCallback);
+            bool readSuccess = Firehose.ReadAndWriteChunksToStream(totalReadLength, outputStream, progressCallback);
 
             // LOOP 2: Getting final ACK
             GotResponse = false; // Reset for the final ACK
@@ -352,7 +353,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
             return true;
         }
 
-        internal static bool ReadAndWriteChunksToStream(this QualcommFirehose Firehose, int totalLength, Stream outputStream, Action<long, long>? progressCallback = null)
+        internal static bool ReadAndWriteChunksToStream(this QualcommFirehose Firehose, long totalLength, Stream outputStream, Action<long, long>? progressCallback = null)
         {
             long bytesReadSoFar = 0;
             int readChunkSize;
@@ -366,14 +367,11 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose
                 readChunkSize = 1024 * 1024; // 1MB
             }
 
-            byte[] chunkBuffer = new byte[readChunkSize]; // Reusable buffer for reading chunks
-
             Stopwatch sw = Stopwatch.StartNew();
 
             while (bytesReadSoFar < totalLength)
             {
-                int remainingBytes = (int)(totalLength - bytesReadSoFar);
-                int currentChunkToRequest = Math.Min(remainingBytes, readChunkSize);
+                int currentChunkToRequest = (int)Math.Min(readChunkSize, totalLength - bytesReadSoFar);
 
                 // GetResponse will read up to currentChunkToRequest or timeout
                 byte[] actualChunkRead;
