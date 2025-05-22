@@ -18,13 +18,12 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara
+namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
+
+public enum QualcommSaharaMode : uint
 {
-    public enum QualcommSaharaMode : uint
-    {
-        ImageTXPending = 0x00,
-        ImageTXComplete = 0x01,
-        MemoryDebug = 0x02,
-        Command = 0x03
-    }
+    ImageTXPending = 0x00,
+    ImageTXComplete = 0x01,
+    MemoryDebug = 0x02,
+    Command = 0x03
 }

@@ -1,62 +1,60 @@
-﻿using System.Xml;
-using System.Xml.Serialization;
+﻿using System.Xml.Serialization;
 
-namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements
+namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
+
+public class Data
 {
-    public class Data
+    [XmlElement(ElementName = "power")]
+    public Power? Power
     {
-        [XmlElement(ElementName = "power")]
-        public Power? Power
-        {
-            get; set;
-        }
+        get; set;
+    }
 
-        [XmlElement(ElementName = "log")]
-        public Log? Log
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "log")]
+    public Log? Log
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "response")]
-        public Response? Response
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "response")]
+    public Response? Response
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "getstorageinfo")]
-        public GetStorageInfo? GetStorageInfo
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "getstorageinfo")]
+    public GetStorageInfo? GetStorageInfo
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "read")]
-        public Read? Read
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "read")]
+    public Read? Read
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "configure")]
-        public Configure? Configure
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "configure")]
+    public Configure? Configure
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "nop")]
-        public Nop? Nop
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "nop")]
+    public Nop? Nop
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "program")]
-        public Program? Program
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "program")]
+    public Program? Program
+    {
+        get; set;
+    }
 
-        [XmlElement(ElementName = "erase")]
-        public Erase? Erase
-        {
-            get; set;
-        }
+    [XmlElement(ElementName = "erase")]
+    public EraseCommand? Erase
+    {
+        get; set;
     }
 }

@@ -18,29 +18,28 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara
+namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
+
+public enum QualcommSaharaCommand : uint
 {
-    public enum QualcommSaharaCommand : uint
-    {
-        NoCommand = 0x00,
-        Hello = 0x01,
-        HelloResponse = 0x02,
-        ReadData = 0x03,
-        EndImageTX = 0x04,
-        Done = 0x05,
-        DoneResponse = 0x06,
-        Reset = 0x07,
-        ResetResponse = 0x08,
-        MemoryDebug = 0x09,
-        MemoryRead = 0x0A,
-        CommandReady = 0x0B,
-        SwitchMode = 0x0C,
-        Execute = 0x0D,
-        ExecuteResponse = 0x0E,
-        ExecuteData = 0x0F,
-        MemoryDebug64Bit = 0x10,
-        MemoryRead64Bit = 0x11,
-        ReadData64Bit = 0x12,
-        ResetStateMachine = 0x13
-    }
+    NoCommand = 0x00,
+    Hello = 0x01,
+    HelloResponse = 0x02,
+    ReadData = 0x03,
+    EndImageTX = 0x04,
+    Done = 0x05,
+    DoneResponse = 0x06,
+    Reset = 0x07,
+    ResetResponse = 0x08,
+    MemoryDebug = 0x09,
+    MemoryRead = 0x0A,
+    CommandReady = 0x0B,
+    SwitchMode = 0x0C,
+    Execute = 0x0D,
+    ExecuteResponse = 0x0E,
+    ExecuteData = 0x0F,
+    MemoryDebug64Bit = 0x10,
+    MemoryRead64Bit = 0x11,
+    ReadData64Bit = 0x12,
+    ResetStateMachine = 0x13
 }

@@ -1,34 +1,32 @@
-﻿using System.Xml;
-using System.Xml.Serialization;
+﻿using System.Xml.Serialization;
 
-namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements
+namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
+
+public class Power
 {
-    public class Power
+    private PowerValue? value;
+
+    [XmlAttribute(AttributeName = "value")]
+    public PowerValue Value
     {
-        private PowerValue? value;
+        get => value ?? PowerValue.reset; set => this.value = value;
+    }
 
-        [XmlAttribute(AttributeName = "value")]
-        public PowerValue Value
-        {
-            get => value ?? PowerValue.reset; set => this.value = value;
-        }
+    public bool ShouldSerializeValue()
+    {
+        return value.HasValue;
+    }
 
-        public bool ShouldSerializeValue()
-        {
-            return value.HasValue;
-        }
+    private ulong? delayInSeconds;
 
-        private ulong? delayInSeconds;
+    [XmlAttribute(AttributeName = "DelayInSeconds")]
+    public ulong DelayInSeconds
+    {
+        get => delayInSeconds ?? 100; set => delayInSeconds = value;
+    }
 
-        [XmlAttribute(AttributeName = "DelayInSeconds")]
-        public ulong DelayInSeconds
-        {
-            get => delayInSeconds ?? 100; set => delayInSeconds = value;
-        }
-
-        public bool ShouldSerializeDelayInSeconds()
-        {
-            return delayInSeconds.HasValue;
-        }
+    public bool ShouldSerializeDelayInSeconds()
+    {
+        return delayInSeconds.HasValue;
     }
 }

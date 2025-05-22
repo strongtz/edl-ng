@@ -67,7 +67,6 @@ jobs:
         OUTPUT_DIR_NAME="publish_output" # Just the directory name
         PROJECT_FILE="QCEDL.CLI/QCEDL.CLI.csproj"
 
-        PUBLISH_AOT_FLAG="-p:PublishAot=true"
         PDB_EXCLUDE_FLAGS="-p:DebugType=None -p:DebugSymbols=false"
 
         echo "Building for RID: $RID, Config: ${{ matrix.config }}, AOT: $PUBLISH_AOT_FLAG"
@@ -75,7 +74,6 @@ jobs:
           --configuration "${{ matrix.config }}" \
           --runtime "$RID" \
           --self-contained true \
-          $PUBLISH_AOT_FLAG \
           $PDB_EXCLUDE_FLAGS \
           -o "$OUTPUT_DIR_NAME"
         

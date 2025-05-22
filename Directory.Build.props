@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+      <TargetFramework>net9.0</TargetFramework>
+      <ImplicitUsings>enable</ImplicitUsings>
+      <Platforms>x64;ARM64</Platforms>
+      <Nullable>enable</Nullable>
+      <AnalysisMode>Recommended</AnalysisMode>
+      <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+      <Nullable>enable</Nullable>
+      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+</Project>

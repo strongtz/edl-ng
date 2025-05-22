@@ -1,8 +1,8 @@
-﻿namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara.Data
-{
-    internal struct QualcommSaharaHeader
-    {
-        public uint Command;
-        public uint Length;
-    }
-}
+﻿namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara.Data;
+
+// unused
+// internal struct QualcommSaharaHeader
+// {
+//     public uint Command;
+//     public uint Length;
+// }
