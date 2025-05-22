@@ -22,52 +22,53 @@
 // Where possible the original authors are referenced.
 
 using System.Text;
+using QCEDL.NET.Extensions;
+using QCEDL.NET.Todo;
 
-namespace Qualcomm.EmergencyDownload.Transport
+namespace Qualcomm.EmergencyDownload.Transport;
+
+public static class Converter
 {
-    public static class Converter
+    public static string ConvertHexToString(byte[] Bytes, string Separator)
     {
-        public static string ConvertHexToString(byte[] Bytes, string Separator)
+        StringBuilder s = new(1000);
+        for (var i = Bytes.GetLowerBound(0); i <= Bytes.GetUpperBound(0); i++)
         {
-            StringBuilder s = new(1000);
-            for (int i = Bytes.GetLowerBound(0); i <= Bytes.GetUpperBound(0); i++)
+            if (i != Bytes.GetLowerBound(0))
             {
-                if (i != Bytes.GetLowerBound(0))
-                {
-                    s.Append(Separator);
-                }
-
-                s.Append(Bytes[i].ToString("X2"));
-            }
-            return s.ToString();
-        }
-
-        public static byte[] ConvertStringToHex(string HexString)
-        {
-            if (HexString.Length % 2 == 1)
-            {
-                throw new Exception("The binary key cannot have an odd number of digits");
+                s.Append(Separator);
             }
 
-            byte[] arr = new byte[HexString.Length >> 1];
-
-            for (int i = 0; i < HexString.Length >> 1; ++i)
-            {
-                arr[i] = (byte)((GetHexVal(HexString[i << 1]) << 4) + GetHexVal(HexString[(i << 1) + 1]));
-            }
-
-            return arr;
+            s.Append(Bytes[i].ToStringInvariantCulture("X2"));
         }
+        return s.ToString();
+    }
 
-        public static int GetHexVal(char hex)
+    public static byte[] ConvertStringToHex(string HexString)
+    {
+        if (HexString.Length % 2 == 1)
         {
-            int val = hex;
-            //For uppercase A-F letters:
-            //return val - (val < 58 ? 48 : 55);
-            //For lowercase a-f letters:
-            //return val - (val < 58 ? 48 : 87);
-            //Or the two combined, but a bit slower:
-            return val - (val < 58 ? 48 : val < 97 ? 55 : 87);
+            throw new TodoException("The binary key cannot have an odd number of digits");
         }
+
+        var arr = new byte[HexString.Length >> 1];
+
+        for (var i = 0; i < HexString.Length >> 1; ++i)
+        {
+            arr[i] = (byte)((GetHexVal(HexString[i << 1]) << 4) + GetHexVal(HexString[(i << 1) + 1]));
+        }
+
+        return arr;
+    }
+
+    public static int GetHexVal(char hex)
+    {
+        int val = hex;
+        //For uppercase A-F letters:
+        //return val - (val < 58 ? 48 : 55);
+        //For lowercase a-f letters:
+        //return val - (val < 58 ? 48 : 87);
+        //Or the two combined, but a bit slower:
+        return val - (val < 58 ? 48 : val < 97 ? 55 : 87);
     }
 }

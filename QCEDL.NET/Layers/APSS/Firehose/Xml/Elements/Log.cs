@@ -1,19 +1,14 @@
-﻿using System.Xml;
-using System.Xml.Serialization;
+﻿using System.Xml.Serialization;
 
-namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements
+namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
+
+public class Log
 {
-    public class Log
-    {
-        [XmlAttribute(AttributeName = "value")]
-        public string Value
-        {
-            get; set;
-        }
+    [XmlAttribute(AttributeName = "value")]
+    public string? Value { get; set; }
 
-        public bool ShouldSerializeValue()
-        {
-            return Value != null;
-        }
+    public bool ShouldSerializeValue()
+    {
+        return Value != null;
     }
 }

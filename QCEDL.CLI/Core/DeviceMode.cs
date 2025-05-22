@@ -1,10 +1,9 @@
-namespace QCEDL.CLI.Core
+namespace QCEDL.CLI.Core;
+
+internal enum DeviceMode
 {
-    internal enum DeviceMode
-    {
-        Unknown,
-        Sahara,
-        Firehose,
-        Error
-    }
+    Unknown,
+    Sahara,
+    Firehose,
+    Error
 }

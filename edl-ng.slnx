@@ -1,0 +1,15 @@
+﻿<Solution>
+    <Configurations>
+        <Platform Name="ARM64"/>
+        <Platform Name="x64"/>
+    </Configurations>
+    <Folder Name="/Solution Items/">
+        <File Path="LICENSE"/>
+        <File Path="README.md"/>
+        <File Path="Directory.Build.props"/>
+        <File Path=".editorconfig"/>
+    </Folder>
+    <Project Path="QCEDL.Analyzer\QCEDL.Analyzer.csproj" Type="Classic C#"/>
+    <Project Path="QCEDL.CLI\QCEDL.CLI.csproj" Type="Classic C#"/>
+    <Project Path="QCEDL.NET\QCEDL.NET.csproj" Type="Classic C#"/>
+</Solution>

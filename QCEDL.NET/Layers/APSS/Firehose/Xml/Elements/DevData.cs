@@ -1,47 +1,45 @@
-﻿using System.Xml;
-using System.Xml.Serialization;
+﻿using System.Xml.Serialization;
 
-namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements
+namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
+
+public class DevData
 {
-    public class DevData
+    private StorageType? storageType;
+
+    [XmlAttribute(AttributeName = "storage_type")]
+    public StorageType StorageType
     {
-        private StorageType? storageType;
+        get => storageType ?? StorageType.UFS; set => storageType = value;
+    }
 
-        [XmlAttribute(AttributeName = "storage_type")]
-        public StorageType StorageType
-        {
-            get => storageType ?? StorageType.UFS; set => storageType = value;
-        }
+    public bool ShouldSerializeStorageType()
+    {
+        return storageType.HasValue;
+    }
 
-        public bool ShouldSerializeStorageType()
-        {
-            return storageType.HasValue;
-        }
+    private uint? slot;
 
-        private uint? slot;
+    [XmlAttribute(AttributeName = "slot")]
+    public uint Slot
+    {
+        get => slot ?? 0; set => slot = value;
+    }
 
-        [XmlAttribute(AttributeName = "slot")]
-        public uint Slot
-        {
-            get => slot ?? 0; set => slot = value;
-        }
+    public bool ShouldSerializeSlot()
+    {
+        return slot.HasValue;
+    }
 
-        public bool ShouldSerializeSlot()
-        {
-            return slot.HasValue;
-        }
+    private uint? physicalPartitionNumber;
 
-        private uint? physicalPartitionNumber;
+    [XmlAttribute(AttributeName = "physical_partition_number")]
+    public uint PhysicalPartitionNumber
+    {
+        get => physicalPartitionNumber ?? 0; set => physicalPartitionNumber = value;
+    }
 
-        [XmlAttribute(AttributeName = "physical_partition_number")]
-        public uint PhysicalPartitionNumber
-        {
-            get => physicalPartitionNumber ?? 0; set => physicalPartitionNumber = value;
-        }
-
-        public bool ShouldSerializePhysicalPartitionNumber()
-        {
-            return physicalPartitionNumber.HasValue;
-        }
+    public bool ShouldSerializePhysicalPartitionNumber()
+    {
+        return physicalPartitionNumber.HasValue;
     }
 }

@@ -1,111 +1,110 @@
 ﻿using System.Xml.Serialization;
 
-namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements
+namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
+
+public class Configure
 {
-    public class Configure
+    private StorageType? memoryName;
+
+    [XmlAttribute(AttributeName = "MemoryName")]
+    public StorageType MemoryName
     {
-        private StorageType? memoryName;
+        get => memoryName ?? StorageType.UFS; set => memoryName = value;
+    }
 
-        [XmlAttribute(AttributeName = "MemoryName")]
-        public StorageType MemoryName
-        {
-            get => memoryName ?? StorageType.UFS; set => memoryName = value;
-        }
+    public bool ShouldSerializeMemoryName()
+    {
+        return memoryName.HasValue;
+    }
 
-        public bool ShouldSerializeMemoryName()
-        {
-            return memoryName.HasValue;
-        }
+    private string? verbose;
 
-        private string? verbose;
+    [XmlAttribute(AttributeName = "Verbose")]
+    public string Verbose
+    {
+        get => verbose ?? "0"; set => verbose = value;
+    }
 
-        [XmlAttribute(AttributeName = "Verbose")]
-        public string Verbose
-        {
-            get => verbose ?? "0"; set => verbose = value;
-        }
+    public bool ShouldSerializeVerbose()
+    {
+        return verbose != null;
+    }
 
-        public bool ShouldSerializeVerbose()
-        {
-            return verbose != null;
-        }
+    private ulong? maxPayloadSizeToTargetInBytes;
 
-        private ulong? maxPayloadSizeToTargetInBytes;
+    [XmlAttribute(AttributeName = "MaxPayloadSizeToTargetInBytes")]
+    public ulong MaxPayloadSizeToTargetInBytes
+    {
+        get => maxPayloadSizeToTargetInBytes ?? 0; set => maxPayloadSizeToTargetInBytes = value;
+    }
 
-        [XmlAttribute(AttributeName = "MaxPayloadSizeToTargetInBytes")]
-        public ulong MaxPayloadSizeToTargetInBytes
-        {
-            get => maxPayloadSizeToTargetInBytes ?? 0; set => maxPayloadSizeToTargetInBytes = value;
-        }
+    public bool ShouldSerializeMaxPayloadSizeToTargetInBytes()
+    {
+        return maxPayloadSizeToTargetInBytes.HasValue;
+    }
 
-        public bool ShouldSerializeMaxPayloadSizeToTargetInBytes()
-        {
-            return maxPayloadSizeToTargetInBytes.HasValue;
-        }
+    private string? alwaysValidate;
 
-        private string? alwaysValidate;
+    [XmlAttribute(AttributeName = "AlwaysValidate")]
+    public string AlwaysValidate
+    {
+        get => alwaysValidate ?? "0"; set => alwaysValidate = value;
+    }
 
-        [XmlAttribute(AttributeName = "AlwaysValidate")]
-        public string AlwaysValidate
-        {
-            get => alwaysValidate ?? "0"; set => alwaysValidate = value;
-        }
+    public bool ShouldSerializeAlwaysValidate()
+    {
+        return alwaysValidate != null;
+    }
 
-        public bool ShouldSerializeAlwaysValidate()
-        {
-            return alwaysValidate != null;
-        }
+    private ulong? maxDigestTableSizeInBytes;
 
-        private ulong? maxDigestTableSizeInBytes;
+    [XmlAttribute(AttributeName = "MaxDigestTableSizeInBytes")]
+    public ulong MaxDigestTableSizeInBytes
+    {
+        get => maxDigestTableSizeInBytes ?? 0; set => maxDigestTableSizeInBytes = value;
+    }
 
-        [XmlAttribute(AttributeName = "MaxDigestTableSizeInBytes")]
-        public ulong MaxDigestTableSizeInBytes
-        {
-            get => maxDigestTableSizeInBytes ?? 0; set => maxDigestTableSizeInBytes = value;
-        }
+    public bool ShouldSerializeMaxDigestTableSizeInBytes()
+    {
+        return maxDigestTableSizeInBytes.HasValue;
+    }
 
-        public bool ShouldSerializeMaxDigestTableSizeInBytes()
-        {
-            return maxDigestTableSizeInBytes.HasValue;
-        }
+    private string? zlpAwareHost;
 
-        private string? zlpAwareHost;
+    [XmlAttribute(AttributeName = "ZlpAwareHost")]
+    public string ZlpAwareHost
+    {
+        get => zlpAwareHost ?? "1"; set => zlpAwareHost = value;
+    }
 
-        [XmlAttribute(AttributeName = "ZlpAwareHost")]
-        public string ZlpAwareHost
-        {
-            get => zlpAwareHost ?? "1"; set => zlpAwareHost = value;
-        }
+    public bool ShouldSerializeZlpAwareHost()
+    {
+        return zlpAwareHost != null;
+    }
 
-        public bool ShouldSerializeZlpAwareHost()
-        {
-            return zlpAwareHost != null;
-        }
+    private string? skipWrite;
 
-        private string? skipWrite;
+    [XmlAttribute(AttributeName = "SkipWrite")]
+    public string SkipWrite
+    {
+        get => skipWrite ?? "0"; set => skipWrite = value;
+    }
 
-        [XmlAttribute(AttributeName = "SkipWrite")]
-        public string SkipWrite
-        {
-            get => skipWrite ?? "0"; set => skipWrite = value;
-        }
+    public bool ShouldSerializeSkipWrite()
+    {
+        return skipWrite != null;
+    }
 
-        public bool ShouldSerializeSkipWrite()
-        {
-            return skipWrite != null;
-        }
+    private string? skipStorageInit;
 
-        private string? skipStorageInit;
+    [XmlAttribute(AttributeName = "SkipStorageInit")]
+    public string SkipStorageInit
+    {
+        get => skipStorageInit ?? "0"; set => skipStorageInit = value;
+    }
 
-        [XmlAttribute(AttributeName = "SkipStorageInit")]
-        public string SkipStorageInit
-        {
-            get => skipStorageInit ?? "0"; set => skipStorageInit = value;
-        }
-
-        public bool ShouldSerializeSkipStorageInit()
-        {
-            return skipStorageInit != null;
-        }
+    public bool ShouldSerializeSkipStorageInit()
+    {
+        return skipStorageInit != null;
     }
 }
