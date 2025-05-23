@@ -92,7 +92,7 @@ public class GPT
                 }
             }
 
-            gpt = new GPT
+            gpt = new()
             {
                 Header = gptheader,
                 Partitions = list,

@@ -1,9 +1,13 @@
-﻿using QCEDL.CLI.Commands;
+﻿using System.CommandLine;
+using System.Globalization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+using QCEDL.CLI.Commands;
 using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.CommandLine.Invocation;
+
+var serviceCollection = new ServiceCollection();
 
 // --- Define Global Options ---
 var loaderOption = new Option<FileInfo>(
@@ -11,17 +15,20 @@ var loaderOption = new Option<FileInfo>(
     description: "Path to the Firehose programmer (e.g., prog_firehose_*.elf).")
 {
     IsRequired = false
-}; // Initially false, commands that need it can enforce it or EdlManager can check
-loaderOption.ExistingOnly();
+}.ExistingOnly(); // Initially false, commands that need it can enforce it or EdlManager can check
 
 var vidOption = new Option<int?>(
     name: "--vid",
     description: "Specify USB Vendor ID (hex).",
     parseArgument: result =>
     {
-        if (result.Tokens.Count == 0) return null;
+        if (result.Tokens.Count == 0)
+        {
+            return null;
+        }
+
         var vidStr = result.Tokens[0].Value;
-        if (int.TryParse(vidStr?.Replace("0x", ""), System.Globalization.NumberStyles.HexNumber, null, out var vid))
+        if (int.TryParse(vidStr.Replace("0x", ""), NumberStyles.HexNumber, null, out var vid))
         {
             return vid;
         }
@@ -35,9 +42,13 @@ var pidOption = new Option<int?>(
     description: "Specify USB Product ID (hex).",
     parseArgument: result =>
     {
-        if (result.Tokens.Count == 0) return null;
+        if (result.Tokens.Count == 0)
+        {
+            return null;
+        }
+
         var pidStr = result.Tokens[0].Value;
-        if (int.TryParse(pidStr?.Replace("0x", ""), System.Globalization.NumberStyles.HexNumber, null, out var pid))
+        if (int.TryParse(pidStr?.Replace("0x", ""), NumberStyles.HexNumber, null, out var pid))
         {
             return pid;
         }
@@ -54,7 +65,7 @@ var memoryOption = new Option<StorageType?>(
 var logLevelOption = new Option<LogLevel>(
     name: "--loglevel",
     description: "Set the logging level.",
-    getDefaultValue: () => LogLevel.Info);
+    getDefaultValue: () => LogLevel.Information);
 
 var maxPayloadOption = new Option<ulong?>(
     name: "--maxpayload",
@@ -74,6 +85,40 @@ slotOption.AddValidator(result =>
     }
 });
 
+// Logging
+var logLevel = logLevelOption.Parse(args).GetValueForOption(logLevelOption);
+serviceCollection
+    .AddLogging(builder =>
+    {
+        builder
+            .AddFilter(level => level >= logLevel)
+            .AddSimpleConsole(options =>
+            {
+                options.IncludeScopes = true;
+                options.SingleLine = true;
+                options.ColorBehavior = LoggerColorBehavior.Enabled;
+                options.TimestampFormat = "HH:mm:ss ";
+            });
+    });
+
+// Commands
+serviceCollection
+    .AddScoped<ICommand, ErasePartitionCommand>()
+    .AddScoped<ICommand, EraseSectorCommand>()
+    .AddScoped<ICommand, PrintGptCommand>()
+    .AddScoped<ICommand, ProvisionCommand>()
+    .AddScoped<ICommand, RawProgramCommand>()
+    .AddScoped<ICommand, ReadPartitionCommand>()
+    .AddScoped<ICommand, ReadSectorCommand>()
+    .AddScoped<ICommand, ResetCommand>()
+    .AddScoped<ICommand, UploadLoaderCommand>()
+    .AddScoped<ICommand, WritePartitionCommand>()
+    .AddScoped<ICommand, WriteSectorCommand>();
+
+serviceCollection
+    .AddTransient<IEdlManager, EdlManager>()
+    .AddSingleton<IEdlManagerProvider, EdlManagerProvider>();
+
 // --- Create Global Options Binder ---
 var globalOptionsBinder = new GlobalOptionsBinder(
     loaderOption,
@@ -84,6 +129,10 @@ var globalOptionsBinder = new GlobalOptionsBinder(
     maxPayloadOption,
     slotOption
 );
+serviceCollection
+    .AddSingleton(globalOptionsBinder);
+
+await using var serviceProvider = serviceCollection.BuildServiceProvider();
 
 // --- Define Root Command ---
 var rootCommand = new RootCommand("edl-ng - Qualcomm Emergency Download CLI");
@@ -96,22 +145,13 @@ rootCommand.AddGlobalOption(logLevelOption);
 rootCommand.AddGlobalOption(maxPayloadOption);
 rootCommand.AddGlobalOption(slotOption);
 
-// --- Define Commands (Add more commands here later) ---
-rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(ResetCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(PrintGptCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(ReadPartitionCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(ReadSectorCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(WritePartitionCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(WriteSectorCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(ErasePartitionCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(EraseSectorCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(ProvisionCommand.Create(globalOptionsBinder));
-rootCommand.AddCommand(RawProgramCommand.Create(globalOptionsBinder));
-// ... etc ...
+foreach (var command in serviceProvider.GetServices<ICommand>())
+{
+    rootCommand.AddCommand(command.Create());
+}
 
 // --- Default Handler (Show Help if no command given) ---
-rootCommand.SetHandler(async (InvocationContext context) =>
+rootCommand.SetHandler(async _ =>
 {
     await rootCommand.InvokeAsync(["--help"]);
 });

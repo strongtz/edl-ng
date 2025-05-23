@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
 	<PackageReference Include="LibUsbDotNet" Version="3.0.167-alpha" />
+	<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.5" />
 	<PackageReference Include="System.IO.Ports" Version="9.0.4" />
   </ItemGroup>
   <ItemGroup>

@@ -1,53 +1,64 @@
-using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
 using System.Xml.Linq;
+using Microsoft.Extensions.Logging;
+using QCEDL.CLI.Core;
+using QCEDL.CLI.Logging;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
-internal sealed class ProvisionCommand
+internal sealed class ProvisionCommand(
+    ILogger<ProvisionCommand> logger,
+    GlobalOptionsBinder globalOptionsBinder,
+    IEdlManagerProvider edlManagerProvider) : ICommand
 {
     private static readonly Argument<FileInfo> XmlFileArgument =
-        new("xmlfile", "Path to the UFS provisioning XML file.")
-            { Arity = ArgumentArity.ExactlyOne };
+        new("xmlfile", "Path to the UFS provisioning XML file.") { Arity = ArgumentArity.ExactlyOne };
 
-    public static Command Create(GlobalOptionsBinder globalOptionsBinder)
+    static ProvisionCommand()
     {
-        var command = new Command("provision", "Performs UFS provisioning using an XML file.")
-        {
-            XmlFileArgument
-        };
         XmlFileArgument.ExistingOnly();
-        command.SetHandler(ExecuteAsync, globalOptionsBinder, XmlFileArgument);
+    }
+
+    public Command Create()
+    {
+        var command = new Command("provision", "Performs UFS provisioning using an XML file.") { XmlFileArgument };
+
+        command.SetHandler(
+            ExecuteAsync,
+            globalOptionsBinder,
+            XmlFileArgument);
+
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions, FileInfo xmlFile)
+    private async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions, FileInfo xmlFile)
     {
-        Logging.Log($"Executing 'provision' command with XML file: {xmlFile.FullName}", LogLevel.Trace);
+        logger.ExecutingProvisionCommand(xmlFile.FullName);
 
         var effectiveStorageType = StorageType.UFS;
-        if (globalOptions.MemoryType.HasValue && globalOptions.MemoryType != StorageType.UFS)
+        if (globalOptions.MemoryType is not null && globalOptions.MemoryType != StorageType.UFS)
         {
-            Logging.Log($"Warning: --memory is set to '{globalOptions.MemoryType}'. UFS provisioning command implies UFS. Using UFS for this operation.", LogLevel.Warning);
+            logger.MemoryOptionWarning(globalOptions.MemoryType);
         }
 
         try
         {
-            using var manager = new EdlManager(globalOptions);
+            using var manager = edlManagerProvider.CreateEdlManager();
             await manager.EnsureFirehoseModeAsync();
 
-            Logging.Log("Sending initial Firehose configure command (Memory: UFS, SkipStorageInit: true)...", LogLevel.Info);
+            logger.SendingInitialConfigure();
             // Explicitly use UFS and skipStorageInit=true for this specific configure call.
-            var configureSuccess = await Task.Run(() => manager.Firehose.Configure(effectiveStorageType, skipStorageInit: true));
+            var configureSuccess =
+                await Task.Run(() => manager.Firehose.Configure(effectiveStorageType, skipStorageInit: true));
             if (!configureSuccess)
             {
-                Logging.Log("Failed to send initial Firehose configure command for provisioning.", LogLevel.Error);
+                logger.InitialConfigureSuccess();
                 return 1;
             }
-            Logging.Log("Initial Firehose configure command sent successfully.", LogLevel.Info);
+
+            logger.FailedInitialConfigure();
 
             manager.FlushForResponse();
 
@@ -58,24 +69,24 @@ internal sealed class ProvisionCommand
             }
             catch (Exception ex)
             {
-                Logging.Log($"Error parsing XML file '{xmlFile.FullName}': {ex.Message}", LogLevel.Error);
+                logger.ErrorParsingXml(xmlFile.FullName, ex);
                 return 1;
             }
 
             if (doc.Root == null || doc.Root.Name != "data")
             {
-                Logging.Log("Invalid XML structure: Root element must be <data>.", LogLevel.Error);
+                logger.InvalidXmlStructure();
                 return 1;
             }
 
             var ufsElements = doc.Root.Elements("ufs").ToList();
             if (ufsElements.Count == 0)
             {
-                Logging.Log("No <ufs> elements found in the XML file.", LogLevel.Warning);
+                logger.NoUfsElements();
                 return 0;
             }
 
-            Logging.Log($"Found {ufsElements.Count} <ufs> elements to process.", LogLevel.Debug);
+            logger.FoundUfsElements(ufsElements.Count);
 
             var successCount = 0;
             var commandIndex = 0;
@@ -85,51 +96,51 @@ internal sealed class ProvisionCommand
                 var ufsElementString = ufsElement.ToString(SaveOptions.DisableFormatting);
                 var fullXmlPayload = $"<?xml version=\"1.0\" ?><data>{ufsElementString}</data>";
 
-                Logging.Log($"Sending UFS command {commandIndex}/{ufsElements.Count}", LogLevel.Info);
+                logger.SendingUfsCommand(commandIndex, ufsElements.Count);
 
                 var success = await Task.Run(() => manager.Firehose.SendRawXmlAndGetResponse(fullXmlPayload));
 
                 if (success)
                 {
-                    Logging.Log($"UFS command {commandIndex} ACKed.", LogLevel.Info);
+                    logger.UfsCommandAcked(commandIndex);
                     successCount++;
                 }
                 else
                 {
-                    Logging.Log($"Failed to send UFS command {commandIndex} or received NAK: {ufsElementString}", LogLevel.Error);
-                    Logging.Log($"Aborting provisioning. {successCount}/{ufsElements.Count} commands succeeded before failure.", LogLevel.Error);
+                    logger.FailedUfsCommand(commandIndex, ufsElementString);
+                    logger.AbortingProvisioning(successCount, ufsElements.Count);
                     return 1;
                 }
             }
 
-            Logging.Log($"UFS provisioning completed. All {successCount}/{ufsElements.Count} commands sent and ACKed successfully.", LogLevel.Info);
+            logger.UfsProvisioningCompleted(successCount, ufsElements.Count);
         }
         catch (FileNotFoundException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (ArgumentException ex)
         {
-            Logging.Log($"Argument Error: {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (InvalidOperationException ex)
         {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (IOException ex)
         {
-            Logging.Log($"IO Error: {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred in 'provision': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
+            logger.UnexceptedException(ex);
             return 1;
         }
+
         return 0;
     }
 }

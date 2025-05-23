@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+
 namespace QCEDL.NET.Logging;
 
 public enum LogLevel
@@ -13,6 +14,8 @@ public static class LibraryLogger
 {
     // Parameters: message, level, memberName, sourceFilePath, sourceLineNumber
     public static Action<string?, LogLevel, string?, string?, int?>? LogAction { get; set; }
+    
+    [Obsolete("Use logger methods instead")]
     public static void Trace(string message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,
@@ -20,6 +23,8 @@ public static class LibraryLogger
     {
         LogAction?.Invoke(message, LogLevel.Trace, memberName, sourceFilePath, sourceLineNumber);
     }
+
+    [Obsolete("Use logger methods instead")]
     public static void Debug(string message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,
@@ -27,6 +32,8 @@ public static class LibraryLogger
     {
         LogAction?.Invoke(message, LogLevel.Debug, memberName, sourceFilePath, sourceLineNumber);
     }
+
+    [Obsolete("Use logger methods instead")]
     public static void Info(string message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,
@@ -34,6 +41,8 @@ public static class LibraryLogger
     {
         LogAction?.Invoke(message, LogLevel.Info, memberName, sourceFilePath, sourceLineNumber);
     }
+
+    [Obsolete("Use logger methods instead")]
     public static void Warning(string message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,
@@ -41,6 +50,8 @@ public static class LibraryLogger
     {
         LogAction?.Invoke(message, LogLevel.Warning, memberName, sourceFilePath, sourceLineNumber);
     }
+
+    [Obsolete("Use logger methods instead")]
     public static void Error(string? message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,

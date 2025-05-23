@@ -14,7 +14,7 @@ public class IOData
 
     public bool ShouldSerializeStorageType()
     {
-        return storageType.HasValue;
+        return storageType is not null;
     }
 
     private uint? slot;
@@ -27,7 +27,7 @@ public class IOData
 
     public bool ShouldSerializeSlot()
     {
-        return slot.HasValue;
+        return slot is not null;
     }
 
     private uint? physicalPartitionNumber;
@@ -40,6 +40,6 @@ public class IOData
 
     public bool ShouldSerializePhysicalPartitionNumber()
     {
-        return physicalPartitionNumber.HasValue;
+        return physicalPartitionNumber is not null;
     }
 }

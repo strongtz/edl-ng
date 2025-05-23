@@ -15,7 +15,7 @@ public class IOOptionsIODataDevDataMixin : IODataDevDataMixin
 
     public bool ShouldSerializeLastSector()
     {
-        return lastSector.HasValue;
+        return lastSector is not null;
     }
 
     private byte? skipBadBlock;
@@ -28,7 +28,7 @@ public class IOOptionsIODataDevDataMixin : IODataDevDataMixin
 
     public bool ShouldSerializeSkipBadBlock()
     {
-        return skipBadBlock.HasValue;
+        return skipBadBlock is not null;
     }
 
     private byte? getSpare;
@@ -41,7 +41,7 @@ public class IOOptionsIODataDevDataMixin : IODataDevDataMixin
 
     public bool ShouldSerializeGetSpare()
     {
-        return getSpare.HasValue;
+        return getSpare is not null;
     }
 
     private byte? eccDisabled;
@@ -54,6 +54,6 @@ public class IOOptionsIODataDevDataMixin : IODataDevDataMixin
 
     public bool ShouldSerializeECCDisabled()
     {
-        return eccDisabled.HasValue;
+        return eccDisabled is not null;
     }
 }

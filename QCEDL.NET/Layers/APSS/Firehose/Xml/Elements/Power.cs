@@ -14,7 +14,7 @@ public class Power
 
     public bool ShouldSerializeValue()
     {
-        return value.HasValue;
+        return value is not null;
     }
 
     private ulong? delayInSeconds;
@@ -27,6 +27,6 @@ public class Power
 
     public bool ShouldSerializeDelayInSeconds()
     {
-        return delayInSeconds.HasValue;
+        return delayInSeconds is not null;
     }
 }

@@ -1,36 +1,47 @@
-using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using QCEDL.CLI.Core;
+using QCEDL.CLI.Logging;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
-internal sealed class WriteSectorCommand
+internal sealed class WriteSectorCommand(
+    ILogger<WriteSectorCommand> logger,
+    GlobalOptionsBinder globalOptionsBinder,
+    IEdlManagerProvider edlManagerProvider) : ICommand
 {
-    private static readonly Argument<ulong> StartSectorArgument = new("start_sector", "The starting sector LBA to write to.");
-    private static readonly Argument<FileInfo> FilenameArgument =
-        new("filename", "The file containing data to write.")
-            { Arity = ArgumentArity.ExactlyOne };
+    private static readonly Argument<ulong> StartSectorArgument =
+        new("start_sector", "The starting sector LBA to write to.");
 
-    private static readonly Option<uint> LunOption = new Option<uint>(
+    private static readonly Argument<FileInfo> FilenameArgument =
+        new("filename", "The file containing data to write.") { Arity = ArgumentArity.ExactlyOne };
+
+    private static readonly Option<uint> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number to write to.",
         getDefaultValue: () => 0);
 
-    public static Command Create(GlobalOptionsBinder globalOptionsBinder)
+    static WriteSectorCommand()
     {
-        var command = new Command("write-sector", "Writes data from a file to a specified number of sectors from a given LUN and start LBA.")
-        {
-            StartSectorArgument,
-            FilenameArgument,
-            LunOption
-        };
-
         FilenameArgument.ExistingOnly();
+    }
 
-        command.SetHandler(ExecuteAsync,
+    public Command Create()
+    {
+        var command =
+            new Command(
+                "write-sector",
+                "Writes data from a file to a specified number of sectors from a given LUN and start LBA.")
+            {
+                StartSectorArgument, FilenameArgument, LunOption
+            };
+
+        command.SetHandler(
+            ExecuteAsync,
             globalOptionsBinder,
             StartSectorArgument,
             FilenameArgument,
@@ -39,44 +50,45 @@ internal sealed class WriteSectorCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(
+    private async Task<int> ExecuteAsync(
         GlobalOptionsBinder globalOptions,
         ulong startSector,
         FileInfo inputFile,
         uint lun)
     {
-        Logging.Log($"Executing 'write-sector' command: LUN {lun}, Start LBA {startSector}, File '{inputFile.FullName}'...", LogLevel.Trace);
+        logger.ExecutingWriteSector(lun, startSector, inputFile.FullName);
         var commandStopwatch = Stopwatch.StartNew();
 
         if (!inputFile.Exists)
         {
-            Logging.Log($"Error: Input file '{inputFile.FullName}' not found.", LogLevel.Error);
+            logger.InputFileNotFound(inputFile.FullName);
             return 1;
         }
 
         if (inputFile.Length == 0)
         {
-            Logging.Log("Error: Input file is empty. Nothing to write.", LogLevel.Error);
+            logger.InputFileEmpty();
             return 1;
         }
 
         try
         {
-            using var manager = new EdlManager(globalOptions);
+            using var manager = edlManagerProvider.CreateEdlManager();
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
             var storageType = globalOptions.MemoryType ?? StorageType.UFS;
-            Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
+            logger.UsingStorageType(storageType);
 
-            Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
+            Root? storageInfo = null;
             try
             {
-                storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
+                storageInfo =
+                    await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
             }
             catch (Exception storageEx)
             {
-                Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Warning);
+                logger.CouldNotGetStorageInfo(lun, storageType, storageEx);
             }
 
             var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
@@ -88,9 +100,10 @@ internal sealed class WriteSectorCommand
                     StorageType.SDCC => 512,
                     _ => 4096,
                 };
-                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
+                logger.StorageInfoUnreliable(storageType, sectorSize);
             }
-            Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
+
+            logger.UsingSectorSize(sectorSize, lun);
 
             var originalFileLength = inputFile.Length;
             long totalBytesToWriteIncludingPadding;
@@ -100,23 +113,24 @@ internal sealed class WriteSectorCommand
             if (remainder != 0)
             {
                 totalBytesToWriteIncludingPadding = originalFileLength + (sectorSize - remainder);
-                Logging.Log($"Input file size ({originalFileLength} bytes) is not a multiple of sector size ({sectorSize} bytes). Padding with zeros to {totalBytesToWriteIncludingPadding} bytes.", LogLevel.Warning);
+                logger.InputFilePaddingWarning(originalFileLength, sectorSize, totalBytesToWriteIncludingPadding);
             }
             else
             {
                 totalBytesToWriteIncludingPadding = originalFileLength;
             }
+
             numSectorsForXml = (uint)(totalBytesToWriteIncludingPadding / sectorSize);
 
-            Logging.Log($"Data to write: {originalFileLength} bytes from file, padded to {totalBytesToWriteIncludingPadding} bytes ({numSectorsForXml} sectors).", LogLevel.Debug);
- 
+            logger.DataToWriteWithPadding(originalFileLength, totalBytesToWriteIncludingPadding, numSectorsForXml);
+
             if (startSector > uint.MaxValue)
             {
-                Logging.Log($"Error: Start sector LBA ({startSector}) exceeds uint.MaxValue, which is not supported by the current Firehose.ProgramFromStream implementation's start_sector parameter.", LogLevel.Error);
+                logger.StartSectorLbaExceedsMaxValue(startSector);
                 return 1;
             }
 
-            Logging.Log($"Attempting to write {numSectorsForXml} sectors ({totalBytesToWriteIncludingPadding} bytes) to LUN {lun}, starting at LBA {startSector}...", LogLevel.Info);
+            logger.AttemptingSectorWrite(numSectorsForXml, totalBytesToWriteIncludingPadding, lun, startSector);
 
             long bytesWrittenReported = 0;
             var writeStopwatch = new Stopwatch();
@@ -124,23 +138,25 @@ internal sealed class WriteSectorCommand
             Action<long, long> progressAction = (current, total) =>
             {
                 bytesWrittenReported = current;
-                var percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = writeStopwatch.Elapsed;
                 var speed = current / elapsed.TotalSeconds;
                 var speedStr = "N/A";
                 if (elapsed.TotalSeconds > 0.1)
                 {
-                    speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
                         speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
                         $"{speed:F0} B/s";
                 }
-                Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
+
+                Console.Write(
+                    $"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
             };
 
             bool success;
             try
             {
-                using var fileStream = inputFile.OpenRead();
+                await using var fileStream = inputFile.OpenRead();
 
                 writeStopwatch.Start();
                 success = await Task.Run(() => manager.Firehose.ProgramFromStream(
@@ -159,7 +175,7 @@ internal sealed class WriteSectorCommand
             }
             catch (IOException ioEx)
             {
-                Logging.Log($"IO Error reading input file '{inputFile.FullName}': {ioEx.Message}", LogLevel.Error);
+                logger.IoErrorReadingInputFile(inputFile.FullName, ioEx);
                 Console.WriteLine();
                 return 1;
             }
@@ -168,33 +184,32 @@ internal sealed class WriteSectorCommand
 
             if (success)
             {
-                Logging.Log($"Data ({bytesWrittenReported / (1024.0 * 1024.0):F2} MiB) written to sectors successfully in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+                logger.DataWrittenToSectors(bytesWrittenReported / (1024.0 * 1024.0), writeStopwatch.Elapsed);
             }
             else
             {
-                Logging.Log("Failed to write data to sectors. Check previous logs for NAK or errors.", LogLevel.Error);
+                logger.FailedToWriteToSectors();
                 return 1;
             }
         }
         catch (FileNotFoundException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (ArgumentException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (IOException ex)
         {
-            Logging.Log($"IO Error (e.g., reading input file): {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred in 'write-sector': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
+            logger.UnexceptedException(ex);
             return 1;
         }
 

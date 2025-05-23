@@ -15,7 +15,7 @@ public class IODataDevDataMixin : DevData
 
     public bool ShouldSerializeSectorSizeInBytes()
     {
-        return sectorSizeInBytes.HasValue;
+        return sectorSizeInBytes is not null;
     }
 
     private string? numPartitionSectors;

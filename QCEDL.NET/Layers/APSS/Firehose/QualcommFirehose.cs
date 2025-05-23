@@ -18,11 +18,11 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Text;
 using QCEDL.NET.Logging;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using Qualcomm.EmergencyDownload.Transport;
-using System.Text;
 
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 

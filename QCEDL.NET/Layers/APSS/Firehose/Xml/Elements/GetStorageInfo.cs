@@ -14,6 +14,6 @@ public class GetStorageInfo : DevData
 
     public bool ShouldSerializePrintJson()
     {
-        return printJson.HasValue;
+        return printJson is not null;
     }
 }

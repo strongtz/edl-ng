@@ -118,4 +118,4 @@ internal enum QualcommSaharaStatusCode : uint
 
     /* Invalid ELF hash table size.  Too bit or small. */
     ERROR_INVALID_IMG_HASH_TABLE_SIZE = 0x26
-};
+}

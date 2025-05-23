@@ -1,29 +1,36 @@
-using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
-using QCEDL.NET.PartitionTable;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using QCEDL.CLI.Core;
+using QCEDL.CLI.Logging;
+using QCEDL.NET.PartitionTable;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
-internal sealed class ErasePartitionCommand
+internal sealed class ErasePartitionCommand(
+    ILogger<ErasePartitionCommand> logger,
+    GlobalOptionsBinder globalOptionsBinder,
+    IEdlManagerProvider edlManagerProvider) : ICommand
 {
-    private static readonly Argument<string> PartitionNameArgument = new("partition_name", "The name of the partition to erase.");
-    private static readonly Option<uint?> LunOption = new Option<uint?>(
+    private static readonly Argument<string> PartitionNameArgument =
+        new("partition_name", "The name of the partition to erase.");
+
+    private static readonly Option<uint?> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number. If not specified, all LUNs will be scanned for the partition.");
 
-    public static Command Create(GlobalOptionsBinder globalOptionsBinder)
+    public Command Create()
     {
         var command = new Command("erase-part", "Erases a partition by name from the device.")
         {
-            PartitionNameArgument,
-            LunOption
+            PartitionNameArgument, LunOption
         };
 
-        command.SetHandler(ExecuteAsync,
+        command.SetHandler(
+            ExecuteAsync,
             globalOptionsBinder,
             PartitionNameArgument,
             LunOption);
@@ -31,50 +38,56 @@ internal sealed class ErasePartitionCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(
+    private async Task<int> ExecuteAsync(
         GlobalOptionsBinder globalOptions,
         string partitionName,
         uint? specifiedLun)
     {
-        Logging.Log($"Executing 'erase-part' command: Partition '{partitionName}'...", LogLevel.Trace);
+        logger.ExecutingErasePartition(partitionName);
         var commandStopwatch = Stopwatch.StartNew();
 
         try
         {
-            using var manager = new EdlManager(globalOptions);
+            using var manager = edlManagerProvider.CreateEdlManager();
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
             var storageType = globalOptions.MemoryType ?? StorageType.UFS;
-            Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
+            logger.UsingStorageType(storageType);
 
             GPTPartition? foundPartition = null;
             uint actualLun = 0;
             uint actualSectorSize = 0;
 
             List<uint> lunsToScan = [];
-            if (specifiedLun.HasValue)
+            if (specifiedLun is not null)
             {
                 lunsToScan.Add(specifiedLun.Value);
-                Logging.Log($"Scanning specified LUN: {specifiedLun.Value}", LogLevel.Debug);
+                logger.ScanningSpecifiedLun(specifiedLun);
             }
             else
             {
-                Logging.Log("No LUN specified, attempting to determine number of LUNs and scan all.", LogLevel.Debug);
-                Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? devInfo = null;
+                logger.ScanningAllLun();
+                Root? devInfo = null;
                 try
                 {
-                    devInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot)); // Check LUN 0 for num_physical
+                    devInfo = await Task.Run(() =>
+                        manager.Firehose.GetStorageInfo(storageType, 0,
+                            globalOptions.Slot)); // Check LUN 0 for num_physical
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log($"Could not get device info to determine LUN count from LUN 0. Error: {ex.Message}. Will try a default range.", LogLevel.Warning);
+                    logger.CannotGetLunCount(ex);
                 }
 
                 if (devInfo?.StorageInfo?.NumPhysical > 0)
                 {
-                    for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++) lunsToScan.Add(i);
-                    Logging.Log($"Device reports {devInfo.StorageInfo.NumPhysical} LUN(s). Scanning LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Debug);
+                    for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++)
+                    {
+                        lunsToScan.Add(i);
+                    }
+
+                    logger.LunFound(devInfo.StorageInfo.NumPhysical, lunsToScan);
                 }
                 else
                 {
@@ -84,49 +97,56 @@ internal sealed class ErasePartitionCommand
                     }
                     else
                     {
-                        lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
-                        Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
+                        lunsToScan.AddRange([0, 1, 2, 3, 4, 5]);
+
+                        logger.ScanningDefaultLuns(lunsToScan);
                     }
                 }
             }
 
             foreach (var currentLun in lunsToScan)
             {
-                Logging.Log($"Scanning LUN {currentLun} for partition '{partitionName}'...", LogLevel.Debug);
-                Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? lunStorageInfo = null;
+                logger.ScanningLun(currentLun, partitionName);
+                Root? lunStorageInfo = null;
                 try
                 {
-                    lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
+                    lunStorageInfo = await Task.Run(() =>
+                        manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
                 }
                 catch (Exception storageEx)
                 {
-                    Logging.Log($"Could not get storage info for LUN {currentLun}. Error: {storageEx.Message}. Skipping LUN.", LogLevel.Warning);
+                    logger.SkippingLun(currentLun, storageEx);
                     continue;
                 }
 
-                var currentSectorSize = lunStorageInfo?.StorageInfo?.BlockSize > 0 ? (uint)lunStorageInfo.StorageInfo.BlockSize : 0;
+                var currentSectorSize = lunStorageInfo?.StorageInfo?.BlockSize > 0
+                    ? (uint)lunStorageInfo.StorageInfo.BlockSize
+                    : 0;
                 if (currentSectorSize == 0)
                 {
-                    currentSectorSize = storageType switch { StorageType.NVME => 512, StorageType.SDCC => 512, _ => 4096 };
-                    Logging.Log($"Storage info for LUN {currentLun} unreliable, using default sector size for {storageType}: {currentSectorSize}", LogLevel.Warning);
+                    currentSectorSize =
+                        storageType switch { StorageType.NVME => 512, StorageType.SDCC => 512, _ => 4096 };
+                    logger.StorageInfoUnreliable(currentLun, storageType, currentSectorSize);
                 }
-                Logging.Log($"Using sector size: {currentSectorSize} bytes for LUN {currentLun}.", LogLevel.Debug);
+
+                logger.SectorSize(currentLun, currentSectorSize);
 
                 uint sectorsForGptRead = 64;
                 byte[]? gptData;
                 try
                 {
-                    gptData = await Task.Run(() => manager.Firehose.Read(storageType, currentLun, globalOptions.Slot, currentSectorSize, 0, sectorsForGptRead - 1));
+                    gptData = await Task.Run(() => manager.Firehose.Read(storageType, currentLun, globalOptions.Slot,
+                        currentSectorSize, 0, sectorsForGptRead - 1));
                 }
                 catch (Exception readEx)
                 {
-                    Logging.Log($"Failed to read GPT area from LUN {currentLun}. Error: {readEx.Message}. Skipping LUN.", LogLevel.Warning);
+                    logger.FailedToReadGpt(currentLun, readEx);
                     continue;
                 }
 
                 if (gptData == null || gptData.Length < currentSectorSize * 2)
                 {
-                    Logging.Log($"Failed to read sufficient data for GPT from LUN {currentLun}.", LogLevel.Warning);
+                    logger.GptDataInsufficient(currentLun);
                     continue;
                 }
 
@@ -141,23 +161,34 @@ internal sealed class ErasePartitionCommand
                             var currentPartitionName = p.GetName();
                             if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
                             {
-                                foundPartition = p; actualLun = currentLun; actualSectorSize = currentSectorSize;
-                                Logging.Log($"Found partition '{partitionName}' on LUN {actualLun} with sector size {actualSectorSize}.", LogLevel.Info);
-                                Logging.Log($"  Details - Type: {p.TypeGUID}, UID: {p.UID}, LBA: {p.FirstLBA}-{p.LastLBA}", LogLevel.Debug);
+                                foundPartition = p;
+                                actualLun = currentLun;
+                                actualSectorSize = currentSectorSize;
+                                logger.FoundPartitionOnLun(partitionName, actualLun, actualSectorSize);
+                                logger.PartitionDetails(p.TypeGUID, p.UID, p.FirstLBA, p.LastLBA);
                                 break;
                             }
                         }
                     }
                 }
-                catch (InvalidDataException) { Logging.Log($"No valid GPT found or parse error on LUN {currentLun}.", LogLevel.Debug); }
-                catch (Exception ex) { Logging.Log($"Error processing GPT on LUN {currentLun}: {ex.Message}", LogLevel.Warning); }
+                catch (InvalidDataException ex)
+                {
+                    logger.GptNotFound(currentLun, ex);
+                }
+                catch (Exception ex)
+                {
+                    logger.ErrorProcessingGpt(currentLun, ex);
+                }
 
-                if (foundPartition.HasValue) break;
+                if (foundPartition is not null)
+                {
+                    break;
+                }
             }
 
-            if (!foundPartition.HasValue)
+            if (foundPartition is null)
             {
-                Logging.Log($"Error: Partition '{partitionName}' not found on " + (specifiedLun.HasValue ? $"LUN {specifiedLun.Value}." : "any scanned LUN."), LogLevel.Error);
+                logger.PartitionNotFound(partitionName, specifiedLun);
                 return 1;
             }
 
@@ -165,21 +196,25 @@ internal sealed class ErasePartitionCommand
             var partLastSectorUlong = foundPartition.Value.LastLBA;
             var numSectorsToEraseUlong = partLastSectorUlong - partStartSectorUlong + 1;
 
-            if (partStartSectorUlong > uint.MaxValue || numSectorsToEraseUlong > uint.MaxValue || (partStartSectorUlong + numSectorsToEraseUlong - 1) > uint.MaxValue)
+            if (partStartSectorUlong > uint.MaxValue || numSectorsToEraseUlong > uint.MaxValue ||
+                partStartSectorUlong + numSectorsToEraseUlong - 1 > uint.MaxValue)
             {
-                Logging.Log($"Error: Partition '{partitionName}' sector range (Start: {partStartSectorUlong}, Count: {numSectorsToEraseUlong}) exceeds uint.MaxValue, which is not supported by the current Firehose.Erase implementation.", LogLevel.Error);
+                logger.PartitionSectorRangeTooLarge(partitionName,
+                    partStartSectorUlong,
+                    numSectorsToEraseUlong);
                 return 1;
             }
+
             var startSector = (uint)partStartSectorUlong;
             var numSectorsToErase = (uint)numSectorsToEraseUlong;
 
             if (numSectorsToErase == 0)
             {
-                Logging.Log($"Warning: Partition '{partitionName}' has zero size. Nothing to erase.", LogLevel.Warning);
+                logger.PartitionZeroSize(partitionName);
                 return 0;
             }
 
-            Logging.Log($"Attempting to erase partition '{partitionName}' (LUN {actualLun}, LBA {startSector}, {numSectorsToErase} sectors)...", LogLevel.Info);
+            logger.ErasingPartition(partitionName, actualLun, startSector, numSectorsToErase);
             var eraseStopwatch = Stopwatch.StartNew();
 
             var success = await Task.Run(() => manager.Firehose.Erase(
@@ -194,29 +229,45 @@ internal sealed class ErasePartitionCommand
 
             if (success)
             {
-                Logging.Log($"Successfully erased partition '{partitionName}' in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+                logger.PartitionErased(partitionName, eraseStopwatch.Elapsed.TotalSeconds);
             }
             else
             {
-                Logging.Log($"Failed to erase partition '{partitionName}'. Check previous logs.", LogLevel.Error);
+                logger.PartitionEraseFailed(partitionName);
                 return 1;
             }
         }
-        catch (FileNotFoundException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
-        catch (ArgumentException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
-        catch (InvalidOperationException ex) { Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error); return 1; }
-        catch (IOException ex) { Logging.Log($"IO Error: {ex.Message}", LogLevel.Error); return 1; }
+        catch (FileNotFoundException ex)
+        {
+            logger.ExceptedException(ex);
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            logger.ExceptedException(ex);
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.ExceptedException(ex);
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            logger.ExceptedException(ex);
+            return 1;
+        }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred in 'erase-part': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
+            logger.UnexceptedException(ex);
             return 1;
         }
         finally
         {
             commandStopwatch.Stop();
-            Logging.Log($"'erase-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
+            logger.ErasePartCommandFinished(commandStopwatch.Elapsed);
         }
+
         return 0;
     }
 }

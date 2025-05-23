@@ -1,32 +1,39 @@
-using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
-using QCEDL.NET.PartitionTable;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using QCEDL.CLI.Core;
+using QCEDL.CLI.Logging;
+using QCEDL.NET.PartitionTable;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
-internal sealed class ReadPartitionCommand
+internal sealed class ReadPartitionCommand(
+    ILogger<ReadPartitionCommand> logger,
+    GlobalOptionsBinder globalOptionsBinder,
+    IEdlManagerProvider edlManagerProvider) : ICommand
 {
-    private static readonly Argument<string> PartitionNameArgument = new("partition_name", "The name of the partition to read.");
-    private static readonly Argument<FileInfo> FilenameArgument = new("filename", "The file to save the partition data to.") { Arity = ArgumentArity.ExactlyOne };
+    private static readonly Argument<string> PartitionNameArgument =
+        new("partition_name", "The name of the partition to read.");
 
-    private static readonly Option<uint?> LunOption = new Option<uint?>(
+    private static readonly Argument<FileInfo> FilenameArgument =
+        new("filename", "The file to save the partition data to.") { Arity = ArgumentArity.ExactlyOne };
+
+    private static readonly Option<uint?> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number. If not specified, all LUNs will be scanned for the partition.");
 
-    public static Command Create(GlobalOptionsBinder globalOptionsBinder)
+    public Command Create()
     {
         var command = new Command("read-part", "Reads a partition by name from the device, saving to a file.")
         {
-            PartitionNameArgument,
-            FilenameArgument,
-            LunOption
+            PartitionNameArgument, FilenameArgument, LunOption
         };
 
-        command.SetHandler(ExecuteAsync,
+        command.SetHandler(
+            ExecuteAsync,
             globalOptionsBinder,
             PartitionNameArgument,
             FilenameArgument,
@@ -35,23 +42,23 @@ internal sealed class ReadPartitionCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(
+    private async Task<int> ExecuteAsync(
         GlobalOptionsBinder globalOptions,
         string partitionName,
         FileInfo outputFile,
         uint? specifiedLun)
     {
-        Logging.Log($"Executing 'read-part' command: Partition '{partitionName}', File '{outputFile.FullName}'...", LogLevel.Trace);
+        logger.ExecutingReadPartCommand(partitionName, outputFile.FullName);
         var commandStopwatch = Stopwatch.StartNew();
 
         try
         {
-            using var manager = new EdlManager(globalOptions);
+            using var manager = edlManagerProvider.CreateEdlManager();
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
             var storageType = globalOptions.MemoryType ?? StorageType.UFS;
-            Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
+            logger.UsingStorageType(storageType);
 
             GPTPartition? foundPartition = null;
             uint actualLun = 0;
@@ -59,15 +66,15 @@ internal sealed class ReadPartitionCommand
 
             List<uint> lunsToScan = [];
 
-            if (specifiedLun.HasValue)
+            if (specifiedLun is not null)
             {
                 lunsToScan.Add(specifiedLun.Value);
-                Logging.Log($"Scanning specified LUN: {specifiedLun.Value}", LogLevel.Debug);
+                logger.ScanningSpecifiedLun(specifiedLun.Value);
             }
             else
             {
-                Logging.Log("No LUN specified, attempting to determine number of LUNs and scan all.", LogLevel.Debug);
-                Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? devInfo = null;
+                logger.NoLunSpecifiedScanAll();
+                Root? devInfo = null;
                 try
                 {
                     // Attempt to get info from LUN 0, as it often contains num_physical
@@ -75,7 +82,7 @@ internal sealed class ReadPartitionCommand
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log($"Could not get device info to determine LUN count from LUN 0. Error: {ex.Message}. Will try a default range.", LogLevel.Warning);
+                    logger.CouldNotGetDeviceInfoForLun0(ex);
                 }
 
                 if (devInfo?.StorageInfo?.NumPhysical > 0)
@@ -84,7 +91,8 @@ internal sealed class ReadPartitionCommand
                     {
                         lunsToScan.Add(i);
                     }
-                    Logging.Log($"Device reports {devInfo.StorageInfo.NumPhysical} LUN(s). Scanning LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Debug);
+
+                    logger.DeviceReportsAndScanningLuns(devInfo.StorageInfo.NumPhysical, lunsToScan);
                 }
                 else
                 {
@@ -95,27 +103,30 @@ internal sealed class ReadPartitionCommand
                     else
                     {
                         // Fallback: scan a common range of LUNs if num_physical couldn't be determined
-                        lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
-                        Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
+                        lunsToScan.AddRange([0, 1, 2, 3, 4, 5]);
+                        logger.CouldNotDetermineLunCountDefault(lunsToScan);
                     }
                 }
             }
 
             foreach (var currentLun in lunsToScan)
             {
-                Logging.Log($"Scanning LUN {currentLun} for partition '{partitionName}'...", LogLevel.Debug);
-                Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? lunStorageInfo = null;
+                logger.ScanningLunForPartition(currentLun, partitionName);
+                Root? lunStorageInfo;
                 try
                 {
-                    lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
+                    lunStorageInfo = await Task.Run(() =>
+                        manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
                 }
                 catch (Exception storageEx)
                 {
-                    Logging.Log($"Could not get storage info for LUN {currentLun}. Error: {storageEx.Message}. Skipping LUN.", LogLevel.Warning);
+                    logger.CouldNotGetStorageInfoForLun(currentLun, storageEx);
                     continue;
                 }
 
-                var currentSectorSize = lunStorageInfo?.StorageInfo?.BlockSize > 0 ? (uint)lunStorageInfo.StorageInfo.BlockSize : 0;
+                var currentSectorSize = lunStorageInfo?.StorageInfo?.BlockSize > 0
+                    ? (uint)lunStorageInfo.StorageInfo.BlockSize
+                    : 0;
                 if (currentSectorSize == 0)
                 {
                     currentSectorSize = storageType switch
@@ -124,9 +135,10 @@ internal sealed class ReadPartitionCommand
                         StorageType.SDCC => 512,
                         _ => 4096,
                     };
-                    Logging.Log($"Storage info for LUN {currentLun} unreliable, using default sector size for {storageType}: {currentSectorSize}", LogLevel.Warning);
+                    logger.StorageInfoUnreliableUseDefaultSectorSize(currentLun, storageType, currentSectorSize);
                 }
-                Logging.Log($"Using sector size: {currentSectorSize} bytes for LUN {currentLun}.", LogLevel.Debug);
+
+                logger.UsingSectorSizeForLun(currentLun, currentSectorSize);
 
                 // Read enough data for GPT (e.g., 64 sectors)
                 uint sectorsForGptRead = 64; // As in PrintGptCommand
@@ -144,14 +156,14 @@ internal sealed class ReadPartitionCommand
                 }
                 catch (Exception readEx)
                 {
-                    Logging.Log($"Failed to read GPT area from LUN {currentLun}. Error: {readEx.Message}. Skipping LUN.", LogLevel.Warning);
+                    logger.FailedToReadGptAreaForLun(currentLun, readEx);
                     continue;
                 }
 
 
                 if (gptData == null || gptData.Length < currentSectorSize * 2)
                 {
-                    Logging.Log($"Failed to read sufficient data for GPT from LUN {currentLun}.", LogLevel.Warning);
+                    logger.FailedToReadSufficientGptData(currentLun);
                     continue;
                 }
 
@@ -169,8 +181,8 @@ internal sealed class ReadPartitionCommand
                                 foundPartition = p;
                                 actualLun = currentLun;
                                 actualSectorSize = currentSectorSize;
-                                Logging.Log($"Found partition '{partitionName}' on LUN {actualLun} with sector size {actualSectorSize}.", LogLevel.Info);
-                                Logging.Log($"  Details - Type: {p.TypeGUID}, UID: {p.UID}, LBA: {p.FirstLBA}-{p.LastLBA}", LogLevel.Debug);
+                                logger.FoundPartitionOnLun(partitionName, actualLun, actualSectorSize);
+                                logger.PartitionDetails(p.TypeGUID, p.UID, p.FirstLBA, p.LastLBA);
                                 break;
                             }
                         }
@@ -178,19 +190,22 @@ internal sealed class ReadPartitionCommand
                 }
                 catch (InvalidDataException)
                 {
-                    Logging.Log($"No valid GPT found or parse error on LUN {currentLun}.", LogLevel.Debug);
+                    logger.NoValidGptFound(currentLun);
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log($"Error processing GPT on LUN {currentLun}: {ex.Message}", LogLevel.Warning);
+                    logger.ErrorProcessingGpt(currentLun, ex);
                 }
 
-                if (foundPartition.HasValue) break;
+                if (foundPartition is not null)
+                {
+                    break;
+                }
             }
 
-            if (!foundPartition.HasValue)
+            if (foundPartition is null)
             {
-                Logging.Log($"Error: Partition '{partitionName}' not found on " + (specifiedLun.HasValue ? $"LUN {specifiedLun.Value}." : "any scanned LUN."), LogLevel.Error);
+                logger.PartitionNotFound(partitionName, specifiedLun);
                 return 1;
             }
 
@@ -201,36 +216,45 @@ internal sealed class ReadPartitionCommand
 
             if (partStartSector > uint.MaxValue || partLastSector > uint.MaxValue)
             {
-                Logging.Log($"Error: Partition sector range (LBA {partStartSector}-{partLastSector}) exceeds uint.MaxValue, which is not supported by the current Firehose.Read implementation.", LogLevel.Error);
+                logger.PartitionRangeExceedsUint(partStartSector, partLastSector);
                 return 1;
             }
 
             if (totalBytesToRead <= 0)
             {
-                Logging.Log($"Warning: Partition '{partitionName}' has zero or negative size ({totalBytesToRead} bytes). Nothing to read.", LogLevel.Warning);
+                logger.PartitionSizeZeroOrNegative(partitionName, totalBytesToRead);
                 // Create an empty file
                 await File.WriteAllBytesAsync(outputFile.FullName, []);
                 return 0;
             }
 
-            Logging.Log($"Preparing to read partition '{partitionName}' from LUN {actualLun}: LBA {partStartSector} to {partLastSector} ({numSectorsToRead} sectors, {totalBytesToRead} bytes) into '{outputFile.FullName}'...", LogLevel.Info);
+            logger.PreparingToReadPartition(
+                partitionName,
+                actualLun,
+                partStartSector,
+                partLastSector,
+                numSectorsToRead,
+                totalBytesToRead,
+                outputFile.FullName);
 
             long bytesReadReported = 0;
             var readStopwatch = new Stopwatch(); // For timing the read operation itself
             Action<long, long> progressAction = (current, total) =>
             {
                 bytesReadReported = current;
-                var percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = readStopwatch.Elapsed;
                 var speed = current / elapsed.TotalSeconds; // Bytes/sec
                 var speedStr = "N/A";
                 if (elapsed.TotalSeconds > 0.1) // Avoid division by zero or tiny numbers
                 {
-                    speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
                         speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
                         $"{speed:F0} B/s";
                 }
-                Console.Write($"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
+
+                Console.Write(
+                    $"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
             };
 
             bool success;
@@ -238,7 +262,7 @@ internal sealed class ReadPartitionCommand
             {
                 // Ensure directory exists
                 outputFile.Directory?.Create();
-                using var fileStream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None);
+                await using var fileStream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None);
 
                 readStopwatch.Start();
                 success = await Task.Run(() => manager.Firehose.ReadToStream(
@@ -255,46 +279,59 @@ internal sealed class ReadPartitionCommand
             }
             catch (IOException ioEx) // Catch specific IO exceptions from FileStream
             {
-                Logging.Log($"IO Error creating/writing to file '{outputFile.FullName}': {ioEx.Message}", LogLevel.Error);
-                Console.WriteLine(); // Clear progress line
+                logger.IoErrorWritingFile(outputFile.FullName, ioEx.Message);
                 return 1;
             }
-            Console.WriteLine(); // Newline after progress bar
+
+            Console.WriteLine();
             if (!success)
             {
-                Logging.Log($"Failed to read partition '{partitionName}' or write to stream.", LogLevel.Error);
+                logger.FailedReadPartitionOrWrite(partitionName);
                 // Attempt to clean up partially written file
-                try { if (outputFile.Exists && outputFile.Length < totalBytesToRead) outputFile.Delete(); } catch (Exception ex) { Logging.Log($"Could not delete partial file '{outputFile.FullName}': {ex.Message}", LogLevel.Warning); }
+                try
+                {
+                    if (outputFile.Exists && outputFile.Length < totalBytesToRead)
+                    {
+                        outputFile.Delete();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.CouldNotDeletePartialFile(outputFile.FullName, ex);
+                }
+
                 return 1;
             }
-            Logging.Log($"Successfully read {bytesReadReported / (1024.0 * 1024.0):F2} MiB for partition '{partitionName}' and wrote to '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
 
+            logger.SuccessfullyReadAndWrote(
+                bytesReadReported / (1024.0 * 1024.0),
+                outputFile.FullName,
+                readStopwatch.Elapsed.TotalSeconds);
         }
         catch (FileNotFoundException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (ArgumentException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (IOException ex)
         {
-            Logging.Log($"IO Error (e.g., writing file): {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred in 'read-part': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
+            logger.UnexceptedException(ex);
             return 1;
         }
         finally
         {
             commandStopwatch.Stop();
-            Logging.Log($"'read-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
+            logger.ReadPartCommandFinished(commandStopwatch.Elapsed);
         }
 
         return 0;

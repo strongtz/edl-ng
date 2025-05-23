@@ -14,7 +14,7 @@ public class Configure
 
     public bool ShouldSerializeMemoryName()
     {
-        return memoryName.HasValue;
+        return memoryName is not null;
     }
 
     private string? verbose;
@@ -40,7 +40,7 @@ public class Configure
 
     public bool ShouldSerializeMaxPayloadSizeToTargetInBytes()
     {
-        return maxPayloadSizeToTargetInBytes.HasValue;
+        return maxPayloadSizeToTargetInBytes is not null;
     }
 
     private string? alwaysValidate;
@@ -66,7 +66,7 @@ public class Configure
 
     public bool ShouldSerializeMaxDigestTableSizeInBytes()
     {
-        return maxDigestTableSizeInBytes.HasValue;
+        return maxDigestTableSizeInBytes is not null;
     }
 
     private string? zlpAwareHost;
