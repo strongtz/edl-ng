@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-and-package:
@@ -105,8 +106,7 @@ jobs:
             exit 1
         }
         Get-ChildItem -Path $OutputDir # List contents for debugging
-        Compress-Archive -Path "$OutputDir/*" -DestinationPath "$ArtifactName" -Force
-        echo "zip_filename=$ArtifactName" >> $env:GITHUB_OUTPUT
+        echo "output_dir=$OutputDir" >> $env:GITHUB_OUTPUT
       id: package_win
 
     - name: Package Artifact (Linux/macOS)
@@ -134,25 +134,14 @@ jobs:
         fi
 
         ls -R "$OUTPUT_DIR"
-        (cd "$OUTPUT_DIR" && zip -r "../$ARTIFACT_NAME" .)
-        echo "zip_filename=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+        echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
       id: package_unix
-
-    - name: Determine Zip Filename
-      id: zip_info
-      shell: bash
-      run: |
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
-          echo "zip_filename=${{ steps.package_win.outputs.zip_filename }}" >> $GITHUB_OUTPUT
-        else
-          echo "zip_filename=${{ steps.package_unix.outputs.zip_filename }}" >> $GITHUB_OUTPUT
-        fi
 
     - name: Upload Individual Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-        path: ${{ steps.zip_info.outputs.zip_filename }}
+        path: ${{ runner.os == 'Windows' && steps.package_win.outputs.output_dir || steps.package_unix.outputs.output_dir }}
         if-no-files-found: error
         retention-days: 7
 
@@ -170,59 +159,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: all-build-artifacts # Downloads all artifacts into this directory, each in its own sub-directory
-      - name: Create staging directory and organize artifacts
-        shell: bash
-        run: |
-          STAGING_DIR="edl-ng-dist-staging"
-          mkdir -p "$STAGING_DIR"
-          
-          echo "Available downloaded artifacts:"
-          ls -R all-build-artifacts
-          # Loop through each downloaded artifact directory (named after the artifact)
-          for artifact_download_dir in all-build-artifacts/*; do
-            if [ -d "$artifact_download_dir" ]; then
-              artifact_original_name=$(basename "$artifact_download_dir") # e.g., edl-ng-windows-x64
-              
-              # Extract platform-arch part for folder name inside edl-ng-dist
-              # e.g., "edl-ng-windows-x64" -> "windows-x64"
-              platform_arch_folder="${artifact_original_name#edl-ng-}" 
-              
-              target_unpack_dir="$STAGING_DIR/$platform_arch_folder"
-              mkdir -p "$target_unpack_dir"
-              
-              # The zip file is inside the artifact_download_dir, named ${artifact_original_name}.zip
-              zip_file_path="$artifact_download_dir/${artifact_original_name}.zip"
-              
-              if [ -f "$zip_file_path" ]; then
-                echo "Unpacking $zip_file_path to $target_unpack_dir"
-                unzip -q "$zip_file_path" -d "$target_unpack_dir"
-              else
-                echo "::warning::Expected zip file $zip_file_path not found in $artifact_download_dir. Skipping."
-              fi
-            fi
-          done
-          
-          echo "Copying LICENSE to $STAGING_DIR"
-          cp LICENSE "$STAGING_DIR/LICENSE"
-          
-          echo "Staging directory structure:"
-          ls -R "$STAGING_DIR"
-          
-          echo "staging_dir_path=$STAGING_DIR" >> $GITHUB_OUTPUT
         id: organize
-      - name: Create edl-ng-dist.zip
-        shell: bash
-        run: |
-          STAGING_DIR="${{ steps.organize.outputs.staging_dir_path }}"
-          DIST_ZIP_NAME="edl-ng-dist.zip"
-          echo "Creating $DIST_ZIP_NAME from $STAGING_DIR"
-          (cd "$STAGING_DIR" && zip -qr "../$DIST_ZIP_NAME" .)
-          echo "dist_zip_name=$DIST_ZIP_NAME" >> $GITHUB_OUTPUT
-        id: zip_dist
       - name: Upload edl-ng-dist package
         uses: actions/upload-artifact@v4
         with:
           name: edl-ng-dist
-          path: ${{ steps.zip_dist.outputs.dist_zip_name }}
+          path: all-build-artifacts
           if-no-files-found: error
           retention-days: 30
