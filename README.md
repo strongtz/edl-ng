@@ -15,18 +15,18 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
   * **GPT Management:** Print GUID Partition Table.
   * **Partition Operations:**
     * Read partition to a file.
-    * Write file to a partition (with automatic padding).
+    * Write file to a partition.
     * Automatic LUN scanning to find partitions.
   * **Sector Operations:**
     * Read raw sectors to a file.
-    * Write file to raw sectors (with automatic padding).
+    * Write file to raw sectors.
   * **Device Control:** Reset or power off the device.
   * Get detailed storage information (sector size, LUN count).
 * **Flexible Device Detection:**
   * Specify USB VID/PID.
   * Uses COM ports on Windows or LibUsbDotNet (for all platforms, especially Linux/macOS).
 * **Configurable:**
-  * Specify memory type (UFS, eMMC/SDCC, NVMe, etc.).
+  * Specify memory type (UFS, eMMC/SD, NVMe, SPINOR etc.).
   * Set maximum payload size for Firehose.
   * Adjust logging levels.
 
@@ -35,21 +35,31 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
 The general command structure is:
 `edl-ng [global-options] <command> [command-options-and-arguments]`
 
-Run `edl-ng --help` for a full list of commands and options.
+Run `edl-ng --help` for a full list of commands and options, or refer to the specific command help using `edl-ng <command> --help`.
 
 ### Supported Commands
 
 * `upload-loader`: Connects in Sahara mode and uploads the specified Firehose loader.
 * `printgpt`: Reads and prints the GPT from the device.
 * `read-part <partition_name> <filename>`: Reads a partition to a file.
-* `write-part <partition_name> <filename>`: Writes data from a file to a partition.
 * `read-sector <start_sector> <num_sectors> <filename>`: Reads sectors to a file.
+* `write-part <partition_name> <filename>`: Writes data from a file to a partition.
 * `write-sector <start_sector> <filename>`: Writes data from a file to sectors.
+* `erase-part <partition_name>`: Erases a partition by name from the device.
+* `erase-sector <start_sector> <sectors>`: Erases a specified number of sectors from a given LUN and start LBA.
+* `provision <xmlfile>`: Performs UFS provisioning using an XML file.
+* `rawprogram <xmlfile_patterns>`: Processes rawprogramN.xml and patchN.xml files for flashing.
 * `reset`: Resets or powers off the device.
   * `--mode <reset|off|edl>`: Reset mode (default: `reset`).
   * `--delay <seconds>`: Delay before executing power command.
 
 ### Examples
+
+* **Flash a flat build to device using rawprogram XML files**
+
+    ```bash
+    edl-ng --loader prog_firehose_ddr.elf --memory UFS rawprogram rawprogram*.xml patch*.xml
+    ```
 
 * **Print GPT from LUN 0 (UFS memory):**
 
@@ -81,7 +91,7 @@ Run `edl-ng --help` for a full list of commands and options.
 * Dragonwing QCS6490
 * Dragonwing QCS8550
 
-SoCs older than msm8998 may not yet be supported.
+SoCs older than msm8998 are not tested and may not yet be supported.
 
 ## Prerequisites
 
@@ -98,10 +108,10 @@ SoCs older than msm8998 may not yet be supported.
 3. Navigate to the solution directory (`/`) and run:
 
     ```bash
-    dotnet build -c Release
+    dotnet build
     ```
 
-4. The executable `edl-ng` will be located in `QCEDL.CLI/bin/<Platform>/<Configuration>/net9.0/`. For example: `QCEDL.CLI/bin/x64/Release/net9.0/edl-ng`.
+4. The executable `edl-ng` will be located in `QCEDL.CLI/bin/<Configuration>/net9.0/<Platform>/`. For example: `QCEDL.CLI/bin/Debug/net9.0/win-x64/edl-ng`.
 
 ## License
 
