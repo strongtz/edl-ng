@@ -202,27 +202,15 @@ jobs:
             fi
           done
           
-          echo "Copying LICENSE to $STAGING_DIR"
-          cp LICENSE "$STAGING_DIR/LICENSE"
-          
           echo "Staging directory structure:"
           ls -R "$STAGING_DIR"
           
           echo "staging_dir_path=$STAGING_DIR" >> $GITHUB_OUTPUT
         id: organize
-      - name: Create edl-ng-dist.zip
-        shell: bash
-        run: |
-          STAGING_DIR="${{ steps.organize.outputs.staging_dir_path }}"
-          DIST_ZIP_NAME="edl-ng-dist.zip"
-          echo "Creating $DIST_ZIP_NAME from $STAGING_DIR"
-          (cd "$STAGING_DIR" && zip -qr "../$DIST_ZIP_NAME" .)
-          echo "dist_zip_name=$DIST_ZIP_NAME" >> $GITHUB_OUTPUT
-        id: zip_dist
       - name: Upload edl-ng-dist package
         uses: actions/upload-artifact@v4
         with:
           name: edl-ng-dist
-          path: ${{ steps.zip_dist.outputs.dist_zip_name }}
+          path: ${{ steps.organize.outputs.staging_dir_path }}
           if-no-files-found: error
           retention-days: 30
