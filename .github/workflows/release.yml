@@ -1,0 +1,48 @@
+name: edl-ng Release
+
+on:
+  workflow_dispatch:
+    inputs:
+        action_run_id:
+          description: 'Action run ID to use for the release'
+          required: true
+          default: 0
+          type: number
+        version:
+          description: 'Version to use for the release'
+          required: true
+          default: 'v1.0'
+          type: string
+        make_latest:
+          description: 'Make this release the latest'
+          required: true
+          default: true
+          type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: contains('["strongtz"]', github.actor)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+    
+      - name: Download artifacts
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ inputs.action_run_id }}
+          skip_unpack: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ inputs.version }}
+          draft: true
+          files: |
+            ./*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ inputs.version }}
