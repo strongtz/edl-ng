@@ -20,6 +20,9 @@
 
 // These functions assume same endianness for the CPU architecture and the raw data it reads from or writes to.
 
+using System.Collections;
+using System.Text;
+
 namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
 
 internal static class ByteOperations
@@ -28,14 +31,14 @@ internal static class ByteOperations
     {
         var Bytes = new byte[Length];
         Buffer.BlockCopy(ByteArray, (int)Offset, Bytes, 0, (int)Length);
-        return System.Text.Encoding.ASCII.GetString(Bytes);
+        return Encoding.ASCII.GetString(Bytes);
     }
 
     internal static string ReadUnicodeString(byte[] ByteArray, uint Offset, uint Length)
     {
         var Bytes = new byte[Length];
         Buffer.BlockCopy(ByteArray, (int)Offset, Bytes, 0, (int)Length);
-        return System.Text.Encoding.Unicode.GetString(Bytes);
+        return Encoding.Unicode.GetString(Bytes);
     }
 
     internal static void WriteAsciiString(byte[] ByteArray, uint Offset, string Text, uint? MaxBufferLength = null)
@@ -45,7 +48,7 @@ internal static class ByteOperations
             Array.Clear(ByteArray, (int)Offset, (int)MaxBufferLength);
         }
 
-        var TextBytes = System.Text.Encoding.ASCII.GetBytes(Text);
+        var TextBytes = Encoding.ASCII.GetBytes(Text);
         var WriteLength = TextBytes.Length;
         if (WriteLength > MaxBufferLength)
         {
@@ -62,7 +65,7 @@ internal static class ByteOperations
             Array.Clear(ByteArray, (int)Offset, (int)MaxBufferLength);
         }
 
-        var TextBytes = System.Text.Encoding.Unicode.GetBytes(Text);
+        var TextBytes = Encoding.Unicode.GetBytes(Text);
         var WriteLength = TextBytes.Length;
         if (WriteLength > MaxBufferLength)
         {
@@ -146,7 +149,7 @@ internal static class ByteOperations
     {
         var GuidBuffer = new byte[0x10];
         Buffer.BlockCopy(ByteArray, (int)Offset, GuidBuffer, 0, 0x10);
-        return new Guid(GuidBuffer);
+        return new(GuidBuffer);
     }
 
     internal static void WriteGuid(byte[] ByteArray, uint Offset, Guid Value)
@@ -161,12 +164,12 @@ internal static class ByteOperations
 
     internal static uint? FindAscii(byte[] SourceBuffer, string Pattern)
     {
-        return FindPattern(SourceBuffer, System.Text.Encoding.ASCII.GetBytes(Pattern), null, null);
+        return FindPattern(SourceBuffer, Encoding.ASCII.GetBytes(Pattern), null, null);
     }
 
     internal static uint? FindUnicode(byte[] SourceBuffer, string Pattern)
     {
-        return FindPattern(SourceBuffer, System.Text.Encoding.Unicode.GetBytes(Pattern), null, null);
+        return FindPattern(SourceBuffer, Encoding.Unicode.GetBytes(Pattern), null, null);
     }
 
     internal static uint? FindUint(byte[] SourceBuffer, uint Pattern)
@@ -181,7 +184,7 @@ internal static class ByteOperations
 
     internal static bool Compare(byte[] Array1, byte[] Array2)
     {
-        return System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(Array1, Array2);
+        return StructuralComparisons.StructuralEqualityComparer.Equals(Array1, Array2);
     }
 
     internal static uint? FindPattern(byte[] SourceBuffer, uint SourceOffset, uint? SourceSize, byte[] Pattern, byte[]? Mask, byte[]? OutPattern)

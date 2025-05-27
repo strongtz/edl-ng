@@ -1,27 +1,31 @@
+using System.CommandLine;
+using Microsoft.Extensions.Logging;
 using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
+using QCEDL.CLI.Logging;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
 
 namespace QCEDL.CLI.Commands;
 
-internal sealed class ResetCommand
+internal sealed class ResetCommand(
+    ILogger<ResetCommand> logger,
+    GlobalOptionsBinder globalOptionsBinder,
+    IEdlManagerProvider edlManagerProvider) : ICommand
 {
-    private static readonly Option<PowerValue> ModeOption = new Option<PowerValue>(
+    private static readonly Option<PowerValue> ModeOption = new(
         aliases: ["--mode", "-m"],
         description: "Specify the reset mode.",
         getDefaultValue: () => PowerValue.reset
     );
 
 
-    private static readonly Option<uint> DelayOption = new Option<uint>(
+    private static readonly Option<uint> DelayOption = new(
         aliases: ["--delay", "-d"],
         description: "Delay in seconds before executing the power command.",
         getDefaultValue: () => 1
     );
 
-    public static Command Create(GlobalOptionsBinder globalOptionsBinder)
+    public Command Create()
     {
         var command = new Command("reset", "Resets or powers off the device using Firehose.")
         {
@@ -29,7 +33,8 @@ internal sealed class ResetCommand
             DelayOption
         };
 
-        command.SetHandler(ExecuteAsync,
+        command.SetHandler(
+            ExecuteAsync,
             globalOptionsBinder,
             ModeOption,
             DelayOption);
@@ -37,59 +42,60 @@ internal sealed class ResetCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(
+    private async Task<int> ExecuteAsync(
         GlobalOptionsBinder globalOptions,
         PowerValue powerMode,
         uint delayInSeconds)
     {
-        Logging.Log($"Executing 'reset' command: Mode '{powerMode}', Delay '{delayInSeconds}s'...", LogLevel.Trace);
+        logger.ExecutingReset(powerMode, delayInSeconds);
 
         try
         {
-            using var manager = new EdlManager(globalOptions);
+            using var manager = edlManagerProvider.CreateEdlManager();
             await manager.EnsureFirehoseModeAsync();
 
-            Logging.Log($"Attempting to send power command: Mode '{powerMode}', Delay '{delayInSeconds}s'...", LogLevel.Info);
+            logger.AttemptingPowerCommand(powerMode, delayInSeconds);
 
             var success = await Task.Run(() => manager.Firehose.Reset(powerMode, delayInSeconds));
 
             if (success)
             {
-                Logging.Log($"Power command '{powerMode}' sent successfully.", LogLevel.Info);
-                if (powerMode == PowerValue.reset || powerMode == PowerValue.edl)
+                logger.PowerCommandSucceeded(powerMode);
+
+                switch (powerMode)
                 {
-                    Logging.Log("Device should now be resetting.", LogLevel.Info);
-                }
-                else if (powerMode == PowerValue.off)
-                {
-                    Logging.Log("Device should now be powering off.", LogLevel.Info);
+                    case PowerValue.reset or PowerValue.edl:
+                        logger.DeviceResetting();
+                        break;
+                    case PowerValue.off:
+                        logger.DevicePoweringOff();
+                        break;
                 }
             }
             else
             {
-                Logging.Log($"Failed to send power command '{powerMode}'. Check previous logs for NAK or errors.", LogLevel.Error);
+                logger.PowerCommandFailed(powerMode);
                 return 1;
             }
         }
         catch (FileNotFoundException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (ArgumentException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (InvalidOperationException ex)
         {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred in 'reset': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
+            logger.UnexceptedException(ex);
             return 1;
         }
 

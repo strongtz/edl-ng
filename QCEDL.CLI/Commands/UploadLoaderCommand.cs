@@ -1,73 +1,77 @@
-using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
 using System.CommandLine;
+using Microsoft.Extensions.Logging;
+using QCEDL.CLI.Core;
+using QCEDL.CLI.Logging;
 
 namespace QCEDL.CLI.Commands;
 
-internal sealed class UploadLoaderCommand
+internal sealed class UploadLoaderCommand(
+    ILogger<UploadLoaderCommand> logger,
+    GlobalOptionsBinder globalOptionsBinder,
+    IEdlManagerProvider edlManagerProvider) : ICommand
 {
-    public static Command Create(GlobalOptionsBinder globalOptionsBinder)
+    public Command Create()
     {
-        var command = new Command("upload-loader", "Connects in Sahara mode and uploads the specified Firehose loader (--loader). Does not proceed to Firehose operations.")
-        {
-            // No specific options for this command itself
-        };
+        var command = new Command(
+            "upload-loader",
+            "Connects in Sahara mode and uploads the specified Firehose loader (--loader). Does not proceed to Firehose operations.");
 
-        command.SetHandler(ExecuteAsync, globalOptionsBinder);
+        command.SetHandler(
+            ExecuteAsync,
+            globalOptionsBinder);
 
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions)
+    private async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions)
     {
-        Logging.Log("Executing 'upload-loader' command...", LogLevel.Trace);
+        logger.ExecutingUploadLoader();
 
         if (string.IsNullOrEmpty(globalOptions.LoaderPath))
         {
-            Logging.Log("Error: The '--loader' option is required for the 'upload-loader' command.", LogLevel.Error);
+            logger.LoaderOptionMissing();
             return 1;
         }
 
         try
         {
-            using var manager = new EdlManager(globalOptions);
+            using var manager = edlManagerProvider.CreateEdlManager();
             var currentMode = await manager.DetectCurrentModeAsync();
             switch (currentMode)
             {
                 case DeviceMode.Sahara:
-                    Logging.Log("Device detected in Sahara mode. Proceeding with loader upload...", LogLevel.Info);
+                    logger.SaharaModeDetected();
                     await manager.UploadLoaderViaSaharaAsync();
-                    Logging.Log("Loader upload process completed. Device should restart or re-enumerate.", LogLevel.Debug);
+                    logger.LoaderUploadCompleted();
                     break;
                 case DeviceMode.Firehose:
-                    Logging.Log("Error: Device is already in Firehose mode. Cannot upload loader.", LogLevel.Error);
+                    logger.AlreadyInFirehose();
                     return 1;
                 case DeviceMode.Unknown:
                 case DeviceMode.Error:
                 default:
-                    Logging.Log($"Error: Cannot upload loader. Device mode is {currentMode} or could not be reliably determined.", LogLevel.Error);
+                    logger.CannotUploadLoaderUnknownMode(currentMode);
                     return 1;
             }
         }
         catch (FileNotFoundException ex)
         {
-            Logging.Log(ex.Message, LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (InvalidOperationException ex)
         {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (ArgumentException ex)
         {
-            Logging.Log($"Configuration Error: {ex.Message}", LogLevel.Error);
+            logger.ExceptedException(ex);
             return 1;
         }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred: {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
+            logger.UnexceptedException(ex);
             return 1;
         }
 

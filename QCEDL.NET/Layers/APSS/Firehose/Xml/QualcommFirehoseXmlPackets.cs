@@ -8,9 +8,9 @@ internal sealed class QualcommFirehoseXmlPackets
     public static Data GetConfigurePacket(StorageType memoryName, bool verbose, ulong maxPayloadSizeToTargetInBytes, bool alwaysValidate,
         ulong maxDigestTableSizeInBytes, bool zlpAwareHost, bool skipWrite, bool skipStorageInit = false)
     {
-        return new Data()
+        return new()
         {
-            Configure = new Configure()
+            Configure = new()
             {
                 MemoryName = memoryName,
                 Verbose = verbose ? "1" : "0",
@@ -26,9 +26,9 @@ internal sealed class QualcommFirehoseXmlPackets
 
     public static Data GetReadPacket(StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint FirstSector, uint LastSector)
     {
-        return new Data()
+        return new()
         {
-            Read = new Read()
+            Read = new()
             {
                 PhysicalPartitionNumber = LUNi,
                 Slot = slot,
@@ -43,9 +43,9 @@ internal sealed class QualcommFirehoseXmlPackets
 
     public static Data GetProgramPacket(StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint startSector, uint numSectors, string? filename)
     {
-        return new Data()
+        return new()
         {
-            Program = new Elements.Program()
+            Program = new()
             {
                 PhysicalPartitionNumber = LUNi,
                 StorageType = storageType,
@@ -60,9 +60,9 @@ internal sealed class QualcommFirehoseXmlPackets
 
     public static Data GetErasePacket(StorageType storageType, uint LUNi, uint slot, uint sectorSize, uint startSector, uint numSectorsToErase)
     {
-        return new Data()
+        return new()
         {
-            Erase = new EraseCommand()
+            Erase = new()
             {
                 PhysicalPartitionNumber = LUNi,
                 StorageType = storageType,
@@ -76,9 +76,9 @@ internal sealed class QualcommFirehoseXmlPackets
 
     public static Data GetPowerPacket(PowerValue powerValue = PowerValue.reset, uint delayInSeconds = 1)
     {
-        return new Data()
+        return new()
         {
-            Power = new Power()
+            Power = new()
             {
                 Value = powerValue,
                 DelayInSeconds = delayInSeconds
@@ -88,9 +88,9 @@ internal sealed class QualcommFirehoseXmlPackets
 
     public static Data GetStorageInfoPacket(StorageType storageType, uint physicalPartitionNumber = 0, uint slot = 0)
     {
-        return new Data()
+        return new()
         {
-            GetStorageInfo = new GetStorageInfo()
+            GetStorageInfo = new()
             {
                 PhysicalPartitionNumber = physicalPartitionNumber,
                 StorageType = storageType,

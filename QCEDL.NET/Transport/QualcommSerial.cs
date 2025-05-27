@@ -18,14 +18,18 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Globalization;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using LibUsbDotNet;
-using LibUsbDotNet.Main;
 using LibUsbDotNet.LibUsb;
+using LibUsbDotNet.Main;
+using Microsoft.Win32;
 using QCEDL.NET.Extensions;
 using QCEDL.NET.Logging;
 using QCEDL.NET.Todo;
+using LogLevel = LibUsbDotNet.LogLevel;
 
 namespace Qualcomm.EmergencyDownload.Transport;
 
@@ -56,8 +60,8 @@ public class QualcommSerial : IDisposable
     {
         try
         {
-            LibUsbContext = new UsbContext();
-            LibUsbContext.SetDebugLevel(LibUsbDotNet.LogLevel.Warning);
+            LibUsbContext = new();
+            LibUsbContext.SetDebugLevel(LogLevel.Warning);
         }
         catch (Exception ex)
         {
@@ -72,7 +76,7 @@ public class QualcommSerial : IDisposable
         {
             if (deviceIdOrPath.StartsWithOrdinal("/dev/tty"))
             {
-                Port = new SerialPort(deviceIdOrPath, 115200) { ReadTimeout = 1000, WriteTimeout = 1000, };
+                Port = new(deviceIdOrPath, 115200) { ReadTimeout = 1000, WriteTimeout = 1000, };
                 if (Port != null)
                 {
                     try
@@ -179,14 +183,14 @@ public class QualcommSerial : IDisposable
             if (string.Equals(DevicePathElements[3], "{86E0D1E0-8089-11D0-9CE4-08003E301F73}",
                     StringComparison.OrdinalIgnoreCase))
             {
-                var PortName = (string?)Microsoft.Win32.Registry.GetValue(
+                var PortName = (string?)Registry.GetValue(
                     $@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB\{DevicePathElements[1]}\{DevicePathElements[2]}\Device Parameters",
                     "PortName", null);
                 if (PortName != null)
                 {
                     try
                     {
-                        Port = new SerialPort(PortName, 115200) { ReadTimeout = 1000, WriteTimeout = 1000 };
+                        Port = new(PortName, 115200) { ReadTimeout = 1000, WriteTimeout = 1000 };
                         if (Port != null)
                         {
                             try
@@ -215,9 +219,9 @@ public class QualcommSerial : IDisposable
                     {
                         LibraryLogger.Error($"Failed to open SerialPort: {ex.Message}");
                         LibraryLogger.Error(
-                            $"Please check if the port is already in use by some Qualcomm software");
+                            "Please check if the port is already in use by some Qualcomm software");
                         LibraryLogger.Error(
-                            $"Try stopping the 'Qualcomm Unified Tools Service' if you have closed every other suspicious program");
+                            "Try stopping the 'Qualcomm Unified Tools Service' if you have closed every other suspicious program");
                         throw;
                     }
                     catch (Exception ex)
@@ -296,14 +300,14 @@ public class QualcommSerial : IDisposable
         var pid = 0;
         try
         {
-            var matchVid = System.Text.RegularExpressions.Regex.Match(devicePath, @"VID_([0-9A-Fa-f]{4})",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            var matchPid = System.Text.RegularExpressions.Regex.Match(devicePath, @"PID_([0-9A-Fa-f]{4})",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var matchVid = Regex.Match(devicePath, @"VID_([0-9A-Fa-f]{4})",
+                RegexOptions.IgnoreCase);
+            var matchPid = Regex.Match(devicePath, @"PID_([0-9A-Fa-f]{4})",
+                RegexOptions.IgnoreCase);
             if (matchVid.Success)
-                int.TryParse(matchVid.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out vid);
+                int.TryParse(matchVid.Groups[1].Value, NumberStyles.HexNumber, null, out vid);
             if (matchPid.Success)
-                int.TryParse(matchPid.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out pid);
+                int.TryParse(matchPid.Groups[1].Value, NumberStyles.HexNumber, null, out pid);
         }
         catch
         {

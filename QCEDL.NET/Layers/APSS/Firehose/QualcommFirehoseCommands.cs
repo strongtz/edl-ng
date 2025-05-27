@@ -1,11 +1,12 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
+using QCEDL.NET.Extensions;
+using QCEDL.NET.Json;
+using QCEDL.NET.Logging;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.Diagnostics;
-using QCEDL.NET.Extensions;
-using QCEDL.NET.Logging;
-using QCEDL.NET.Json;
 using Qualcomm.EmergencyDownload.Transport;
 
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
@@ -233,7 +234,7 @@ public static class QualcommFirehoseCommands
                 LibraryLogger.Warning(
                     $"Received empty data payload from GetFirehoseResponseDataPayloads (final ACK loop attempt {finalAckAttempts}), breaking.");
                 // Consider if a short delay is needed here if device is slow to send final ACK
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(50);
             }
         }
 
@@ -571,7 +572,7 @@ public static class QualcommFirehoseCommands
             if (storageType == StorageType.SPINOR)
             {
                 // For SPINOR, we just use a long enough timeout
-                LibraryLogger.Debug($"Setting Firehose serial timeout to 300 s for SPINOR.");
+                LibraryLogger.Debug("Setting Firehose serial timeout to 300 s for SPINOR.");
                 Firehose.Serial.SetTimeOut(300000);
             }
             else
@@ -636,7 +637,7 @@ public static class QualcommFirehoseCommands
             {
                 LibraryLogger.Warning(
                     $"Received empty data payload (Program final ACK loop attempt {finalAckAttempts}). Waiting briefly...");
-                System.Threading.Thread.Sleep(200);
+                Thread.Sleep(200);
             }
         }
 
@@ -873,7 +874,7 @@ public static class QualcommFirehoseCommands
             {
                 LibraryLogger.Warning(
                     $"Received empty data payload (Program final ACK loop attempt {finalAckAttempts}). Waiting briefly...");
-                System.Threading.Thread.Sleep(500);
+                Thread.Sleep(500);
             }
         }
 
@@ -1014,7 +1015,7 @@ public static class QualcommFirehoseCommands
         return true;
     }
 
-    public static JSON.StorageInfo.Root? GetStorageInfo(this QualcommFirehose Firehose,
+    public static Root? GetStorageInfo(this QualcommFirehose Firehose,
         StorageType storageType = StorageType.UFS, uint PhysicalPartitionNumber = 0, uint slot = 0)
     {
         LibraryLogger.Debug(
@@ -1075,10 +1076,10 @@ public static class QualcommFirehoseCommands
                 $"Failed to deserialize storage info JSON (AOT/Reflection issue likely): {nse.Message}");
             LibraryLogger.Debug($"JSON content: {storageInfoJson}");
             LibraryLogger.Debug(
-                $"Make sure 'QCEDL.NET.Json.AppJsonSerializerContext' includes [JsonSerializable(typeof(Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root))] and for its members if they are custom types.");
+                "Make sure 'QCEDL.NET.Json.AppJsonSerializerContext' includes [JsonSerializable(typeof(Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root))] and for its members if they are custom types.");
             return null;
         }
-        catch (System.Text.Json.JsonException jsonEx)
+        catch (JsonException jsonEx)
         {
             LibraryLogger.Error($"Failed to deserialize storage info JSON: {jsonEx.Message}");
             LibraryLogger.Debug($"JSON content: {storageInfoJson}");
@@ -1146,17 +1147,16 @@ public static class QualcommFirehoseCommands
                         finalAckOrNakReceived = true;
                         break;
                     }
-                    else if (data.Response.Value == "Nak")
+
+                    if (data.Response.Value == "Nak")
                     {
                         LibraryLogger.Error("Raw XML command NAKed.");
                         success = false;
                         finalAckOrNakReceived = true;
                         break;
                     }
-                    else
-                    {
-                        LibraryLogger.Warning($"Unexpected response value for raw XML: {data.Response.Value}");
-                    }
+
+                    LibraryLogger.Warning($"Unexpected response value for raw XML: {data.Response.Value}");
                 }
                 else
                 {

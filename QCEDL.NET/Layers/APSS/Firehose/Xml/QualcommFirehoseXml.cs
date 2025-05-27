@@ -1,8 +1,9 @@
-﻿using System.Xml.Linq;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using QCEDL.NET.Logging;
+﻿using System.Globalization;
 using System.Text;
-using System.Globalization;
+using System.Xml;
+using System.Xml.Linq;
+using QCEDL.NET.Logging;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml;
 
@@ -152,7 +153,7 @@ public static class QualcommFirehoseXml
         {
             rootElement = XElement.Parse(wrappedXml);
         }
-        catch (System.Xml.XmlException ex)
+        catch (XmlException ex)
         {
             LibraryLogger.Error($"GetDataPayloads: Failed to parse XML: {ex.Message}. XML content (cleaned): '{cleanedXml}'");
             throw; // Re-throw or return empty array based on desired error handling
@@ -166,13 +167,13 @@ public static class QualcommFirehoseXml
             var logElement = dataElement.Element("log");
             if (logElement != null)
             {
-                data.Log = new Log { Value = (string?)logElement.Attribute("value") };
+                data.Log = new() { Value = (string?)logElement.Attribute("value") };
             }
 
             var responseElement = dataElement.Element("response");
             if (responseElement != null)
             {
-                data.Response = new Response
+                data.Response = new()
                 {
                     Value = (string?)responseElement.Attribute("value"),
                     // Assuming "true" or "1" means true for RawMode. Firehose seems to use "true".
@@ -268,7 +269,7 @@ public static class QualcommFirehoseXml
             var nopElement = dataElement.Element("nop");
             if (nopElement != null)
             {
-                data.Nop = new Nop();
+                data.Nop = new();
             }
 
             dataList.Add(data);

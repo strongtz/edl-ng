@@ -26,6 +26,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using QCEDL.NET.Todo;
@@ -62,7 +63,7 @@ public class USBExtensions
                     {
                         break;
                     }
-                    System.Diagnostics.Debug.WriteLine($"SetupDiEnumDeviceInterfaces failed with error: {lastError} for memberIndex: {memberIndex}");
+                    Debug.WriteLine($"SetupDiEnumDeviceInterfaces failed with error: {lastError} for memberIndex: {memberIndex}");
                     memberIndex++;
                     continue;
                 }
@@ -81,14 +82,14 @@ public class USBExtensions
 
                 if (!success && Marshal.GetLastWin32Error() != ERROR_INSUFFICIENT_BUFFER)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Failed to get interface details buffer size. Error: {Marshal.GetLastWin32Error()}");
+                    Debug.WriteLine($"Failed to get interface details buffer size. Error: {Marshal.GetLastWin32Error()}");
                     memberIndex++;
                     continue;
                 }
 
                 if (bufferSize == 0)
                 {
-                    System.Diagnostics.Debug.WriteLine("Buffer size for device interface detail is 0. Skipping.");
+                    Debug.WriteLine("Buffer size for device interface detail is 0. Skipping.");
                     memberIndex++;
                     continue;
                 }
@@ -96,7 +97,7 @@ public class USBExtensions
                 try
                 {
                     detailDataBuffer = Marshal.AllocHGlobal(bufferSize);
-                    Marshal.WriteInt32(detailDataBuffer, nint.Size == 4 ? (4 + Marshal.SystemDefaultCharSize) : 8);
+                    Marshal.WriteInt32(detailDataBuffer, nint.Size == 4 ? 4 + Marshal.SystemDefaultCharSize : 8);
                     da.cbSize = Marshal.SizeOf(da);
                     success = SetupDiGetDeviceInterfaceDetail(
                         deviceInfoSet,
@@ -107,7 +108,7 @@ public class USBExtensions
                         ref da);
                     if (!success)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Failed to get device interface details. Error: {Marshal.GetLastWin32Error()}");
+                        Debug.WriteLine($"Failed to get device interface details. Error: {Marshal.GetLastWin32Error()}");
                         memberIndex++;
                         continue;
                     }
@@ -143,7 +144,7 @@ public class USBExtensions
 
         try
         {
-            BusName = GetStringProperty(deviceInfoSet, deviceInfoData, new DEVPROPKEY(new Guid(0x540b947e, 0x8b40, 0x45bc, 0xa8, 0xa2, 0x6a, 0x0b, 0x89, 0x4c, 0xbd, 0xa2), 4));
+            BusName = GetStringProperty(deviceInfoSet, deviceInfoData, new(new(0x540b947e, 0x8b40, 0x45bc, 0xa8, 0xa2, 0x6a, 0x0b, 0x89, 0x4c, 0xbd, 0xa2), 4));
         }
         catch (Exception)
         {
@@ -209,7 +210,7 @@ public class USBExtensions
 
     // Device Property
     [StructLayout(LayoutKind.Sequential)]
-    private unsafe struct DEVPROPKEY
+    private struct DEVPROPKEY
     {
         public DEVPROPKEY(Guid ifmtid, uint ipid)
         {
@@ -236,5 +237,5 @@ public class USBExtensions
     private static extern nint SetupDiGetClassDevs(ref Guid ClassGuid, nint Enumerator, nint hwndParent, int Flags);
 
     [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern unsafe bool SetupDiGetDeviceProperty(nint deviceInfoSet, ref SP_DEVINFO_DATA DeviceInfoData, ref DEVPROPKEY propertyKey, out uint propertyType, byte[]? propertyBuffer, int propertyBufferSize, out int requiredSize, uint flags);
+    private static extern bool SetupDiGetDeviceProperty(nint deviceInfoSet, ref SP_DEVINFO_DATA DeviceInfoData, ref DEVPROPKEY propertyKey, out uint propertyType, byte[]? propertyBuffer, int propertyBufferSize, out int requiredSize, uint flags);
 }
