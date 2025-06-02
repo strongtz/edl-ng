@@ -41,7 +41,7 @@ public static class QualcommFirehoseCommands
                     {
                         LibraryLogger.Debug("Configure command ACKed.");
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error("Configure command NAKed.");
                         return false;
@@ -143,7 +143,7 @@ public static class QualcommFirehoseCommands
 
                         GotResponse = true;
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error(
                             $"Read command NAKed. Message: {data.Response.Value}"); // Assuming NAK might have more info
@@ -209,7 +209,7 @@ public static class QualcommFirehoseCommands
                         LibraryLogger.Debug("Final ACK received for Read operation.");
                         GotResponse = true;
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error($"Final NAK received for Read operation. Message: {data.Response.Value}");
                         return null;
@@ -287,7 +287,7 @@ public static class QualcommFirehoseCommands
 
                         GotResponse = true;
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error(
                             $"Read command NAKed. Message: {data.Response.Value}"); // Assuming NAK might have more info
@@ -353,7 +353,7 @@ public static class QualcommFirehoseCommands
                         LibraryLogger.Debug("Final ACK received for Read operation.");
                         GotResponse = true;
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error($"Final NAK received for Read operation. Message: {data.Response.Value}");
                         return false;
@@ -531,7 +531,7 @@ public static class QualcommFirehoseCommands
 
                         initialResponseReceived = true;
                     }
-                    else if (dataElement.Response.Value == "Nak")
+                    else if (dataElement.Response.Value == "NAK")
                     {
                         LibraryLogger.Error($"Program command NAKed. Message: {dataElement.Response.Value}");
                         return false;
@@ -612,7 +612,7 @@ public static class QualcommFirehoseCommands
                         LibraryLogger.Debug("Program operation successful (final ACK received).");
                         finalAckReceived = true;
                     }
-                    else if (dataElement.Response.Value == "Nak")
+                    else if (dataElement.Response.Value == "NAK")
                     {
                         LibraryLogger.Error(
                             $"Program operation failed (final NAK received). Message: {dataElement.Response.Value}");
@@ -714,7 +714,7 @@ public static class QualcommFirehoseCommands
 
                         initialResponseReceived = true;
                     }
-                    else if (dataElement.Response.Value == "Nak")
+                    else if (dataElement.Response.Value == "NAK")
                     {
                         LibraryLogger.Error($"Program command NAKed. Message: {dataElement.Response.Value}");
                         return false;
@@ -849,7 +849,7 @@ public static class QualcommFirehoseCommands
                         LibraryLogger.Debug("Program operation successful (final ACK received).");
                         finalAckReceived = true;
                     }
-                    else if (dataElement.Response.Value == "Nak")
+                    else if (dataElement.Response.Value == "NAK")
                     {
                         LibraryLogger.Error(
                             $"Program operation failed (final NAK received). Message: {dataElement.Response.Value}");
@@ -946,7 +946,7 @@ public static class QualcommFirehoseCommands
                         LibraryLogger.Debug("Erase command ACKed.");
                         success = true;
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error($"Erase command NAKed. Details: {data.Response.Value}");
                         success = false;
@@ -1146,7 +1146,7 @@ public static class QualcommFirehoseCommands
                         finalAckOrNakReceived = true;
                         break;
                     }
-                    else if (data.Response.Value == "Nak")
+                    else if (data.Response.Value == "NAK")
                     {
                         LibraryLogger.Error("Raw XML command NAKed.");
                         success = false;
