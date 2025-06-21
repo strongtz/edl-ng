@@ -90,6 +90,12 @@ jobs:
           cp LICENSE ${{ steps.build-and-publish.outputs.output_dir_path }}/LICENSE
           echo "Copied LICENSE to ${{ steps.build-and-publish.outputs.output_dir_path }}"
 
+      - name: Remove XML document
+        shell: bash
+        run: |
+          rm ${{ steps.build-and-publish.outputs.output_dir_path }}/*.xml
+          echo "XML document removed"
+
       - name: Package Artifact (Windows)
         if: runner.os == 'Windows'
         env:
