@@ -18,11 +18,11 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Text;
 using QCEDL.NET.Logging;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using Qualcomm.EmergencyDownload.Transport;
-using System.Text;
 
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 
@@ -30,9 +30,9 @@ public class QualcommFirehose(QualcommSerial serial)
 {
     public QualcommSerial Serial { get; } = serial;
 
-    public byte[] GetFirehoseXMLResponseBuffer(bool WaitTilFooter = false)
+    public byte[] GetFirehoseXmlResponseBuffer(bool waitTilFooter = false)
     {
-        if (!WaitTilFooter)
+        if (!waitTilFooter)
         {
             return Serial.GetResponse(null);
         }
@@ -40,12 +40,12 @@ public class QualcommFirehose(QualcommSerial serial)
         // Optimized for WaitTilFooter = true
         var bufferList = new List<byte>(1024); // Pre-allocate a reasonable starting size
         const int readChunkSize = 256; // Read in chunks of this size
-        var footerPattern = Encoding.UTF8.GetBytes(" /></data>");
+        var footerPattern = " /></data>"u8;
         // int patternMatchIndex = 0; // unused
         var safetyReadLimit = 8192; // Max 8KB for an XML ACK, to prevent infinite loop
         while (bufferList.Count < safetyReadLimit)
         {
-            var chunk = Serial.GetResponse(null, Length: readChunkSize);
+            var chunk = Serial.GetResponse(null, length: readChunkSize);
             if (chunk == null || chunk.Length == 0)
             {
                 // Timeout or no data from device
@@ -70,36 +70,36 @@ public class QualcommFirehose(QualcommSerial serial)
                 }
                 if (found)
                 {
-                    return bufferList.ToArray();
+                    return [.. bufferList];
                 }
             }
         }
 
         LibraryLogger.Error($"XML response footer not found or exceeded safety limit ({safetyReadLimit} bytes). Buffer size: {bufferList.Count}");
         // Return what we have, or throw, depending on how GetFirehoseResponseDataPayloads handles partial XML
-        return bufferList.ToArray();
+        return [.. bufferList];
     }
 
-    public Data[] GetFirehoseResponseDataPayloads(bool WaitTilFooter = false)
+    public Data[] GetFirehoseResponseDataPayloads(bool waitTilFooter = false)
     {
-        var ResponseBuffer = GetFirehoseXMLResponseBuffer(WaitTilFooter);
+        var responseBuffer = GetFirehoseXmlResponseBuffer(waitTilFooter);
 
-        if (ResponseBuffer == null || ResponseBuffer.Length == 0 || ResponseBuffer.All(t => t == 0x0))
+        if (responseBuffer.Length == 0 || responseBuffer.All(t => t == 0x0))
         {
             return [];
         }
 
-        var Incoming = Encoding.UTF8.GetString(ResponseBuffer);
+        var incoming = Encoding.UTF8.GetString(responseBuffer);
 
         try
         {
-            var datas = QualcommFirehoseXml.GetDataPayloads(Incoming);
+            var datas = QualcommFirehoseXml.GetDataPayloads(incoming);
             return datas;
         }
         catch (Exception ex) // Catch specific XML parsing exceptions if possible
         {
             LibraryLogger.Error("UNEXPECTED PARSING FAILURE. ABOUT TO CRASH. PAYLOAD BYTE RAW AS FOLLOW:");
-            LibraryLogger.Error(Convert.ToHexString(ResponseBuffer));
+            LibraryLogger.Error(Convert.ToHexString(responseBuffer));
             LibraryLogger.Error($"Exception: {ex.Message}");
             throw;
         }

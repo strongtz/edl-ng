@@ -11,7 +11,7 @@ public enum LogLevel
 
 internal static class Logging
 {
-    private static readonly object LockObj = new();
+    private static readonly Lock LockObj = new();
     public static LogLevel CurrentLogLevel { get; set; } = LogLevel.Info;
 
     public static void Log(string? message, LogLevel level = LogLevel.Info)
@@ -47,10 +47,10 @@ internal static class Logging
     }
 
     // TODO: Add progress bar functionality if needed later
-    public static void ShowProgress(long current, long total, DateTime startTime)
+    public static void ShowProgress(long current, long total, DateTime _)
     {
         // Placeholder
-        var percentage = total == 0 ? 100.0 : (double)current * 100.0 / total;
-        Log($"Progress: {percentage:F2}%", LogLevel.Info); // Simple percentage for now
+        var percentage = total == 0 ? 100.0 : current * 100.0 / total;
+        Log($"Progress: {percentage:F2}%"); // Simple percentage for now
     }
 }

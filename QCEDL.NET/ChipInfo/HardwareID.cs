@@ -3,77 +3,77 @@ using QCEDL.NET.Logging;
 
 namespace Qualcomm.EmergencyDownload.ChipInfo;
 
-public class HardwareID
+public class HardwareId
 {
     // Also known as JTAGID
-    internal static void ParseMSMID(uint MSMID)
+    internal static void ParseMsmid(uint msmid)
     {
-        var ManufacturerID = GetManufacturerIDFromMSMID(MSMID);
-        var ProductID = GetProductIDFromMSMID(MSMID);
-        var DieRevision = GetDieRevisionFromMSMID(MSMID);
+        var manufacturerId = GetManufacturerIdFromMsmid(msmid);
+        var productId = GetProductIdFromMsmid(msmid);
+        var dieRevision = GetDieRevisionFromMsmid(msmid);
 
-        if (ManufacturerID == 0x0E1)
+        if (manufacturerId == 0x0E1)
         {
-            LibraryLogger.Debug($"Manufacturer ID: {ManufacturerID:X3} (Qualcomm)");
+            LibraryLogger.Debug($"Manufacturer ID: {manufacturerId:X3} (Qualcomm)");
         }
         else
         {
-            LibraryLogger.Debug($"Manufacturer ID: {ManufacturerID:X3} (Unknown)");
+            LibraryLogger.Debug($"Manufacturer ID: {manufacturerId:X3} (Unknown)");
         }
 
-        if (Enum.IsDefined(typeof(QualcommPartNumbers), ProductID))
+        if (Enum.IsDefined(typeof(QualcommPartNumbers), productId))
         {
-            LibraryLogger.Info($"Product ID: {ProductID} ({(QualcommPartNumbers)ProductID})");
+            LibraryLogger.Info($"Product ID: {productId} ({(QualcommPartNumbers)productId})");
         }
         else
         {
-            LibraryLogger.Info($"Product ID: {ProductID} (Unknown)");
+            LibraryLogger.Info($"Product ID: {productId} (Unknown)");
         }
 
-        LibraryLogger.Debug($"Die Revision: {DieRevision:X1}");
+        LibraryLogger.Debug($"Die Revision: {dieRevision:X1}");
     }
 
-    internal static uint GetManufacturerIDFromMSMID(uint MSMID)
+    internal static uint GetManufacturerIdFromMsmid(uint msmid)
     {
-        return MSMID & 0xFFF;
+        return msmid & 0xFFF;
     }
 
-    internal static uint GetProductIDFromMSMID(uint MSMID)
+    internal static uint GetProductIdFromMsmid(uint msmid)
     {
-        return (MSMID >> 12) & 0xFFFF;
+        return (msmid >> 12) & 0xFFFF;
     }
 
-    internal static uint GetDieRevisionFromMSMID(uint MSMID)
+    internal static uint GetDieRevisionFromMsmid(uint msmid)
     {
-        return (MSMID >> 28) & 0xF;
+        return (msmid >> 28) & 0xF;
     }
 
-    internal static uint GetMSMIDFromHWID(byte[] HWID)
+    internal static uint GetMsmidFromHwid(byte[] hwid)
     {
-        var HWIDStr = Convert.ToHexString(HWID);
-        return uint.Parse(HWIDStr.AsSpan(HWIDStr.Length - 16, 8), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        var hwidStr = Convert.ToHexString(hwid);
+        return uint.Parse(hwidStr.AsSpan(hwidStr.Length - 16, 8), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
 
-    internal static uint GetOEMIDFromHWID(byte[] HWID)
+    internal static uint GetOemidFromHwid(byte[] hwid)
     {
-        var HWIDStr = Convert.ToHexString(HWID);
-        return uint.Parse(HWIDStr.AsSpan(HWIDStr.Length - 8, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        var hwidStr = Convert.ToHexString(hwid);
+        return uint.Parse(hwidStr.AsSpan(hwidStr.Length - 8, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
 
-    internal static uint GetModelIDFromHWID(byte[] HWID)
+    internal static uint GetModelIdFromHwid(byte[] hwid)
     {
-        var HWIDStr = Convert.ToHexString(HWID);
-        return uint.Parse(HWIDStr.AsSpan(HWIDStr.Length - 4, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        var hwidStr = Convert.ToHexString(hwid);
+        return uint.Parse(hwidStr.AsSpan(hwidStr.Length - 4, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
 
-    public static void ParseHWID(byte[] HWID)
+    public static void ParseHwid(byte[] hwid)
     {
-        var MSMID = GetMSMIDFromHWID(HWID);
-        var OEMID = GetOEMIDFromHWID(HWID);
-        var ModelID = GetModelIDFromHWID(HWID);
+        var msmid = GetMsmidFromHwid(hwid);
+        var oemid = GetOemidFromHwid(hwid);
+        var modelId = GetModelIdFromHwid(hwid);
 
-        ParseMSMID(MSMID);
-        LibraryLogger.Debug($"OEM: {OEMID:X4}");
-        LibraryLogger.Debug($"Model: {ModelID:X4}");
+        ParseMsmid(msmid);
+        LibraryLogger.Debug($"OEM: {oemid:X4}");
+        LibraryLogger.Debug($"Model: {modelId:X4}");
     }
 }

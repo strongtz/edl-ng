@@ -1,6 +1,6 @@
+using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
-using System.CommandLine;
 
 namespace QCEDL.CLI.Commands;
 
@@ -35,7 +35,7 @@ internal sealed class UploadLoaderCommand
             switch (currentMode)
             {
                 case DeviceMode.Sahara:
-                    Logging.Log("Device detected in Sahara mode. Proceeding with loader upload...", LogLevel.Info);
+                    Logging.Log("Device detected in Sahara mode. Proceeding with loader upload...");
                     await manager.UploadLoaderViaSaharaAsync();
                     Logging.Log("Loader upload process completed. Device should restart or re-enumerate.", LogLevel.Debug);
                     break;

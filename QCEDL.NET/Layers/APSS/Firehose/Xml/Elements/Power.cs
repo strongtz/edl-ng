@@ -4,29 +4,29 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 public class Power
 {
-    private PowerValue? value;
+    private PowerValue? _value;
 
     [XmlAttribute(AttributeName = "value")]
     public PowerValue Value
     {
-        get => value ?? PowerValue.reset; set => this.value = value;
+        get => _value ?? PowerValue.Reset; set => _value = value;
     }
 
     public bool ShouldSerializeValue()
     {
-        return value.HasValue;
+        return _value.HasValue;
     }
 
-    private ulong? delayInSeconds;
+    private ulong? _delayInSeconds;
 
     [XmlAttribute(AttributeName = "DelayInSeconds")]
     public ulong DelayInSeconds
     {
-        get => delayInSeconds ?? 100; set => delayInSeconds = value;
+        get => _delayInSeconds ?? 100; set => _delayInSeconds = value;
     }
 
     public bool ShouldSerializeDelayInSeconds()
     {
-        return delayInSeconds.HasValue;
+        return _delayInSeconds.HasValue;
     }
 }

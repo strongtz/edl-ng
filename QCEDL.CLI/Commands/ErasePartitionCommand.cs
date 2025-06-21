@@ -1,17 +1,18 @@
+using System.CommandLine;
+using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.PartitionTable;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands;
 
 internal sealed class ErasePartitionCommand
 {
     private static readonly Argument<string> PartitionNameArgument = new("partition_name", "The name of the partition to erase.");
-    private static readonly Option<uint?> LunOption = new Option<uint?>(
+    private static readonly Option<uint?> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number. If not specified, all LUNs will be scanned for the partition.");
 
@@ -45,10 +46,10 @@ internal sealed class ErasePartitionCommand
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
-            var storageType = globalOptions.MemoryType ?? StorageType.UFS;
+            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
             Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
 
-            GPTPartition? foundPartition = null;
+            GptPartition? foundPartition = null;
             uint actualLun = 0;
             uint actualSectorSize = 0;
 
@@ -61,7 +62,7 @@ internal sealed class ErasePartitionCommand
             else
             {
                 Logging.Log("No LUN specified, attempting to determine number of LUNs and scan all.", LogLevel.Debug);
-                Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? devInfo = null;
+                Root? devInfo = null;
                 try
                 {
                     devInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot)); // Check LUN 0 for num_physical
@@ -73,18 +74,22 @@ internal sealed class ErasePartitionCommand
 
                 if (devInfo?.StorageInfo?.NumPhysical > 0)
                 {
-                    for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++) lunsToScan.Add(i);
+                    for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++)
+                    {
+                        lunsToScan.Add(i);
+                    }
+
                     Logging.Log($"Device reports {devInfo.StorageInfo.NumPhysical} LUN(s). Scanning LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Debug);
                 }
                 else
                 {
-                    if (storageType == StorageType.SPINOR)
+                    if (storageType == StorageType.Spinor)
                     {
                         lunsToScan.Add(0);
                     }
                     else
                     {
-                        lunsToScan.AddRange(new uint[] { 0, 1, 2, 3, 4, 5 });
+                        lunsToScan.AddRange([0, 1, 2, 3, 4, 5]);
                         Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
                     }
                 }
@@ -93,7 +98,7 @@ internal sealed class ErasePartitionCommand
             foreach (var currentLun in lunsToScan)
             {
                 Logging.Log($"Scanning LUN {currentLun} for partition '{partitionName}'...", LogLevel.Debug);
-                Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? lunStorageInfo = null;
+                Root? lunStorageInfo = null;
                 try
                 {
                     lunStorageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, currentLun, globalOptions.Slot));
@@ -107,7 +112,12 @@ internal sealed class ErasePartitionCommand
                 var currentSectorSize = lunStorageInfo?.StorageInfo?.BlockSize > 0 ? (uint)lunStorageInfo.StorageInfo.BlockSize : 0;
                 if (currentSectorSize == 0)
                 {
-                    currentSectorSize = storageType switch { StorageType.NVME => 512, StorageType.SDCC => 512, _ => 4096 };
+                    currentSectorSize = storageType switch
+                    {
+                        StorageType.Nvme => 512,
+                        StorageType.Sdcc => 512,
+                        StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
+                    };
                     Logging.Log($"Storage info for LUN {currentLun} unreliable, using default sector size for {storageType}: {currentSectorSize}", LogLevel.Warning);
                 }
                 Logging.Log($"Using sector size: {currentSectorSize} bytes for LUN {currentLun}.", LogLevel.Debug);
@@ -133,7 +143,7 @@ internal sealed class ErasePartitionCommand
                 using var stream = new MemoryStream(gptData);
                 try
                 {
-                    var gpt = GPT.ReadFromStream(stream, (int)currentSectorSize);
+                    var gpt = Gpt.ReadFromStream(stream, (int)currentSectorSize);
                     if (gpt != null)
                     {
                         foreach (var p in gpt.Partitions)
@@ -142,7 +152,7 @@ internal sealed class ErasePartitionCommand
                             if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
                             {
                                 foundPartition = p; actualLun = currentLun; actualSectorSize = currentSectorSize;
-                                Logging.Log($"Found partition '{partitionName}' on LUN {actualLun} with sector size {actualSectorSize}.", LogLevel.Info);
+                                Logging.Log($"Found partition '{partitionName}' on LUN {actualLun} with sector size {actualSectorSize}.");
                                 Logging.Log($"  Details - Type: {p.TypeGUID}, UID: {p.UID}, LBA: {p.FirstLBA}-{p.LastLBA}", LogLevel.Debug);
                                 break;
                             }
@@ -152,7 +162,10 @@ internal sealed class ErasePartitionCommand
                 catch (InvalidDataException) { Logging.Log($"No valid GPT found or parse error on LUN {currentLun}.", LogLevel.Debug); }
                 catch (Exception ex) { Logging.Log($"Error processing GPT on LUN {currentLun}: {ex.Message}", LogLevel.Warning); }
 
-                if (foundPartition.HasValue) break;
+                if (foundPartition.HasValue)
+                {
+                    break;
+                }
             }
 
             if (!foundPartition.HasValue)
@@ -165,7 +178,7 @@ internal sealed class ErasePartitionCommand
             var partLastSectorUlong = foundPartition.Value.LastLBA;
             var numSectorsToEraseUlong = partLastSectorUlong - partStartSectorUlong + 1;
 
-            if (partStartSectorUlong > uint.MaxValue || numSectorsToEraseUlong > uint.MaxValue || (partStartSectorUlong + numSectorsToEraseUlong - 1) > uint.MaxValue)
+            if (partStartSectorUlong > uint.MaxValue || numSectorsToEraseUlong > uint.MaxValue || partStartSectorUlong + numSectorsToEraseUlong - 1 > uint.MaxValue)
             {
                 Logging.Log($"Error: Partition '{partitionName}' sector range (Start: {partStartSectorUlong}, Count: {numSectorsToEraseUlong}) exceeds uint.MaxValue, which is not supported by the current Firehose.Erase implementation.", LogLevel.Error);
                 return 1;
@@ -179,7 +192,7 @@ internal sealed class ErasePartitionCommand
                 return 0;
             }
 
-            Logging.Log($"Attempting to erase partition '{partitionName}' (LUN {actualLun}, LBA {startSector}, {numSectorsToErase} sectors)...", LogLevel.Info);
+            Logging.Log($"Attempting to erase partition '{partitionName}' (LUN {actualLun}, LBA {startSector}, {numSectorsToErase} sectors)...");
             var eraseStopwatch = Stopwatch.StartNew();
 
             var success = await Task.Run(() => manager.Firehose.Erase(
@@ -194,7 +207,7 @@ internal sealed class ErasePartitionCommand
 
             if (success)
             {
-                Logging.Log($"Successfully erased partition '{partitionName}' in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+                Logging.Log($"Successfully erased partition '{partitionName}' in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.");
             }
             else
             {

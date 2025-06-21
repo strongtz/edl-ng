@@ -2,9 +2,9 @@
 
 namespace Qualcomm.EmergencyDownload.ChipInfo;
 
-public class KnownPKData
+public class KnownPkData
 {
-    public static readonly FrozenDictionary<string, string> KnownOEMPKHashes = new Dictionary<string, string>
+    public static readonly FrozenDictionary<string, string> KnownOempkHashes = new Dictionary<string, string>
     {
         {"Microsoft Corporation, Andromeda Attestation PCA 2017 (SHA256)", "34046EF5E08C14E01BE8883BFBE0E5C31A8E407B5B3B98C88F8A86C8D98C1235"},
         {"Microsoft Corporation, Andromeda Attestation PCA 2017 (SHA384)", "9671F3D6922201ED2E8EAF18B66067650595594E06B4147D31C943B417585DAB202CC0C384D724FB02A80DA37CFBE3A1"},

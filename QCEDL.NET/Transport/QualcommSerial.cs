@@ -18,14 +18,18 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Globalization;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using LibUsbDotNet;
-using LibUsbDotNet.Main;
 using LibUsbDotNet.LibUsb;
+using LibUsbDotNet.Main;
+using Microsoft.Win32;
 using QCEDL.NET.Extensions;
 using QCEDL.NET.Logging;
 using QCEDL.NET.Todo;
+using LogLevel = LibUsbDotNet.LogLevel;
 
 namespace Qualcomm.EmergencyDownload.Transport;
 
@@ -38,8 +42,8 @@ public enum CommunicationMode
 
 public class QualcommSerial : IDisposable
 {
-    private bool Disposed;
-    private readonly SerialPort? Port;
+    private bool _disposed;
+    private readonly SerialPort? _port;
 
     public static UsbContext? LibUsbContext { get; private set; }
     private UsbDevice? _libUsbDevice;
@@ -56,8 +60,8 @@ public class QualcommSerial : IDisposable
     {
         try
         {
-            LibUsbContext = new UsbContext();
-            LibUsbContext.SetDebugLevel(LibUsbDotNet.LogLevel.Warning);
+            LibUsbContext = new();
+            LibUsbContext.SetDebugLevel(LogLevel.Warning);
         }
         catch (Exception ex)
         {
@@ -72,16 +76,16 @@ public class QualcommSerial : IDisposable
         {
             if (deviceIdOrPath.StartsWithOrdinal("/dev/tty"))
             {
-                Port = new SerialPort(deviceIdOrPath, 115200) { ReadTimeout = 1000, WriteTimeout = 1000, };
-                if (Port != null)
+                _port = new(deviceIdOrPath, 115200) { ReadTimeout = 1000, WriteTimeout = 1000, };
+                if (_port != null)
                 {
                     try
                     {
                         var desiredBufferSize = 1024 * 1024;
-                        Port.WriteBufferSize = desiredBufferSize;
+                        _port.WriteBufferSize = desiredBufferSize;
                         LibraryLogger.Debug(
-                            $"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {Port.WriteBufferSize}");
-                        Port.Open();
+                            $"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {_port.WriteBufferSize}");
+                        _port.Open();
                     }
                     catch (Exception ex)
                     {
@@ -148,7 +152,7 @@ public class QualcommSerial : IDisposable
                         }
                     }
 
-                    _libUsbDevice.ClaimInterface(0);
+                    _ = _libUsbDevice.ClaimInterface(0);
 
                     _libUsbReader = _libUsbDevice.OpenEndpointReader(ReadEndpointID.Ep01);
                     _libUsbWriter = _libUsbDevice.OpenEndpointWriter(WriteEndpointID.Ep01);
@@ -175,29 +179,29 @@ public class QualcommSerial : IDisposable
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            var DevicePathElements = deviceIdOrPath.Split(['#']);
-            if (string.Equals(DevicePathElements[3], "{86E0D1E0-8089-11D0-9CE4-08003E301F73}",
+            var devicePathElements = deviceIdOrPath.Split(['#']);
+            if (string.Equals(devicePathElements[3], "{86E0D1E0-8089-11D0-9CE4-08003E301F73}",
                     StringComparison.OrdinalIgnoreCase))
             {
-                var PortName = (string?)Microsoft.Win32.Registry.GetValue(
-                    $@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB\{DevicePathElements[1]}\{DevicePathElements[2]}\Device Parameters",
+                var portName = (string?)Registry.GetValue(
+                    $@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB\{devicePathElements[1]}\{devicePathElements[2]}\Device Parameters",
                     "PortName", null);
-                if (PortName != null)
+                if (portName != null)
                 {
                     try
                     {
-                        Port = new SerialPort(PortName, 115200) { ReadTimeout = 1000, WriteTimeout = 1000 };
-                        if (Port != null)
+                        _port = new(portName, 115200) { ReadTimeout = 1000, WriteTimeout = 1000 };
+                        if (_port != null)
                         {
                             try
                             {
                                 var desiredBufferSize = 1024 * 1024;
-                                Port.ReadBufferSize = desiredBufferSize;
-                                Port.WriteBufferSize = desiredBufferSize;
+                                _port.ReadBufferSize = desiredBufferSize;
+                                _port.WriteBufferSize = desiredBufferSize;
                                 LibraryLogger.Debug(
-                                    $"SerialPort: Attempted ReadBufferSize={desiredBufferSize}. Actual: {Port.ReadBufferSize}");
+                                    $"SerialPort: Attempted ReadBufferSize={desiredBufferSize}. Actual: {_port.ReadBufferSize}");
                                 LibraryLogger.Debug(
-                                    $"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {Port.WriteBufferSize}");
+                                    $"SerialPort: Attempted to set WriteBufferSize to {desiredBufferSize}. Actual: {_port.WriteBufferSize}");
                             }
                             catch (Exception ex)
                             {
@@ -205,7 +209,7 @@ public class QualcommSerial : IDisposable
                                     $"SerialPort: Failed to set WriteBufferSize. Error: {ex.Message}");
                             }
 
-                            Port.Open();
+                            _port.Open();
                         }
 
                         _mode = CommunicationMode.SerialPort;
@@ -215,9 +219,9 @@ public class QualcommSerial : IDisposable
                     {
                         LibraryLogger.Error($"Failed to open SerialPort: {ex.Message}");
                         LibraryLogger.Error(
-                            $"Please check if the port is already in use by some Qualcomm software");
+                            "Please check if the port is already in use by some Qualcomm software");
                         LibraryLogger.Error(
-                            $"Try stopping the 'Qualcomm Unified Tools Service' if you have closed every other suspicious program");
+                            "Try stopping the 'Qualcomm Unified Tools Service' if you have closed every other suspicious program");
                         throw;
                     }
                     catch (Exception ex)
@@ -243,7 +247,8 @@ public class QualcommSerial : IDisposable
                     LibraryLogger.Debug($"Searching LibUsb for VID=0x{vid:X4}, PID=0x{pid:X4}");
                     var finder = new UsbDeviceFinder
                     {
-                        Vid = vid, Pid = pid
+                        Vid = vid,
+                        Pid = pid
                         // You can also set SerialNumber here if needed:
                         // SerialNumber = "YourSerialNumber"
                     };
@@ -257,7 +262,7 @@ public class QualcommSerial : IDisposable
                     _libUsbDevice.Open();
 
                     _libUsbDevice.SetConfiguration(1);
-                    _libUsbDevice.ClaimInterface(0);
+                    _ = _libUsbDevice.ClaimInterface(0);
 
                     _libUsbReader = _libUsbDevice.OpenEndpointReader(ReadEndpointID.Ep01);
                     _libUsbWriter = _libUsbDevice.OpenEndpointWriter(WriteEndpointID.Ep01);
@@ -296,14 +301,19 @@ public class QualcommSerial : IDisposable
         var pid = 0;
         try
         {
-            var matchVid = System.Text.RegularExpressions.Regex.Match(devicePath, @"VID_([0-9A-Fa-f]{4})",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            var matchPid = System.Text.RegularExpressions.Regex.Match(devicePath, @"PID_([0-9A-Fa-f]{4})",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var matchVid = Regex.Match(devicePath, @"VID_([0-9A-Fa-f]{4})",
+                RegexOptions.IgnoreCase);
+            var matchPid = Regex.Match(devicePath, @"PID_([0-9A-Fa-f]{4})",
+                RegexOptions.IgnoreCase);
             if (matchVid.Success)
-                int.TryParse(matchVid.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out vid);
+            {
+                _ = int.TryParse(matchVid.Groups[1].Value, NumberStyles.HexNumber, null, out vid);
+            }
+
             if (matchPid.Success)
-                int.TryParse(matchPid.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out pid);
+            {
+                _ = int.TryParse(matchPid.Groups[1].Value, NumberStyles.HexNumber, null, out pid);
+            }
         }
         catch
         {
@@ -316,20 +326,24 @@ public class QualcommSerial : IDisposable
     // Method for sending large raw data (e.g., for Firehose program) with internal chunking for SerialPort
     public void SendLargeRawData(byte[] largeData)
     {
-        if (Port != null)
+        if (_port != null)
         {
             var bytesWritten = 0;
             var totalBytes = largeData.Length;
-            var chunkSize = Port.WriteBufferSize > 0 ? Port.WriteBufferSize : 2048; // Default to 2KB if not set
-            if (chunkSize <= 0) chunkSize = 4096;
+            var chunkSize = _port.WriteBufferSize > 0 ? _port.WriteBufferSize : 2048; // Default to 2KB if not set
+            if (chunkSize <= 0)
+            {
+                chunkSize = 4096;
+            }
+
             LibraryLogger.Trace(
-                $"SerialPort (LargeRaw): Sending {totalBytes} bytes in chunks of {chunkSize}. Timeout: {Port.WriteTimeout}ms");
+                $"SerialPort (LargeRaw): Sending {totalBytes} bytes in chunks of {chunkSize}. Timeout: {_port.WriteTimeout}ms");
             while (bytesWritten < totalBytes)
             {
                 var bytesToWriteThisChunk = Math.Min(chunkSize, totalBytes - bytesWritten);
                 try
                 {
-                    Port.Write(largeData, bytesWritten, bytesToWriteThisChunk);
+                    _port.Write(largeData, bytesWritten, bytesToWriteThisChunk);
                     bytesWritten += bytesToWriteThisChunk;
                     LibraryLogger.Trace(
                         $"SerialPort (LargeRaw): Wrote chunk of {bytesToWriteThisChunk} bytes. Total written: {bytesWritten}/{totalBytes}");
@@ -343,7 +357,7 @@ public class QualcommSerial : IDisposable
                 catch (Exception ex)
                 {
                     LibraryLogger.Error(
-                        $"SerialPort (LargeRaw) Write Error: Wrote {bytesWritten}/{totalBytes} bytes. Error: {ex.Message} : '{Port.PortName}'");
+                        $"SerialPort (LargeRaw) Write Error: Wrote {bytesWritten}/{totalBytes} bytes. Error: {ex.Message} : '{_port.PortName}'");
                     throw new IOException(
                         $"SerialPort (LargeRaw) Write Error after {bytesWritten} bytes: {ex.Message}", ex);
                 }
@@ -373,28 +387,28 @@ public class QualcommSerial : IDisposable
         }
     }
 
-    public void SendData(byte[] Data)
+    public void SendData(byte[] data)
     {
-        ObjectDisposedException.ThrowIf(Disposed, typeof(QualcommSerial));
+        ObjectDisposedException.ThrowIf(_disposed, typeof(QualcommSerial));
 
-        if (Port != null)
+        if (_port != null)
         {
-            LibraryLogger.Trace($"Sending {Data.Length} bytes via SerialPort.");
-            Port.Write(Data, 0, Data.Length);
+            LibraryLogger.Trace($"Sending {data.Length} bytes via SerialPort.");
+            _port.Write(data, 0, data.Length);
         }
         else if (_libUsbWriter != null)
         {
             var writeTimeout = _libUsbTimeoutMs > 0 ? _libUsbTimeoutMs : 5000;
-            var ec = _libUsbWriter.Write(Data, writeTimeout, out var bytesWritten);
+            var ec = _libUsbWriter.Write(data, writeTimeout, out var bytesWritten);
             if (ec != Error.Success)
             {
                 throw new IOException($"LibUsbDotNet Write Error: {ec}");
             }
 
-            if (bytesWritten != Data.Length)
+            if (bytesWritten != data.Length)
             {
                 LibraryLogger.Warning(
-                    $"LibUsbDotNet Write Warning: Attempted to send {Data.Length} bytes, but only {bytesWritten} were confirmed written by the call. Error code: {ec}");
+                    $"LibUsbDotNet Write Warning: Attempted to send {data.Length} bytes, but only {bytesWritten} were confirmed written by the call. Error code: {ec}");
             }
         }
         else
@@ -406,7 +420,7 @@ public class QualcommSerial : IDisposable
 
     public void SendZeroLengthPacket()
     {
-        ObjectDisposedException.ThrowIf(Disposed, typeof(QualcommSerial));
+        ObjectDisposedException.ThrowIf(_disposed, typeof(QualcommSerial));
         if (_mode == CommunicationMode.LibUsbDotNet && _libUsbWriter != null)
         {
             LibraryLogger.Debug("Sending Zero-Length Packet (ZLP) via LibUsbDotNet.");
@@ -422,80 +436,83 @@ public class QualcommSerial : IDisposable
                 LibraryLogger.Trace("ZLP sent successfully via LibUsbDotNet.");
             }
         }
-        else if (Port != null)
+        else if (_port != null)
         {
             LibraryLogger.Trace("ZLP requested but using SerialPort backend; ZLP not applicable/sent.");
         }
     }
 
-    public byte[] SendCommand(byte[] Command, byte[]? ResponsePattern)
+    public byte[] SendCommand(byte[] command, byte[]? responsePattern)
     {
-        ObjectDisposedException.ThrowIf(Disposed, typeof(QualcommSerial));
-        SendData(Command);
-        return GetResponse(ResponsePattern);
+        ObjectDisposedException.ThrowIf(_disposed, typeof(QualcommSerial));
+        SendData(command);
+        return GetResponse(responsePattern);
     }
 
-    public byte[] GetResponse(byte[]? ResponsePattern, int Length = 0x2000)
+    public byte[] GetResponse(byte[]? responsePattern, int length = 0x2000)
     {
-        ObjectDisposedException.ThrowIf(Disposed, typeof(QualcommSerial));
-        var ResponseBuffer = new byte[Length > 0 ? Length : 0x2000];
-        Length = 0;
+        ObjectDisposedException.ThrowIf(_disposed, typeof(QualcommSerial));
+        var responseBuffer = new byte[length > 0 ? length : 0x2000];
+        length = 0;
 
         try
         {
-            var BytesRead = 0;
+            var bytesRead = 0;
 
-            if (Port != null)
+            if (_port != null)
             {
-                LibraryLogger.Trace($"{Length}, {ResponseBuffer.Length}");
-                BytesRead = Port.Read(ResponseBuffer, Length, ResponseBuffer.Length - Length);
-                LibraryLogger.Trace($"{Length}, {ResponseBuffer.Length} BytesRead: {BytesRead}");
+                LibraryLogger.Trace($"{length}, {responseBuffer.Length}");
+                bytesRead = _port.Read(responseBuffer, length, responseBuffer.Length - length);
+                LibraryLogger.Trace($"{length}, {responseBuffer.Length} BytesRead: {bytesRead}");
             }
 
             if (_libUsbReader != null)
             {
                 var readTimeout = _libUsbTimeoutMs > 0 ? _libUsbTimeoutMs : 1000;
-                var ec = _libUsbReader.Read(ResponseBuffer, readTimeout, out BytesRead);
+                var ec = _libUsbReader.Read(responseBuffer, readTimeout, out bytesRead);
 
-                LibraryLogger.Trace($"libUsb: {ec} - BytesRead: {BytesRead}");
+                LibraryLogger.Trace($"libUsb: {ec} - BytesRead: {bytesRead}");
 
-                if (ec == Error.Success && BytesRead == 0)
+                if (ec == Error.Success && bytesRead == 0)
                 {
                     // Handle Zero Length Packets
-                    ec = _libUsbReader.Read(ResponseBuffer, readTimeout, out BytesRead);
-                    LibraryLogger.Trace($"Retry after ZLP: status: {ec} - BytesRead: {BytesRead}");
+                    ec = _libUsbReader.Read(responseBuffer, readTimeout, out bytesRead);
+                    LibraryLogger.Trace($"Retry after ZLP: status: {ec} - BytesRead: {bytesRead}");
                 }
 
-                if (ec == Error.Timeout) throw new TimeoutException("LibUsbDotNet Read Timeout");
+                if (ec == Error.Timeout)
+                {
+                    throw new TimeoutException("LibUsbDotNet Read Timeout");
+                }
             }
 
-            if (BytesRead == 0)
+            if (bytesRead == 0)
             {
                 LibraryLogger.Warning("Emergency mode of phone is ignoring us");
                 throw new BadMessageException();
             }
 
-            Length += BytesRead;
-            byte[] Response;
-            Response = new byte[Length];
-            Buffer.BlockCopy(ResponseBuffer, 0, Response, 0, Length);
+            length += bytesRead;
+            byte[] response;
+            response = new byte[length];
+            Buffer.BlockCopy(responseBuffer, 0, response, 0, length);
 
-            if (ResponsePattern != null)
+            if (responsePattern != null)
             {
-                for (var i = 0; i < ResponsePattern.Length; i++)
+                for (var i = 0; i < responsePattern.Length; i++)
                 {
-                    if (Response[i] != ResponsePattern[i])
+                    if (response[i] != responsePattern[i])
                     {
-                        var LogResponse = new byte[Response.Length < 0x10 ? Response.Length : 0x10];
+                        var logResponse = new byte[response.Length < 0x10 ? response.Length : 0x10];
                         LibraryLogger.Error("Qualcomm serial response: " +
-                                            Converter.ConvertHexToString(LogResponse, ""));
-                        LibraryLogger.Error("Expected: " + Converter.ConvertHexToString(ResponsePattern, ""));
+                                            Converter.ConvertHexToString(logResponse, ""));
+                        LibraryLogger.Error("Expected: " + Converter.ConvertHexToString(responsePattern, ""));
                         throw new BadMessageException();
                     }
                 }
             }
 
-            return Response;
+            return response;
         }
         catch (TimeoutException)
         {
@@ -506,7 +523,7 @@ public class QualcommSerial : IDisposable
             LibraryLogger.Error($"Error while reading response: {ex.Message}");
         }
 
-        Port?.DiscardInBuffer();
+        _port?.DiscardInBuffer();
 
         throw new BadConnectionException();
     }
@@ -529,15 +546,19 @@ public class QualcommSerial : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (Disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         if (disposing)
         {
-            Port?.Dispose();
+            _port?.Dispose();
             if (_libUsbDevice != null)
             {
                 try
                 {
-                    _libUsbDevice.ReleaseInterface(0);
+                    _ = _libUsbDevice.ReleaseInterface(0);
                     _libUsbDevice.Close();
                 }
                 catch (Exception ex) { LibraryLogger.Error($"Error disposing LibUsbDevice: {ex.Message}"); }
@@ -548,7 +569,7 @@ public class QualcommSerial : IDisposable
         _libUsbDevice = null;
         _libUsbReader = null;
         _libUsbWriter = null;
-        Disposed = true;
+        _disposed = true;
     }
 
     public void SetTimeOut(int v)
@@ -558,10 +579,10 @@ public class QualcommSerial : IDisposable
             _libUsbTimeoutMs = v;
         }
 
-        if (Port != null)
+        if (_port != null)
         {
-            Port.ReadTimeout = v;
-            Port.WriteTimeout = v;
+            _port.ReadTimeout = v;
+            _port.WriteTimeout = v;
         }
     }
 }

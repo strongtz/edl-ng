@@ -1,9 +1,9 @@
-﻿using QCEDL.CLI.Commands;
+﻿using System.CommandLine;
+using System.Globalization;
+using QCEDL.CLI.Commands;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.CommandLine.Invocation;
 
 // --- Define Global Options ---
 var loaderOption = new Option<FileInfo>(
@@ -19,9 +19,13 @@ var vidOption = new Option<int?>(
     description: "Specify USB Vendor ID (hex).",
     parseArgument: result =>
     {
-        if (result.Tokens.Count == 0) return null;
+        if (result.Tokens.Count == 0)
+        {
+            return null;
+        }
+
         var vidStr = result.Tokens[0].Value;
-        if (int.TryParse(vidStr?.Replace("0x", ""), System.Globalization.NumberStyles.HexNumber, null, out var vid))
+        if (int.TryParse(vidStr?.Replace("0x", ""), NumberStyles.HexNumber, null, out var vid))
         {
             return vid;
         }
@@ -35,9 +39,13 @@ var pidOption = new Option<int?>(
     description: "Specify USB Product ID (hex).",
     parseArgument: result =>
     {
-        if (result.Tokens.Count == 0) return null;
+        if (result.Tokens.Count == 0)
+        {
+            return null;
+        }
+
         var pidStr = result.Tokens[0].Value;
-        if (int.TryParse(pidStr?.Replace("0x", ""), System.Globalization.NumberStyles.HexNumber, null, out var pid))
+        if (int.TryParse(pidStr?.Replace("0x", ""), NumberStyles.HexNumber, null, out var pid))
         {
             return pid;
         }
@@ -68,7 +76,7 @@ var slotOption = new Option<uint>(
 slotOption.AddValidator(result =>
 {
     var slotValue = result.GetValueOrDefault<uint>();
-    if (slotValue != 0 && slotValue != 1)
+    if (slotValue is not 0 and not 1)
     {
         result.ErrorMessage = "Value for --slot must be 0 or 1.";
     }
@@ -111,10 +119,7 @@ rootCommand.AddCommand(RawProgramCommand.Create(globalOptionsBinder));
 // ... etc ...
 
 // --- Default Handler (Show Help if no command given) ---
-rootCommand.SetHandler(async (InvocationContext context) =>
-{
-    await rootCommand.InvokeAsync(["--help"]);
-});
+rootCommand.SetHandler(async _ => await rootCommand.InvokeAsync(["--help"]));
 
 // --- Invoke Parser ---
 return await rootCommand.InvokeAsync(args);

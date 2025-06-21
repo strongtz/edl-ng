@@ -1,3 +1,17 @@
 {
-    "editor.formatOnPaste": true
+    "editor.formatOnPaste": true,
+    "cSpell.words": [
+        "Bleeker",
+        "Deviceinterface",
+        "Devinfo",
+        "DEVPROP",
+        "Devpropkey",
+        "Digcf",
+        "Heathcliff",
+        "ifmtid",
+        "ipid",
+        "Lergner",
+        "QCEDL",
+        "setupapi"
+    ]
 }

@@ -22,8 +22,8 @@ namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
 
 public enum QualcommSaharaMode : uint
 {
-    ImageTXPending = 0x00,
-    ImageTXComplete = 0x01,
+    ImageTxPending = 0x00,
+    ImageTxComplete = 0x01,
     MemoryDebug = 0x02,
     Command = 0x03
 }

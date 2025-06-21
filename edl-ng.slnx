@@ -7,7 +7,11 @@
         <File Path="LICENSE"/>
         <File Path="README.md"/>
         <File Path="Directory.Build.props"/>
-        <File Path=".editorconfig"/>
+    </Folder>
+    <Folder Name="/Solution Items/Pipelines/">
+        <File Path=".github/workflows/build.yml"/>
+        <File Path=".github/workflows/release.yml"/>
+        <File Path=".github/workflows/format.yml"/>
     </Folder>
     <Project Path="QCEDL.Analyzer\QCEDL.Analyzer.csproj" Type="Classic C#"/>
     <Project Path="QCEDL.CLI\QCEDL.CLI.csproj" Type="Classic C#"/>

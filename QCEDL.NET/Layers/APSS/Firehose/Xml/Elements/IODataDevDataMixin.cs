@@ -3,44 +3,44 @@
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 // IOData, DevData
-public class IODataDevDataMixin : DevData
+public class IoDataDevDataMixin : DevData
 {
-    private uint? sectorSizeInBytes;
+    private uint? _sectorSizeInBytes;
 
     [XmlAttribute(AttributeName = "SECTOR_SIZE_IN_BYTES")]
     public uint SectorSizeInBytes
     {
-        get => sectorSizeInBytes ?? 0; set => sectorSizeInBytes = value;
+        get => _sectorSizeInBytes ?? 0; set => _sectorSizeInBytes = value;
     }
 
     public bool ShouldSerializeSectorSizeInBytes()
     {
-        return sectorSizeInBytes.HasValue;
+        return _sectorSizeInBytes.HasValue;
     }
 
-    private string? numPartitionSectors;
+    private string? _numPartitionSectors;
 
     [XmlAttribute(AttributeName = "num_partition_sectors")]
     public string NumPartitionSectors
     {
-        get => numPartitionSectors ?? ""; set => numPartitionSectors = value;
+        get => _numPartitionSectors ?? ""; set => _numPartitionSectors = value;
     }
 
     public bool ShouldSerializeNumPartitionSectors()
     {
-        return numPartitionSectors != null;
+        return _numPartitionSectors != null;
     }
 
-    private string? startSector;
+    private string? _startSector;
 
     [XmlAttribute(AttributeName = "start_sector")]
     public string StartSector
     {
-        get => startSector ?? ""; set => startSector = value;
+        get => _startSector ?? ""; set => _startSector = value;
     }
 
     public bool ShouldSerializeStartSector()
     {
-        return startSector != null;
+        return _startSector != null;
     }
 }

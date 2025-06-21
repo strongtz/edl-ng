@@ -1,9 +1,10 @@
+using System.CommandLine;
+using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands;
 
@@ -13,7 +14,7 @@ internal sealed class ReadSectorCommand
     private static readonly Argument<ulong> SectorsArgument = new("sectors", "The number of sectors to read.");
     private static readonly Argument<FileInfo> FilenameArgument = new("filename", "The file to save the read data to.") { Arity = ArgumentArity.ExactlyOne };
 
-    private static readonly Option<uint> LunOption = new Option<uint>(
+    private static readonly Option<uint> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number to read from.",
         getDefaultValue: () => 0);
@@ -60,11 +61,11 @@ internal sealed class ReadSectorCommand
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
-            var storageType = globalOptions.MemoryType ?? StorageType.UFS;
+            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
             Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
 
             // Determine sector size
-            Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
+            Root? storageInfo = null;
             try
             {
                 storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
@@ -79,17 +80,17 @@ internal sealed class ReadSectorCommand
             {
                 sectorSize = storageType switch
                 {
-                    StorageType.NVME => 512,
-                    StorageType.SDCC => 512,
-                    _ => 4096,
+                    StorageType.Nvme => 512,
+                    StorageType.Sdcc => 512,
+                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
                 };
                 Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
             }
             Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
 
-            if (startSector > uint.MaxValue || (startSector + sectorsToRead - 1) > uint.MaxValue)
+            if (startSector > uint.MaxValue || startSector + sectorsToRead - 1 > uint.MaxValue)
             {
-                Logging.Log($"Error: Sector range exceeds uint.MaxValue, which is not supported by the current Firehose.Read implementation.", LogLevel.Error);
+                Logging.Log("Error: Sector range exceeds uint.MaxValue, which is not supported by the current Firehose.Read implementation.", LogLevel.Error);
                 return 1;
             }
 
@@ -104,26 +105,26 @@ internal sealed class ReadSectorCommand
                 return 0;
             }
 
-            Logging.Log($"Preparing to read {sectorsToRead} sectors (LBA {firstLba} to {lastLba}, {totalBytesToRead} bytes) from LUN {lun} into '{outputFile.FullName}'...", LogLevel.Info);
+            Logging.Log($"Preparing to read {sectorsToRead} sectors (LBA {firstLba} to {lastLba}, {totalBytesToRead} bytes) from LUN {lun} into '{outputFile.FullName}'...");
 
             long bytesReadReported = 0;
             var readStopwatch = new Stopwatch();
 
-            Action<long, long> progressAction = (current, total) =>
+            void ProgressAction(long current, long total)
             {
                 bytesReadReported = current;
-                var percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = readStopwatch.Elapsed;
                 var speed = current / elapsed.TotalSeconds;
                 var speedStr = "N/A";
                 if (elapsed.TotalSeconds > 0.1)
                 {
-                    speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
                         speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
                         $"{speed:F0} B/s";
                 }
                 Console.Write($"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-            };
+            }
 
             bool success;
             try
@@ -140,7 +141,7 @@ internal sealed class ReadSectorCommand
                     firstLba,
                     lastLba,
                     fileStream,
-                    progressAction
+ProgressAction
                 ));
                 readStopwatch.Stop();
             }
@@ -156,11 +157,18 @@ internal sealed class ReadSectorCommand
             if (!success)
             {
                 Logging.Log("Failed to read sector data or write to stream.", LogLevel.Error);
-                try { if (outputFile.Exists && outputFile.Length < totalBytesToRead) outputFile.Delete(); } catch (Exception ex) { Logging.Log($"Could not delete partial file '{outputFile.FullName}': {ex.Message}", LogLevel.Warning); }
+                try
+                {
+                    if (outputFile.Exists && outputFile.Length < totalBytesToRead)
+                    {
+                        outputFile.Delete();
+                    }
+                }
+                catch (Exception ex) { Logging.Log($"Could not delete partial file '{outputFile.FullName}': {ex.Message}", LogLevel.Warning); }
                 return 1;
             }
 
-            Logging.Log($"Successfully read {bytesReadReported / (1024.0 * 1024.0):F2} MiB and wrote to '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+            Logging.Log($"Successfully read {bytesReadReported / (1024.0 * 1024.0):F2} MiB and wrote to '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.");
 
         }
         catch (FileNotFoundException ex)

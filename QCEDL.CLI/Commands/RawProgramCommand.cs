@@ -1,12 +1,13 @@
-using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using QCEDL.CLI.Core;
+using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -14,7 +15,7 @@ internal sealed class RawProgramCommand
 {
     private static readonly Argument<string[]> XmlFilePatternsArgument =
         new("xmlfile_patterns", "Paths or patterns for rawprogram and patch XML files (e.g., rawprogram0.xml patch0.xml rawprogram*.xml patch*.xml).")
-            { Arity = ArgumentArity.OneOrMore };
+        { Arity = ArgumentArity.OneOrMore };
 
     public static Command Create(GlobalOptionsBinder globalOptionsBinder)
     {
@@ -69,7 +70,7 @@ internal sealed class RawProgramCommand
                 {
                     foreach (var file in foundFiles)
                     {
-                        resolvedXmlFiles.Add(new FileInfo(file));
+                        resolvedXmlFiles.Add(new(file));
                         Logging.Log($"Found file from pattern '{pattern}': {file}", LogLevel.Trace);
                     }
                 }
@@ -88,7 +89,7 @@ internal sealed class RawProgramCommand
         }
 
         // Deduplicate in case patterns overlap or literal files are also matched by patterns
-        resolvedXmlFiles = resolvedXmlFiles.DistinctBy(f => f.FullName).ToList();
+        resolvedXmlFiles = [.. resolvedXmlFiles.DistinctBy(f => f.FullName)];
         Logging.Log($"Total unique XML files to process: {resolvedXmlFiles.Count}", LogLevel.Debug);
 
         // Validate all files exist
@@ -149,7 +150,7 @@ internal sealed class RawProgramCommand
             return 1;
         }
 
-        var storageType = globalOptions.MemoryType ?? StorageType.UFS;
+        var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
         var lunTotalSectorsCache = new Dictionary<uint, ulong>();
 
         try
@@ -161,7 +162,7 @@ internal sealed class RawProgramCommand
             foreach (var lunKey in sortedLunsToProcess)
             {
                 var rawFile = rawProgramFilesMap[lunKey];
-                Logging.Log($"--- Processing LUN {lunKey} using {rawFile.Name} ---", LogLevel.Info);
+                Logging.Log($"--- Processing LUN {lunKey} using {rawFile.Name} ---");
 
                 XDocument rawDoc;
                 try
@@ -250,7 +251,7 @@ internal sealed class RawProgramCommand
                         else
                         {
                             Logging.Log($"Fetching NUM_DISK_SECTORS for LUN {targetLun}...", LogLevel.Debug);
-                            Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
+                            Root? storageInfo = null;
                             try
                             {
                                 storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, targetLun, globalOptions.Slot));
@@ -311,16 +312,16 @@ internal sealed class RawProgramCommand
                     long bytesWrittenReported = 0;
                     var writeStopwatch = new Stopwatch();
 
-                    Action<long, long> progressAction = (current, total) =>
+                    void ProgressAction(long current, long total)
                     {
                         bytesWrittenReported = current;
-                        var percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                        var percentage = total == 0 ? 100 : current * 100.0 / total;
                         var elapsed = writeStopwatch.Elapsed;
                         var speed = current / elapsed.TotalSeconds;
                         var speedStr = "N/A";
                         if (elapsed.TotalSeconds > 0.1)
                         {
-                            speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                            speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
                                 speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
                                 $"{speed:F0} B/s";
                         }
@@ -330,10 +331,10 @@ internal sealed class RawProgramCommand
                         var paddedFileDisplay = fileDisplayString.PadRight(maxFilenameDisplayLength);
 
                         // Format numbers for consistent width, e.g., percentage with 5 chars, MiB with 6 chars
-                        var progressDetails = $"{percentage,5:F1}% ({(current / (1024.0 * 1024.0)),6:F2} / {(total / (1024.0 * 1024.0)),6:F2} MiB) [{speedStr,-10}]";
+                        var progressDetails = $"{percentage,5:F1}% ({current / (1024.0 * 1024.0),6:F2} / {total / (1024.0 * 1024.0),6:F2} MiB) [{speedStr,-10}]";
 
                         Console.Write($"\r{paddedFileDisplay}{progressDetails}    "); // Added extra spaces at the end to clear previous longer lines
-                    };
+                    }
 
                     bool success;
                     try
@@ -351,7 +352,7 @@ internal sealed class RawProgramCommand
                             totalBytesToWriteIncludingPadding,
                             filename,
                             fileStream,
-                            progressAction
+ProgressAction
                         ));
                         writeStopwatch.Stop();
                     }
@@ -375,7 +376,7 @@ internal sealed class RawProgramCommand
                 // Process corresponding patch file, if it exists
                 if (patchFilesMap.TryGetValue(lunKey, out var patchFile))
                 {
-                    Logging.Log($"--- Patching LUN {lunKey} using {patchFile.Name} ---", LogLevel.Info);
+                    Logging.Log($"--- Patching LUN {lunKey} using {patchFile.Name} ---");
                     XDocument patchDoc;
                     try
                     {
@@ -423,7 +424,7 @@ internal sealed class RawProgramCommand
                 }
                 else
                 {
-                    Logging.Log($"Note: patch{lunKey}.xml not found. Skipping patching for LUN {lunKey}.", LogLevel.Info);
+                    Logging.Log($"Note: patch{lunKey}.xml not found. Skipping patching for LUN {lunKey}.");
                 }
                 Logging.Log($"--- Finished processing LUN {lunKey} ---\n", LogLevel.Debug);
             }
@@ -457,17 +458,20 @@ internal sealed class RawProgramCommand
         finally
         {
             commandStopwatch.Stop();
-            Logging.Log($"'rawprogram' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+            Logging.Log($"'rawprogram' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.");
         }
 
-        Logging.Log("'rawprogram' command finished successfully.", LogLevel.Info);
+        Logging.Log("'rawprogram' command finished successfully.");
         return 0;
     }
 
     private static bool TryParseSectorExpression(string expression, ulong totalDiskSectorsForLun, out ulong resultSector)
     {
         resultSector = 0;
-        if (string.IsNullOrWhiteSpace(expression)) return false;
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return false;
+        }
 
         var trimmedExpression = expression.Trim();
 
@@ -513,18 +517,16 @@ internal sealed class RawProgramCommand
                         }
                         return true;
                     }
-                    else { Logging.Log($"Failed to parse operand '{match.Groups[2].Value}' in expression '{trimmedExpression}'.", LogLevel.Error); return false; }
+
+                    Logging.Log($"Failed to parse operand '{match.Groups[2].Value}' in expression '{trimmedExpression}'.", LogLevel.Error); return false;
                 }
-                else // Just "NUM_DISK_SECTORS"
-                {
-                    return true;
-                }
+
+                // Just "NUM_DISK_SECTORS"
+                return true;
             }
-            else
-            {
-                Logging.Log($"Unsupported NUM_DISK_SECTORS expression format: '{trimmedExpression}'.", LogLevel.Error);
-                return false;
-            }
+
+            Logging.Log($"Unsupported NUM_DISK_SECTORS expression format: '{trimmedExpression}'.", LogLevel.Error);
+            return false;
         }
         return false;
     }
