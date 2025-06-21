@@ -1,9 +1,10 @@
+using System.CommandLine;
+using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands;
 
@@ -12,7 +13,7 @@ internal sealed class EraseSectorCommand
     private static readonly Argument<ulong> StartSectorArgument = new("start_sector", "The starting sector LBA to erase from.");
     private static readonly Argument<ulong> SectorsArgument = new("sectors", "The number of sectors to erase.");
 
-    private static readonly Option<uint> LunOption = new Option<uint>(
+    private static readonly Option<uint> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number to erase from.",
         getDefaultValue: () => 0);
@@ -50,7 +51,7 @@ internal sealed class EraseSectorCommand
             return 1;
         }
 
-        if (startSectorUlong > uint.MaxValue || sectorsToEraseUlong > uint.MaxValue || (startSectorUlong + sectorsToEraseUlong - 1) > uint.MaxValue)
+        if (startSectorUlong > uint.MaxValue || sectorsToEraseUlong > uint.MaxValue || startSectorUlong + sectorsToEraseUlong - 1 > uint.MaxValue)
         {
             Logging.Log($"Error: Sector range (Start: {startSectorUlong}, Count: {sectorsToEraseUlong}) exceeds uint.MaxValue, which is not supported by the current Firehose.Erase implementation.", LogLevel.Error);
             return 1;
@@ -65,10 +66,10 @@ internal sealed class EraseSectorCommand
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
-            var storageType = globalOptions.MemoryType ?? StorageType.UFS;
+            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
             Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
 
-            Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
+            Root? storageInfo = null;
             try
             {
                 storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
@@ -83,15 +84,15 @@ internal sealed class EraseSectorCommand
             {
                 sectorSize = storageType switch
                 {
-                    StorageType.NVME => 512,
-                    StorageType.SDCC => 512,
-                    _ => 4096,
+                    StorageType.Nvme => 512,
+                    StorageType.Sdcc => 512,
+                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
                 };
                 Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
             }
             Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
 
-            Logging.Log($"Attempting to erase {numSectorsToErase} sectors starting at LBA {startSector} on LUN {lun}...", LogLevel.Info);
+            Logging.Log($"Attempting to erase {numSectorsToErase} sectors starting at LBA {startSector} on LUN {lun}...");
             var eraseStopwatch = Stopwatch.StartNew();
 
             var success = await Task.Run(() => manager.Firehose.Erase(
@@ -106,7 +107,7 @@ internal sealed class EraseSectorCommand
 
             if (success)
             {
-                Logging.Log($"Successfully erased {numSectorsToErase} sectors in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+                Logging.Log($"Successfully erased {numSectorsToErase} sectors in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.");
             }
             else
             {

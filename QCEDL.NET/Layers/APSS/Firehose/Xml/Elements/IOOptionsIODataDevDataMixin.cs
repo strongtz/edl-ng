@@ -3,57 +3,57 @@
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 // IOOptions, IOData, DevData
-public class IOOptionsIODataDevDataMixin : IODataDevDataMixin
+public class IoOptionsIoDataDevDataMixin : IoDataDevDataMixin
 {
-    private ulong? lastSector;
+    private ulong? _lastSector;
 
     [XmlAttribute(AttributeName = "last_sector")]
     public ulong LastSector
     {
-        get => lastSector ?? 0; set => lastSector = value;
+        get => _lastSector ?? 0; set => _lastSector = value;
     }
 
     public bool ShouldSerializeLastSector()
     {
-        return lastSector.HasValue;
+        return _lastSector.HasValue;
     }
 
-    private byte? skipBadBlock;
+    private byte? _skipBadBlock;
 
     [XmlAttribute(AttributeName = "skip_bad_block")]
     public byte SkipBadBlock
     {
-        get => skipBadBlock ?? 0; set => skipBadBlock = value;
+        get => _skipBadBlock ?? 0; set => _skipBadBlock = value;
     }
 
     public bool ShouldSerializeSkipBadBlock()
     {
-        return skipBadBlock.HasValue;
+        return _skipBadBlock.HasValue;
     }
 
-    private byte? getSpare;
+    private byte? _getSpare;
 
     [XmlAttribute(AttributeName = "get_spare")]
     public byte GetSpare
     {
-        get => getSpare ?? 0; set => getSpare = value;
+        get => _getSpare ?? 0; set => _getSpare = value;
     }
 
     public bool ShouldSerializeGetSpare()
     {
-        return getSpare.HasValue;
+        return _getSpare.HasValue;
     }
 
-    private byte? eccDisabled;
+    private byte? _eccDisabled;
 
     [XmlAttribute(AttributeName = "ecc_disabled")]
-    public byte ECCDisabled
+    public byte EccDisabled
     {
-        get => eccDisabled ?? 0; set => eccDisabled = value;
+        get => _eccDisabled ?? 0; set => _eccDisabled = value;
     }
 
-    public bool ShouldSerializeECCDisabled()
+    public bool ShouldSerializeEccDisabled()
     {
-        return eccDisabled.HasValue;
+        return _eccDisabled.HasValue;
     }
 }

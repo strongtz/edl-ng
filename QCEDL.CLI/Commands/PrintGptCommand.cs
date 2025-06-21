@@ -1,15 +1,16 @@
+using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.PartitionTable;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
 
 namespace QCEDL.CLI.Commands;
 
 internal sealed class PrintGptCommand
 {
-    private static readonly Option<uint> LunOption = new Option<uint>(
+    private static readonly Option<uint> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number to read the GPT from.",
         getDefaultValue: () => 0);
@@ -35,11 +36,11 @@ internal sealed class PrintGptCommand
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
-            Logging.Log($"Attempting to read GPT from LUN {lun}...", LogLevel.Info);
+            Logging.Log($"Attempting to read GPT from LUN {lun}...");
 
-            var storageType = globalOptions.MemoryType ?? StorageType.UFS;
+            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
             // Get Storage Info to determine sector size more reliably
-            Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
+            Root? storageInfo = null;
             try
             {
                 // Wrap GetStorageInfo in Task.Run if it's potentially blocking or synchronous
@@ -51,9 +52,9 @@ internal sealed class PrintGptCommand
             }
             var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 4096;
             // Override based on known types if GetStorageInfo failed or returned invalid size
-            if (sectorSize <= 0 || sectorSize > (1024 * 1024)) // Basic sanity check
+            if (sectorSize is <= 0 or > 1024 * 1024) // Basic sanity check
             {
-                if (storageType == StorageType.NVME || storageType == StorageType.SDCC)
+                if (storageType is StorageType.Nvme or StorageType.Sdcc)
                 {
                     sectorSize = 512;
                     Logging.Log($"Storage info unreliable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
@@ -89,7 +90,7 @@ internal sealed class PrintGptCommand
             using var stream = new MemoryStream(gptData);
             try
             {
-                var gpt = GPT.ReadFromStream(stream, (int)sectorSize);
+                var gpt = Gpt.ReadFromStream(stream, (int)sectorSize);
 
                 if (gpt == null)
                 {
@@ -98,22 +99,22 @@ internal sealed class PrintGptCommand
                     return 0;
                 }
 
-                Logging.Log($"--- GPT Header LUN {lun} ---", LogLevel.Info);
-                Logging.Log($"Signature: {gpt.Header.Signature}", LogLevel.Info);
-                Logging.Log($"Revision: {gpt.Header.Revision:X8}", LogLevel.Info);
-                Logging.Log($"Header Size: {gpt.Header.Size}", LogLevel.Info);
-                Logging.Log($"Header CRC32: {gpt.Header.CRC32:X8}", LogLevel.Info);
-                Logging.Log($"Current LBA: {gpt.Header.CurrentLBA}", LogLevel.Info);
-                Logging.Log($"Backup LBA: {gpt.Header.BackupLBA}", LogLevel.Info);
-                Logging.Log($"First Usable LBA: {gpt.Header.FirstUsableLBA}", LogLevel.Info);
-                Logging.Log($"Last Usable LBA: {gpt.Header.LastUsableLBA}", LogLevel.Info);
-                Logging.Log($"Disk GUID: {gpt.Header.DiskGUID}", LogLevel.Info);
-                Logging.Log($"Partition Array LBA: {gpt.Header.PartitionArrayLBA}", LogLevel.Info);
-                Logging.Log($"Partition Entry Count: {gpt.Header.PartitionEntryCount}", LogLevel.Info);
-                Logging.Log($"Partition Entry Size: {gpt.Header.PartitionEntrySize}", LogLevel.Info);
-                Logging.Log($"Partition Array CRC32: {gpt.Header.PartitionArrayCRC32:X8}", LogLevel.Info);
+                Logging.Log($"--- GPT Header LUN {lun} ---");
+                Logging.Log($"Signature: {gpt.Header.Signature}");
+                Logging.Log($"Revision: {gpt.Header.Revision:X8}");
+                Logging.Log($"Header Size: {gpt.Header.Size}");
+                Logging.Log($"Header CRC32: {gpt.Header.CRC32:X8}");
+                Logging.Log($"Current LBA: {gpt.Header.CurrentLBA}");
+                Logging.Log($"Backup LBA: {gpt.Header.BackupLBA}");
+                Logging.Log($"First Usable LBA: {gpt.Header.FirstUsableLBA}");
+                Logging.Log($"Last Usable LBA: {gpt.Header.LastUsableLBA}");
+                Logging.Log($"Disk GUID: {gpt.Header.DiskGUID}");
+                Logging.Log($"Partition Array LBA: {gpt.Header.PartitionArrayLBA}");
+                Logging.Log($"Partition Entry Count: {gpt.Header.PartitionEntryCount}");
+                Logging.Log($"Partition Entry Size: {gpt.Header.PartitionEntrySize}");
+                Logging.Log($"Partition Array CRC32: {gpt.Header.PartitionArrayCRC32:X8}");
                 Logging.Log($"Is Backup GPT: {gpt.IsBackup}", LogLevel.Debug);
-                Logging.Log($"--- Partitions LUN {lun} ---", LogLevel.Info);
+                Logging.Log($"--- Partitions LUN {lun} ---");
 
                 if (gpt.Partitions.Count == 0)
                 {
@@ -125,10 +126,10 @@ internal sealed class PrintGptCommand
                     {
                         // Clean up partition name (remove null terminators)
                         var partitionName = partition.GetName().TrimEnd('\0');
-                        Logging.Log($"  Name: {partitionName}", LogLevel.Info);
-                        Logging.Log($"    Type: {partition.TypeGUID}", LogLevel.Info);
-                        Logging.Log($"    UID:  {partition.UID}", LogLevel.Info);
-                        Logging.Log($"    LBA:  {partition.FirstLBA}-{partition.LastLBA} (Size: {(partition.LastLBA - partition.FirstLBA + 1) * sectorSize / 1024.0 / 1024.0:F2} MiB)", LogLevel.Info);
+                        Logging.Log($"  Name: {partitionName}");
+                        Logging.Log($"    Type: {partition.TypeGUID}");
+                        Logging.Log($"    UID:  {partition.UID}");
+                        Logging.Log($"    LBA:  {partition.FirstLBA}-{partition.LastLBA} (Size: {(partition.LastLBA - partition.FirstLBA + 1) * sectorSize / 1024.0 / 1024.0:F2} MiB)");
                         Logging.Log($"    Attr: {partition.Attributes:X16}", LogLevel.Debug);
                     }
                 }

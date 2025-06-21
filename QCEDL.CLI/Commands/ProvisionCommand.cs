@@ -1,9 +1,9 @@
+using System.CommandLine;
+using System.Xml.Linq;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.Xml.Linq;
 
 namespace QCEDL.CLI.Commands;
 
@@ -11,7 +11,7 @@ internal sealed class ProvisionCommand
 {
     private static readonly Argument<FileInfo> XmlFileArgument =
         new("xmlfile", "Path to the UFS provisioning XML file.")
-            { Arity = ArgumentArity.ExactlyOne };
+        { Arity = ArgumentArity.ExactlyOne };
 
     public static Command Create(GlobalOptionsBinder globalOptionsBinder)
     {
@@ -19,7 +19,7 @@ internal sealed class ProvisionCommand
         {
             XmlFileArgument
         };
-        XmlFileArgument.ExistingOnly();
+        _ = XmlFileArgument.ExistingOnly();
         command.SetHandler(ExecuteAsync, globalOptionsBinder, XmlFileArgument);
         return command;
     }
@@ -28,8 +28,8 @@ internal sealed class ProvisionCommand
     {
         Logging.Log($"Executing 'provision' command with XML file: {xmlFile.FullName}", LogLevel.Trace);
 
-        var effectiveStorageType = StorageType.UFS;
-        if (globalOptions.MemoryType.HasValue && globalOptions.MemoryType != StorageType.UFS)
+        var effectiveStorageType = StorageType.Ufs;
+        if (globalOptions.MemoryType.HasValue && globalOptions.MemoryType != StorageType.Ufs)
         {
             Logging.Log($"Warning: --memory is set to '{globalOptions.MemoryType}'. UFS provisioning command implies UFS. Using UFS for this operation.", LogLevel.Warning);
         }
@@ -39,7 +39,7 @@ internal sealed class ProvisionCommand
             using var manager = new EdlManager(globalOptions);
             await manager.EnsureFirehoseModeAsync();
 
-            Logging.Log("Sending initial Firehose configure command (Memory: UFS, SkipStorageInit: true)...", LogLevel.Info);
+            Logging.Log("Sending initial Firehose configure command (Memory: UFS, SkipStorageInit: true)...");
             // Explicitly use UFS and skipStorageInit=true for this specific configure call.
             var configureSuccess = await Task.Run(() => manager.Firehose.Configure(effectiveStorageType, skipStorageInit: true));
             if (!configureSuccess)
@@ -47,7 +47,7 @@ internal sealed class ProvisionCommand
                 Logging.Log("Failed to send initial Firehose configure command for provisioning.", LogLevel.Error);
                 return 1;
             }
-            Logging.Log("Initial Firehose configure command sent successfully.", LogLevel.Info);
+            Logging.Log("Initial Firehose configure command sent successfully.");
 
             manager.FlushForResponse();
 
@@ -85,13 +85,13 @@ internal sealed class ProvisionCommand
                 var ufsElementString = ufsElement.ToString(SaveOptions.DisableFormatting);
                 var fullXmlPayload = $"<?xml version=\"1.0\" ?><data>{ufsElementString}</data>";
 
-                Logging.Log($"Sending UFS command {commandIndex}/{ufsElements.Count}", LogLevel.Info);
+                Logging.Log($"Sending UFS command {commandIndex}/{ufsElements.Count}");
 
                 var success = await Task.Run(() => manager.Firehose.SendRawXmlAndGetResponse(fullXmlPayload));
 
                 if (success)
                 {
-                    Logging.Log($"UFS command {commandIndex} ACKed.", LogLevel.Info);
+                    Logging.Log($"UFS command {commandIndex} ACKed.");
                     successCount++;
                 }
                 else
@@ -102,7 +102,7 @@ internal sealed class ProvisionCommand
                 }
             }
 
-            Logging.Log($"UFS provisioning completed. All {successCount}/{ufsElements.Count} commands sent and ACKed successfully.", LogLevel.Info);
+            Logging.Log($"UFS provisioning completed. All {successCount}/{ufsElements.Count} commands sent and ACKed successfully.");
         }
         catch (FileNotFoundException ex)
         {

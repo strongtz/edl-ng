@@ -4,42 +4,42 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 public class DevData
 {
-    private StorageType? storageType;
+    private StorageType? _storageType;
 
     [XmlAttribute(AttributeName = "storage_type")]
     public StorageType StorageType
     {
-        get => storageType ?? StorageType.UFS; set => storageType = value;
+        get => _storageType ?? StorageType.Ufs; set => _storageType = value;
     }
 
     public bool ShouldSerializeStorageType()
     {
-        return storageType.HasValue;
+        return _storageType.HasValue;
     }
 
-    private uint? slot;
+    private uint? _slot;
 
     [XmlAttribute(AttributeName = "slot")]
     public uint Slot
     {
-        get => slot ?? 0; set => slot = value;
+        get => _slot ?? 0; set => _slot = value;
     }
 
     public bool ShouldSerializeSlot()
     {
-        return slot.HasValue;
+        return _slot.HasValue;
     }
 
-    private uint? physicalPartitionNumber;
+    private uint? _physicalPartitionNumber;
 
     [XmlAttribute(AttributeName = "physical_partition_number")]
     public uint PhysicalPartitionNumber
     {
-        get => physicalPartitionNumber ?? 0; set => physicalPartitionNumber = value;
+        get => _physicalPartitionNumber ?? 0; set => _physicalPartitionNumber = value;
     }
 
     public bool ShouldSerializePhysicalPartitionNumber()
     {
-        return physicalPartitionNumber.HasValue;
+        return _physicalPartitionNumber.HasValue;
     }
 }

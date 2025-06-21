@@ -5,9 +5,9 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 public enum PowerValue
 {
     [XmlEnum(Name = "reset")]
-    reset,
+    Reset,
     [XmlEnum(Name = "off")]
-    off,
+    Off,
     [XmlEnum(Name = "reset_to_edl")]
-    edl
+    Edl
 }

@@ -1,9 +1,10 @@
+using System.CommandLine;
+using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
+using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
-using System.Diagnostics;
 
 namespace QCEDL.CLI.Commands;
 
@@ -12,9 +13,11 @@ internal sealed class WriteSectorCommand
     private static readonly Argument<ulong> StartSectorArgument = new("start_sector", "The starting sector LBA to write to.");
     private static readonly Argument<FileInfo> FilenameArgument =
         new("filename", "The file containing data to write.")
-            { Arity = ArgumentArity.ExactlyOne };
+        {
+            Arity = ArgumentArity.ExactlyOne
+        };
 
-    private static readonly Option<uint> LunOption = new Option<uint>(
+    private static readonly Option<uint> LunOption = new(
         aliases: ["--lun", "-u"],
         description: "Specify the LUN number to write to.",
         getDefaultValue: () => 0);
@@ -28,7 +31,7 @@ internal sealed class WriteSectorCommand
             LunOption
         };
 
-        FilenameArgument.ExistingOnly();
+        _ = FilenameArgument.ExistingOnly();
 
         command.SetHandler(ExecuteAsync,
             globalOptionsBinder,
@@ -66,10 +69,10 @@ internal sealed class WriteSectorCommand
             await manager.EnsureFirehoseModeAsync();
             await manager.ConfigureFirehoseAsync();
 
-            var storageType = globalOptions.MemoryType ?? StorageType.UFS;
+            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
             Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
 
-            Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo.Root? storageInfo = null;
+            Root? storageInfo = null;
             try
             {
                 storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
@@ -84,9 +87,9 @@ internal sealed class WriteSectorCommand
             {
                 sectorSize = storageType switch
                 {
-                    StorageType.NVME => 512,
-                    StorageType.SDCC => 512,
-                    _ => 4096,
+                    StorageType.Nvme => 512,
+                    StorageType.Sdcc => 512,
+                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
                 };
                 Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
             }
@@ -109,33 +112,33 @@ internal sealed class WriteSectorCommand
             numSectorsForXml = (uint)(totalBytesToWriteIncludingPadding / sectorSize);
 
             Logging.Log($"Data to write: {originalFileLength} bytes from file, padded to {totalBytesToWriteIncludingPadding} bytes ({numSectorsForXml} sectors).", LogLevel.Debug);
- 
+
             if (startSector > uint.MaxValue)
             {
                 Logging.Log($"Error: Start sector LBA ({startSector}) exceeds uint.MaxValue, which is not supported by the current Firehose.ProgramFromStream implementation's start_sector parameter.", LogLevel.Error);
                 return 1;
             }
 
-            Logging.Log($"Attempting to write {numSectorsForXml} sectors ({totalBytesToWriteIncludingPadding} bytes) to LUN {lun}, starting at LBA {startSector}...", LogLevel.Info);
+            Logging.Log($"Attempting to write {numSectorsForXml} sectors ({totalBytesToWriteIncludingPadding} bytes) to LUN {lun}, starting at LBA {startSector}...");
 
             long bytesWrittenReported = 0;
             var writeStopwatch = new Stopwatch();
 
-            Action<long, long> progressAction = (current, total) =>
+            void ProgressAction(long current, long total)
             {
                 bytesWrittenReported = current;
-                var percentage = total == 0 ? 100 : (double)current * 100.0 / total;
+                var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = writeStopwatch.Elapsed;
                 var speed = current / elapsed.TotalSeconds;
                 var speedStr = "N/A";
                 if (elapsed.TotalSeconds > 0.1)
                 {
-                    speedStr = speed > (1024 * 1024) ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
                         speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
                         $"{speed:F0} B/s";
                 }
                 Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-            };
+            }
 
             bool success;
             try
@@ -153,7 +156,7 @@ internal sealed class WriteSectorCommand
                     totalBytesToWriteIncludingPadding,
                     inputFile.Name,
                     fileStream,
-                    progressAction
+ProgressAction
                 ));
                 writeStopwatch.Stop();
             }
@@ -168,7 +171,7 @@ internal sealed class WriteSectorCommand
 
             if (success)
             {
-                Logging.Log($"Data ({bytesWrittenReported / (1024.0 * 1024.0):F2} MiB) written to sectors successfully in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Info);
+                Logging.Log($"Data ({bytesWrittenReported / (1024.0 * 1024.0):F2} MiB) written to sectors successfully in {writeStopwatch.Elapsed.TotalSeconds:F2}s.");
             }
             else
             {

@@ -1,21 +1,21 @@
+using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using System.CommandLine;
 
 namespace QCEDL.CLI.Commands;
 
 internal sealed class ResetCommand
 {
-    private static readonly Option<PowerValue> ModeOption = new Option<PowerValue>(
+    private static readonly Option<PowerValue> ModeOption = new(
         aliases: ["--mode", "-m"],
         description: "Specify the reset mode.",
-        getDefaultValue: () => PowerValue.reset
+        getDefaultValue: () => PowerValue.Reset
     );
 
 
-    private static readonly Option<uint> DelayOption = new Option<uint>(
+    private static readonly Option<uint> DelayOption = new(
         aliases: ["--delay", "-d"],
         description: "Delay in seconds before executing the power command.",
         getDefaultValue: () => 1
@@ -49,20 +49,20 @@ internal sealed class ResetCommand
             using var manager = new EdlManager(globalOptions);
             await manager.EnsureFirehoseModeAsync();
 
-            Logging.Log($"Attempting to send power command: Mode '{powerMode}', Delay '{delayInSeconds}s'...", LogLevel.Info);
+            Logging.Log($"Attempting to send power command: Mode '{powerMode}', Delay '{delayInSeconds}s'...");
 
             var success = await Task.Run(() => manager.Firehose.Reset(powerMode, delayInSeconds));
 
             if (success)
             {
-                Logging.Log($"Power command '{powerMode}' sent successfully.", LogLevel.Info);
-                if (powerMode == PowerValue.reset || powerMode == PowerValue.edl)
+                Logging.Log($"Power command '{powerMode}' sent successfully.");
+                if (powerMode is PowerValue.Reset or PowerValue.Edl)
                 {
-                    Logging.Log("Device should now be resetting.", LogLevel.Info);
+                    Logging.Log("Device should now be resetting.");
                 }
-                else if (powerMode == PowerValue.off)
+                else if (powerMode == PowerValue.Off)
                 {
-                    Logging.Log("Device should now be powering off.", LogLevel.Info);
+                    Logging.Log("Device should now be powering off.");
                 }
             }
             else

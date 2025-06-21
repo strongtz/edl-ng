@@ -29,33 +29,33 @@ namespace Qualcomm.EmergencyDownload.Transport;
 
 public static class Converter
 {
-    public static string ConvertHexToString(byte[] Bytes, string Separator)
+    public static string ConvertHexToString(byte[] bytes, string separator)
     {
         StringBuilder s = new(1000);
-        for (var i = Bytes.GetLowerBound(0); i <= Bytes.GetUpperBound(0); i++)
+        for (var i = bytes.GetLowerBound(0); i <= bytes.GetUpperBound(0); i++)
         {
-            if (i != Bytes.GetLowerBound(0))
+            if (i != bytes.GetLowerBound(0))
             {
-                s.Append(Separator);
+                _ = s.Append(separator);
             }
 
-            s.Append(Bytes[i].ToStringInvariantCulture("X2"));
+            _ = s.Append(bytes[i].ToStringInvariantCulture("X2"));
         }
         return s.ToString();
     }
 
-    public static byte[] ConvertStringToHex(string HexString)
+    public static byte[] ConvertStringToHex(string hexString)
     {
-        if (HexString.Length % 2 == 1)
+        if (hexString.Length % 2 == 1)
         {
             throw new TodoException("The binary key cannot have an odd number of digits");
         }
 
-        var arr = new byte[HexString.Length >> 1];
+        var arr = new byte[hexString.Length >> 1];
 
-        for (var i = 0; i < HexString.Length >> 1; ++i)
+        for (var i = 0; i < hexString.Length >> 1; ++i)
         {
-            arr[i] = (byte)((GetHexVal(HexString[i << 1]) << 4) + GetHexVal(HexString[(i << 1) + 1]));
+            arr[i] = (byte)((GetHexVal(hexString[i << 1]) << 4) + GetHexVal(hexString[(i << 1) + 1]));
         }
 
         return arr;

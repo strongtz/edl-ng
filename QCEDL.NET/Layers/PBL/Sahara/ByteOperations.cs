@@ -20,234 +20,237 @@
 
 // These functions assume same endianness for the CPU architecture and the raw data it reads from or writes to.
 
+using System.Collections;
+using System.Text;
+
 namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
 
 internal static class ByteOperations
 {
-    internal static string ReadAsciiString(byte[] ByteArray, uint Offset, uint Length)
+    internal static string ReadAsciiString(byte[] byteArray, uint offset, uint length)
     {
-        var Bytes = new byte[Length];
-        Buffer.BlockCopy(ByteArray, (int)Offset, Bytes, 0, (int)Length);
-        return System.Text.Encoding.ASCII.GetString(Bytes);
+        var bytes = new byte[length];
+        Buffer.BlockCopy(byteArray, (int)offset, bytes, 0, (int)length);
+        return Encoding.ASCII.GetString(bytes);
     }
 
-    internal static string ReadUnicodeString(byte[] ByteArray, uint Offset, uint Length)
+    internal static string ReadUnicodeString(byte[] byteArray, uint offset, uint length)
     {
-        var Bytes = new byte[Length];
-        Buffer.BlockCopy(ByteArray, (int)Offset, Bytes, 0, (int)Length);
-        return System.Text.Encoding.Unicode.GetString(Bytes);
+        var bytes = new byte[length];
+        Buffer.BlockCopy(byteArray, (int)offset, bytes, 0, (int)length);
+        return Encoding.Unicode.GetString(bytes);
     }
 
-    internal static void WriteAsciiString(byte[] ByteArray, uint Offset, string Text, uint? MaxBufferLength = null)
+    internal static void WriteAsciiString(byte[] byteArray, uint offset, string text, uint? maxBufferLength = null)
     {
-        if (MaxBufferLength != null)
+        if (maxBufferLength != null)
         {
-            Array.Clear(ByteArray, (int)Offset, (int)MaxBufferLength);
+            Array.Clear(byteArray, (int)offset, (int)maxBufferLength);
         }
 
-        var TextBytes = System.Text.Encoding.ASCII.GetBytes(Text);
-        var WriteLength = TextBytes.Length;
-        if (WriteLength > MaxBufferLength)
+        var textBytes = Encoding.ASCII.GetBytes(text);
+        var writeLength = textBytes.Length;
+        if (writeLength > maxBufferLength)
         {
-            WriteLength = (int)MaxBufferLength;
+            writeLength = (int)maxBufferLength;
         }
 
-        Buffer.BlockCopy(TextBytes, 0, ByteArray, (int)Offset, WriteLength);
+        Buffer.BlockCopy(textBytes, 0, byteArray, (int)offset, writeLength);
     }
 
-    internal static void WriteUnicodeString(byte[] ByteArray, uint Offset, string Text, uint? MaxBufferLength = null)
+    internal static void WriteUnicodeString(byte[] byteArray, uint offset, string text, uint? maxBufferLength = null)
     {
-        if (MaxBufferLength != null)
+        if (maxBufferLength != null)
         {
-            Array.Clear(ByteArray, (int)Offset, (int)MaxBufferLength);
+            Array.Clear(byteArray, (int)offset, (int)maxBufferLength);
         }
 
-        var TextBytes = System.Text.Encoding.Unicode.GetBytes(Text);
-        var WriteLength = TextBytes.Length;
-        if (WriteLength > MaxBufferLength)
+        var textBytes = Encoding.Unicode.GetBytes(text);
+        var writeLength = textBytes.Length;
+        if (writeLength > maxBufferLength)
         {
-            WriteLength = (int)MaxBufferLength;
+            writeLength = (int)maxBufferLength;
         }
 
-        Buffer.BlockCopy(TextBytes, 0, ByteArray, (int)Offset, WriteLength);
+        Buffer.BlockCopy(textBytes, 0, byteArray, (int)offset, writeLength);
     }
 
-    internal static uint ReadUInt32(byte[] ByteArray, uint Offset)
+    internal static uint ReadUInt32(byte[] byteArray, uint offset)
     {
-        return BitConverter.ToUInt32(ByteArray, (int)Offset);
+        return BitConverter.ToUInt32(byteArray, (int)offset);
     }
 
-    internal static void WriteUInt32(byte[] ByteArray, uint Offset, uint Value)
+    internal static void WriteUInt32(byte[] byteArray, uint offset, uint value)
     {
-        Buffer.BlockCopy(BitConverter.GetBytes(Value), 0, ByteArray, (int)Offset, 4);
+        Buffer.BlockCopy(BitConverter.GetBytes(value), 0, byteArray, (int)offset, 4);
     }
 
-    internal static int ReadInt32(byte[] ByteArray, uint Offset)
+    internal static int ReadInt32(byte[] byteArray, uint offset)
     {
-        return BitConverter.ToInt32(ByteArray, (int)Offset);
+        return BitConverter.ToInt32(byteArray, (int)offset);
     }
 
-    internal static void WriteInt32(byte[] ByteArray, uint Offset, int Value)
+    internal static void WriteInt32(byte[] byteArray, uint offset, int value)
     {
-        Buffer.BlockCopy(BitConverter.GetBytes(Value), 0, ByteArray, (int)Offset, 4);
+        Buffer.BlockCopy(BitConverter.GetBytes(value), 0, byteArray, (int)offset, 4);
     }
 
-    internal static ushort ReadUInt16(byte[] ByteArray, uint Offset)
+    internal static ushort ReadUInt16(byte[] byteArray, uint offset)
     {
-        return BitConverter.ToUInt16(ByteArray, (int)Offset);
+        return BitConverter.ToUInt16(byteArray, (int)offset);
     }
 
-    internal static void WriteUInt16(byte[] ByteArray, uint Offset, ushort Value)
+    internal static void WriteUInt16(byte[] byteArray, uint offset, ushort value)
     {
-        Buffer.BlockCopy(BitConverter.GetBytes(Value), 0, ByteArray, (int)Offset, 2);
+        Buffer.BlockCopy(BitConverter.GetBytes(value), 0, byteArray, (int)offset, 2);
     }
 
-    internal static short ReadInt16(byte[] ByteArray, uint Offset)
+    internal static short ReadInt16(byte[] byteArray, uint offset)
     {
-        return BitConverter.ToInt16(ByteArray, (int)Offset);
+        return BitConverter.ToInt16(byteArray, (int)offset);
     }
 
-    internal static void WriteInt16(byte[] ByteArray, uint Offset, short Value)
+    internal static void WriteInt16(byte[] byteArray, uint offset, short value)
     {
-        Buffer.BlockCopy(BitConverter.GetBytes(Value), 0, ByteArray, (int)Offset, 2);
+        Buffer.BlockCopy(BitConverter.GetBytes(value), 0, byteArray, (int)offset, 2);
     }
 
-    internal static byte ReadUInt8(byte[] ByteArray, uint Offset)
+    internal static byte ReadUInt8(byte[] byteArray, uint offset)
     {
-        return ByteArray[Offset];
+        return byteArray[offset];
     }
 
-    internal static void WriteUInt8(byte[] ByteArray, uint Offset, byte Value)
+    internal static void WriteUInt8(byte[] byteArray, uint offset, byte value)
     {
-        ByteArray[Offset] = Value;
+        byteArray[offset] = value;
     }
 
-    internal static uint ReadUInt24(byte[] ByteArray, uint Offset)
+    internal static uint ReadUInt24(byte[] byteArray, uint offset)
     {
-        return (uint)(ByteArray[Offset] + (ByteArray[Offset + 1] << 8) + (ByteArray[Offset + 2] << 16));
+        return (uint)(byteArray[offset] + (byteArray[offset + 1] << 8) + (byteArray[offset + 2] << 16));
     }
 
-    internal static void WriteUInt24(byte[] ByteArray, uint Offset, uint Value)
+    internal static void WriteUInt24(byte[] byteArray, uint offset, uint value)
     {
-        Buffer.BlockCopy(BitConverter.GetBytes(Value), 0, ByteArray, (int)Offset, 3);
+        Buffer.BlockCopy(BitConverter.GetBytes(value), 0, byteArray, (int)offset, 3);
     }
 
-    internal static ulong ReadUInt64(byte[] ByteArray, uint Offset)
+    internal static ulong ReadUInt64(byte[] byteArray, uint offset)
     {
-        return BitConverter.ToUInt64(ByteArray, (int)Offset);
+        return BitConverter.ToUInt64(byteArray, (int)offset);
     }
 
-    internal static void WriteUInt64(byte[] ByteArray, uint Offset, ulong Value)
+    internal static void WriteUInt64(byte[] byteArray, uint offset, ulong value)
     {
-        Buffer.BlockCopy(BitConverter.GetBytes(Value), 0, ByteArray, (int)Offset, 8);
+        Buffer.BlockCopy(BitConverter.GetBytes(value), 0, byteArray, (int)offset, 8);
     }
 
-    internal static Guid ReadGuid(byte[] ByteArray, uint Offset)
+    internal static Guid ReadGuid(byte[] byteArray, uint offset)
     {
-        var GuidBuffer = new byte[0x10];
-        Buffer.BlockCopy(ByteArray, (int)Offset, GuidBuffer, 0, 0x10);
-        return new Guid(GuidBuffer);
+        var guidBuffer = new byte[0x10];
+        Buffer.BlockCopy(byteArray, (int)offset, guidBuffer, 0, 0x10);
+        return new(guidBuffer);
     }
 
-    internal static void WriteGuid(byte[] ByteArray, uint Offset, Guid Value)
+    internal static void WriteGuid(byte[] byteArray, uint offset, Guid value)
     {
-        Buffer.BlockCopy(Value.ToByteArray(), 0, ByteArray, (int)Offset, 0x10);
+        Buffer.BlockCopy(value.ToByteArray(), 0, byteArray, (int)offset, 0x10);
     }
 
-    internal static uint Align(uint Base, uint Offset, uint Alignment)
+    internal static uint Align(uint @base, uint offset, uint alignment)
     {
-        return (Offset - Base) % Alignment == 0 ? Offset : ((Offset - Base) / Alignment + 1) * Alignment + Base;
+        return (offset - @base) % alignment == 0 ? offset : ((((offset - @base) / alignment) + 1) * alignment) + @base;
     }
 
-    internal static uint? FindAscii(byte[] SourceBuffer, string Pattern)
+    internal static uint? FindAscii(byte[] sourceBuffer, string pattern)
     {
-        return FindPattern(SourceBuffer, System.Text.Encoding.ASCII.GetBytes(Pattern), null, null);
+        return FindPattern(sourceBuffer, Encoding.ASCII.GetBytes(pattern), null, null);
     }
 
-    internal static uint? FindUnicode(byte[] SourceBuffer, string Pattern)
+    internal static uint? FindUnicode(byte[] sourceBuffer, string pattern)
     {
-        return FindPattern(SourceBuffer, System.Text.Encoding.Unicode.GetBytes(Pattern), null, null);
+        return FindPattern(sourceBuffer, Encoding.Unicode.GetBytes(pattern), null, null);
     }
 
-    internal static uint? FindUint(byte[] SourceBuffer, uint Pattern)
+    internal static uint? FindUint(byte[] sourceBuffer, uint pattern)
     {
-        return FindPattern(SourceBuffer, BitConverter.GetBytes(Pattern), null, null);
+        return FindPattern(sourceBuffer, BitConverter.GetBytes(pattern), null, null);
     }
 
-    internal static uint? FindPattern(byte[] SourceBuffer, byte[] Pattern, byte[]? Mask, byte[]? OutPattern)
+    internal static uint? FindPattern(byte[] sourceBuffer, byte[] pattern, byte[]? mask, byte[]? outPattern)
     {
-        return FindPattern(SourceBuffer, 0, null, Pattern, Mask, OutPattern);
+        return FindPattern(sourceBuffer, 0, null, pattern, mask, outPattern);
     }
 
-    internal static bool Compare(byte[] Array1, byte[] Array2)
+    internal static bool Compare(byte[] array1, byte[] array2)
     {
-        return System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(Array1, Array2);
+        return StructuralComparisons.StructuralEqualityComparer.Equals(array1, array2);
     }
 
-    internal static uint? FindPattern(byte[] SourceBuffer, uint SourceOffset, uint? SourceSize, byte[] Pattern, byte[]? Mask, byte[]? OutPattern)
+    internal static uint? FindPattern(byte[] sourceBuffer, uint sourceOffset, uint? sourceSize, byte[] pattern, byte[]? mask, byte[]? outPattern)
     {
         // The mask is optional.
         // In the mask 0x00 means the value must match, and 0xFF means that this position is a wildcard.
 
-        uint? Result = null;
+        uint? result = null;
 
-        var SearchPosition = SourceOffset;
+        var searchPosition = sourceOffset;
         int i;
 
-        while (SearchPosition <= SourceBuffer.Length - Pattern.Length && (SourceSize == null || SearchPosition <= SourceOffset + SourceSize - Pattern.Length))
+        while (searchPosition <= sourceBuffer.Length - pattern.Length && (sourceSize == null || searchPosition <= sourceOffset + sourceSize - pattern.Length))
         {
-            var Match = true;
-            for (i = 0; i < Pattern.Length; i++)
+            var match = true;
+            for (i = 0; i < pattern.Length; i++)
             {
-                if (SourceBuffer[SearchPosition + i] != Pattern[i])
+                if (sourceBuffer[searchPosition + i] != pattern[i])
                 {
-                    if (Mask == null || Mask[i] == 0)
+                    if (mask == null || mask[i] == 0)
                     {
-                        Match = false;
+                        match = false;
                         break;
                     }
                 }
             }
 
-            if (Match)
+            if (match)
             {
-                Result = SearchPosition;
+                result = searchPosition;
 
-                if (OutPattern != null)
+                if (outPattern != null)
                 {
-                    Buffer.BlockCopy(SourceBuffer, (int)SearchPosition, OutPattern, 0, Pattern.Length);
+                    Buffer.BlockCopy(sourceBuffer, (int)searchPosition, outPattern, 0, pattern.Length);
                 }
 
                 break;
             }
 
-            SearchPosition++;
+            searchPosition++;
         }
 
-        return Result;
+        return result;
     }
 
-    internal static byte CalculateChecksum8(byte[] Buffer, uint Offset, uint Size)
+    internal static byte CalculateChecksum8(byte[] buffer, uint offset, uint size)
     {
-        byte Checksum = 0;
+        byte checksum = 0;
 
-        for (var i = Offset; i < Offset + Size; i++)
+        for (var i = offset; i < offset + size; i++)
         {
-            Checksum += Buffer[i];
+            checksum += buffer[i];
         }
 
-        return (byte)(0x100 - Checksum);
+        return (byte)(0x100 - checksum);
     }
 
-    internal static ushort CalculateChecksum16(byte[] Buffer, uint Offset, uint Size)
+    internal static ushort CalculateChecksum16(byte[] buffer, uint offset, uint size)
     {
-        ushort Checksum = 0;
+        ushort checksum = 0;
 
-        for (var i = Offset; i < Offset + Size - 1; i += 2)
+        for (var i = offset; i < offset + size - 1; i += 2)
         {
-            Checksum += BitConverter.ToUInt16(Buffer, (int)i);
+            checksum += BitConverter.ToUInt16(buffer, (int)i);
         }
 
-        return (ushort)(0x10000 - Checksum);
+        return (ushort)(0x10000 - checksum);
     }
 }

@@ -26,7 +26,7 @@ public enum QualcommSaharaCommand : uint
     Hello = 0x01,
     HelloResponse = 0x02,
     ReadData = 0x03,
-    EndImageTX = 0x04,
+    EndImageTx = 0x04,
     Done = 0x05,
     DoneResponse = 0x06,
     Reset = 0x07,

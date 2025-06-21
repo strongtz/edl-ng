@@ -3,7 +3,7 @@
 namespace QCEDL.NET.PartitionTable;
 
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
-public unsafe struct GPTPartition
+public unsafe struct GptPartition
 {
     public Guid TypeGUID;
     public Guid UID;

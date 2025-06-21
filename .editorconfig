@@ -51,7 +51,7 @@ dotnet_style_require_accessibility_modifiers = for_non_interface_members:error
 dotnet_style_coalesce_expression = true:error
 dotnet_style_collection_initializer = true:error
 dotnet_style_explicit_tuple_names = true:error
-dotnet_style_namespace_match_folder = true:error
+dotnet_style_namespace_match_folder = true:none
 dotnet_style_null_propagation = true:error
 dotnet_style_object_initializer = true:error
 dotnet_style_operator_placement_when_wrapping = beginning_of_line
@@ -108,7 +108,7 @@ csharp_style_conditional_delegate_call = true:error
 # Modifier preferences
 csharp_prefer_static_anonymous_function = true:error
 csharp_prefer_static_local_function = true:warning
-csharp_preferred_modifier_order = public,private,protected,internal,file,const,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async:error
+csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async:error
 csharp_style_prefer_readonly_struct = true:error
 csharp_style_prefer_readonly_struct_member = true:error
 
@@ -130,10 +130,10 @@ csharp_style_prefer_local_over_anonymous_function = true:error
 csharp_style_prefer_null_check_over_type_check = true:error
 csharp_style_prefer_range_operator = true:error
 csharp_style_prefer_tuple_swap = true:error
-csharp_style_prefer_utf8_string_literals = true:error
+csharp_style_prefer_utf8_string_literals = true:warning
 csharp_style_throw_expression = true:error
 csharp_style_unused_value_assignment_preference = discard_variable:error
-csharp_style_unused_value_expression_statement_preference = discard_variable:error
+csharp_style_unused_value_expression_statement_preference = discard_variable:warning
 
 # 'using' directive preferences
 csharp_using_directive_placement = outside_namespace:error
@@ -378,3 +378,4 @@ dotnet_naming_style.s_camelcase.capitalization = camel_case
 
 [*.{cs,vb}]
 dotnet_analyzer_diagnostic.category-Style.severity = error
+dotnet_diagnostic.CS1591.severity = none

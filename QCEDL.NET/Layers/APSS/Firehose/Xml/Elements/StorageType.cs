@@ -5,13 +5,13 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 public enum StorageType
 {
     [XmlEnum(Name = "eMMC")]
-    SDCC,
+    Sdcc,
     [XmlEnum(Name = "spinor")]
-    SPINOR,
+    Spinor,
     [XmlEnum(Name = "UFS")]
-    UFS,
+    Ufs,
     [XmlEnum(Name = "nand")]
-    NAND,
+    Nand,
     [XmlEnum(Name = "NVMe")]
-    NVME
+    Nvme
 }

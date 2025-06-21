@@ -12,145 +12,151 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        arch: [x64, arm64]
-        config: [Release]
+        os: [ windows-latest, ubuntu-latest, macos-latest ]
+        arch: [ x64, arm64 ]
+        config: [ Release ]
 
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup .NET 9
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
 
-    - name: Determine Runtime ID and OS Short Name
-      id: vars
-      shell: bash
-      run: |
-        os_short_name=""
-        rid_os_prefix=""
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          os_short_name="windows"
-          rid_os_prefix="win"
-        elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          os_short_name="linux"
-          rid_os_prefix="linux"
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          os_short_name="macos"
-          rid_os_prefix="osx"
-        else
-          echo "::error ::Unsupported OS: ${{ matrix.os }}"
-          exit 1
-        fi
-        echo "os_short_name=$os_short_name" >> $GITHUB_OUTPUT
-        echo "rid_os_prefix=$rid_os_prefix" >> $GITHUB_OUTPUT
-
-    - name: Install ARM64 cross-compilation tools (Ubuntu)
-      if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang llvm zlib1g-dev \
-                               gcc-aarch64-linux-gnu \
-                               g++-aarch64-linux-gnu \
-                               binutils-aarch64-linux-gnu \
-                               libc6-dev-arm64-cross
-      shell: bash
-
-    - name: Build and Publish
-      id: build-and-publish
-      shell: bash
-      run: |
-        RID="${{ steps.vars.outputs.rid_os_prefix }}-${{ matrix.arch }}"
-        OUTPUT_DIR_NAME="publish_output" # Just the directory name
-        PROJECT_FILE="QCEDL.CLI/QCEDL.CLI.csproj"
-
-        PDB_EXCLUDE_FLAGS="-p:DebugType=None -p:DebugSymbols=false"
-
-        echo "Building for RID: $RID, Config: ${{ matrix.config }}, AOT: $PUBLISH_AOT_FLAG"
-        dotnet publish "$PROJECT_FILE" \
-          --configuration "${{ matrix.config }}" \
-          --runtime "$RID" \
-          --self-contained true \
-          $PDB_EXCLUDE_FLAGS \
-          -o "$OUTPUT_DIR_NAME"
-        
-        echo "Publish output directory is: $OUTPUT_DIR_NAME"
-        ls -R "$OUTPUT_DIR_NAME"
-
-        echo "artifact_name_base=edl-ng-${{ steps.vars.outputs.os_short_name }}-${{ matrix.arch }}${ARTIFACT_NAME_SUFFIX}" >> $GITHUB_OUTPUT
-        echo "output_dir_path=$OUTPUT_DIR_NAME" >> $GITHUB_OUTPUT
-
-    - name: Copy LICENSE to output directory
-      shell: bash
-      run: |
-        cp LICENSE ${{ steps.build-and-publish.outputs.output_dir_path }}/LICENSE
-        echo "Copied LICENSE to ${{ steps.build-and-publish.outputs.output_dir_path }}"
-
-    - name: Package Artifact (Windows)
-      if: runner.os == 'Windows'
-      env:
-        ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-        OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
-      shell: pwsh
-      run: |
-        $ArtifactName = "${env:ARTIFACT_BASE_NAME}.zip"
-        $OutputDir = "${env:OUTPUT_PUBLISH_DIR_PATH}"
-        Write-Host "Windows Packaging: ArtifactName = $ArtifactName"
-        Write-Host "Windows Packaging: OutputDir = $OutputDir"
-        if (-Not (Test-Path $OutputDir)) {
-            Write-Error "Output directory $OutputDir does not exist!"
+      - name: Determine Runtime ID and OS Short Name
+        id: vars
+        shell: bash
+        run: |
+          os_short_name=""
+          rid_os_prefix=""
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            os_short_name="windows"
+            rid_os_prefix="win"
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            os_short_name="linux"
+            rid_os_prefix="linux"
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            os_short_name="macos"
+            rid_os_prefix="osx"
+          else
+            echo "::error ::Unsupported OS: ${{ matrix.os }}"
             exit 1
-        }
-        Get-ChildItem -Path $OutputDir # List contents for debugging
-        echo "output_dir=$OutputDir" >> $env:GITHUB_OUTPUT
-      id: package_win
+          fi
+          echo "os_short_name=$os_short_name" >> $GITHUB_OUTPUT
+          echo "rid_os_prefix=$rid_os_prefix" >> $GITHUB_OUTPUT
 
-    - name: Package Artifact (Linux/macOS)
-      if: runner.os == 'Linux' || runner.os == 'macOS'
-      env:
-        ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-        OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
-        MATRIX_OS: ${{ matrix.os }}
-      shell: bash
-      run: |
-        ARTIFACT_NAME="${ARTIFACT_BASE_NAME}.zip"
-        OUTPUT_DIR="${OUTPUT_PUBLISH_DIR_PATH}"
-        echo "Unix Packaging: ARTIFACT_NAME = $ARTIFACT_NAME"
-        echo "Unix Packaging: OUTPUT_DIR = $OUTPUT_DIR"
-        echo "Unix Packaging: OS = $MATRIX_OS"
+      - name: Install ARM64 cross-compilation tools (Ubuntu)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm zlib1g-dev \
+                                 gcc-aarch64-linux-gnu \
+                                 g++-aarch64-linux-gnu \
+                                 binutils-aarch64-linux-gnu \
+                                 libc6-dev-arm64-cross
+        shell: bash
 
-        if [ ! -d "$OUTPUT_DIR" ]; then
-            echo "::error::Output directory $OUTPUT_DIR does not exist!"
-            exit 1
-        fi
+      - name: Build and Publish
+        id: build-and-publish
+        shell: bash
+        run: |
+          RID="${{ steps.vars.outputs.rid_os_prefix }}-${{ matrix.arch }}"
+          OUTPUT_DIR_NAME="publish_output" # Just the directory name
+          PROJECT_FILE="QCEDL.CLI/QCEDL.CLI.csproj"
+          
+          PDB_EXCLUDE_FLAGS="-p:DebugType=None -p:DebugSymbols=false"
+          
+          echo "Building for RID: $RID, Config: ${{ matrix.config }}, AOT: $PUBLISH_AOT_FLAG"
+          dotnet publish "$PROJECT_FILE" \
+            --configuration "${{ matrix.config }}" \
+            --runtime "$RID" \
+            --self-contained true \
+            $PDB_EXCLUDE_FLAGS \
+            -o "$OUTPUT_DIR_NAME"
+          
+          echo "Publish output directory is: $OUTPUT_DIR_NAME"
+          ls -R "$OUTPUT_DIR_NAME"
+          
+          echo "artifact_name_base=edl-ng-${{ steps.vars.outputs.os_short_name }}-${{ matrix.arch }}${ARTIFACT_NAME_SUFFIX}" >> $GITHUB_OUTPUT
+          echo "output_dir_path=$OUTPUT_DIR_NAME" >> $GITHUB_OUTPUT
 
-        if [[ "$MATRIX_OS" == "macos-latest" ]]; then
-          echo "Removing .dSYM directories for macOS Release build..."
-          find "$OUTPUT_DIR" -name "*.dSYM" -type d -exec rm -rf {} +
-        fi
+      - name: Copy LICENSE to output directory
+        shell: bash
+        run: |
+          cp LICENSE ${{ steps.build-and-publish.outputs.output_dir_path }}/LICENSE
+          echo "Copied LICENSE to ${{ steps.build-and-publish.outputs.output_dir_path }}"
 
-        ls -R "$OUTPUT_DIR"
-        echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
-      id: package_unix
+      - name: Remove XML document
+        shell: bash
+        run: |
+          rm ${{ steps.build-and-publish.outputs.output_dir_path }}/*.xml
+          echo "XML document removed"
 
-    - name: Upload Individual Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-        path: ${{ runner.os == 'Windows' && steps.package_win.outputs.output_dir || steps.package_unix.outputs.output_dir }}
-        if-no-files-found: error
-        retention-days: 7
+      - name: Package Artifact (Windows)
+        if: runner.os == 'Windows'
+        env:
+          ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
+          OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
+        shell: pwsh
+        run: |
+          $ArtifactName = "${env:ARTIFACT_BASE_NAME}.zip"
+          $OutputDir = "${env:OUTPUT_PUBLISH_DIR_PATH}"
+          Write-Host "Windows Packaging: ArtifactName = $ArtifactName"
+          Write-Host "Windows Packaging: OutputDir = $OutputDir"
+          if (-Not (Test-Path $OutputDir)) {
+              Write-Error "Output directory $OutputDir does not exist!"
+              exit 1
+          }
+          Get-ChildItem -Path $OutputDir # List contents for debugging
+          echo "output_dir=$OutputDir" >> $env:GITHUB_OUTPUT
+        id: package_win
+
+      - name: Package Artifact (Linux/macOS)
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+        env:
+          ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
+          OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
+          MATRIX_OS: ${{ matrix.os }}
+        shell: bash
+        run: |
+          ARTIFACT_NAME="${ARTIFACT_BASE_NAME}.zip"
+          OUTPUT_DIR="${OUTPUT_PUBLISH_DIR_PATH}"
+          echo "Unix Packaging: ARTIFACT_NAME = $ARTIFACT_NAME"
+          echo "Unix Packaging: OUTPUT_DIR = $OUTPUT_DIR"
+          echo "Unix Packaging: OS = $MATRIX_OS"
+          
+          if [ ! -d "$OUTPUT_DIR" ]; then
+              echo "::error::Output directory $OUTPUT_DIR does not exist!"
+              exit 1
+          fi
+          
+          if [[ "$MATRIX_OS" == "macos-latest" ]]; then
+            echo "Removing .dSYM directories for macOS Release build..."
+            find "$OUTPUT_DIR" -name "*.dSYM" -type d -exec rm -rf {} +
+          fi
+          
+          ls -R "$OUTPUT_DIR"
+          echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+        id: package_unix
+
+      - name: Upload Individual Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build-and-publish.outputs.artifact_name_base }}
+          path: ${{ runner.os == 'Windows' && steps.package_win.outputs.output_dir || steps.package_unix.outputs.output_dir }}
+          if-no-files-found: error
+          retention-days: 7
 
   package-dist:
     name: Create edl-ng-dist Package
     needs: build-and-package # Depends on all matrix builds finishing
     runs-on: ubuntu-latest # Use a single OS for packaging
     # Only run this job for pushes to the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' 
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout repository (for LICENSE)

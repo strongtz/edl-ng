@@ -4,16 +4,16 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 public class GetStorageInfo : DevData
 {
-    private ulong? printJson;
+    private ulong? _printJson;
 
     [XmlAttribute(AttributeName = "print_json")]
     public ulong PrintJson
     {
-        get => printJson ?? 1; set => printJson = value;
+        get => _printJson ?? 1; set => _printJson = value;
     }
 
     public bool ShouldSerializePrintJson()
     {
-        return printJson.HasValue;
+        return _printJson.HasValue;
     }
 }

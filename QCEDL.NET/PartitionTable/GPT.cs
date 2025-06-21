@@ -1,11 +1,11 @@
 ﻿namespace QCEDL.NET.PartitionTable;
 
-public class GPT
+public class Gpt
 {
     // "EFI PART" in LE
     private const ulong GptSignatureMagic = 0x5452415020494645ul;
 
-    public required List<GPTPartition> Partitions
+    public required List<GptPartition> Partitions
     {
         get; set;
     }
@@ -33,16 +33,16 @@ public class GPT
         }
     }
 
-    public static GPT? ReadFromStream(Stream stream, int sectorSize)
+    public static Gpt? ReadFromStream(Stream stream, int sectorSize)
     {
         var array = new byte[sectorSize];
         stream.ReadExactly(array, 0, array.Length);
-        var gptheader = StructureFromBytes<GPTHeader>(array);
+        var gptheader = StructureFromBytes<GptHeader>(array);
 
         if (gptheader.Signature != GptSignatureMagic)
         {
             stream.ReadExactly(array, 0, array.Length);
-            gptheader = StructureFromBytes<GPTHeader>(array);
+            gptheader = StructureFromBytes<GptHeader>(array);
         }
 
         if (gptheader.Signature != GptSignatureMagic)
@@ -50,19 +50,19 @@ public class GPT
             throw new InvalidDataException("No GPT!");
         }
 
-        GPT? gpt;
+        Gpt? gpt;
 
         if (gptheader.Signature == GptSignatureMagic)
         {
-            var isBackupGPT = gptheader.CurrentLBA > gptheader.PartitionArrayLBA;
+            var isBackupGpt = gptheader.CurrentLBA > gptheader.PartitionArrayLBA;
             var reflectPartitionEntryCount = true;
 
-            if (isBackupGPT)
+            if (isBackupGpt)
             {
-                stream.Seek(-sectorSize, SeekOrigin.Current);
+                _ = stream.Seek(-sectorSize, SeekOrigin.Current);
             }
 
-            List<GPTPartition> list = [];
+            List<GptPartition> list = [];
 
             uint num = 0;
 
@@ -78,7 +78,7 @@ public class GPT
 
                     var partitionEntryBuffer = array[startOffset..endOffset];
 
-                    var gptpartition = StructureFromBytes<GPTPartition>(partitionEntryBuffer);
+                    var gptpartition = StructureFromBytes<GptPartition>(partitionEntryBuffer);
 
                     if (gptpartition.TypeGUID == Guid.Empty)
                     {
@@ -92,11 +92,11 @@ public class GPT
                 }
             }
 
-            gpt = new GPT
+            gpt = new()
             {
                 Header = gptheader,
                 Partitions = list,
-                IsBackup = isBackupGPT,
+                IsBackup = isBackupGpt,
                 ReflectPartitionEntryCount = reflectPartitionEntryCount,
                 SectorSize = sectorSize
             };
@@ -109,5 +109,5 @@ public class GPT
         return gpt;
     }
 
-    public GPTHeader Header { get; private set; }
+    public GptHeader Header { get; private set; }
 }

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+
 namespace QCEDL.NET.Logging;
 
 public enum LogLevel

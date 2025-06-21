@@ -3,7 +3,7 @@
 namespace QCEDL.NET.PartitionTable;
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
-public unsafe struct GPTHeader
+public struct GptHeader
 {
     public ulong Signature;
     public uint Revision;
