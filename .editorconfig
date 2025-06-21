@@ -378,3 +378,4 @@ dotnet_naming_style.s_camelcase.capitalization = camel_case
 
 [*.{cs,vb}]
 dotnet_analyzer_diagnostic.category-Style.severity = error
+dotnet_diagnostic.CS1591.severity = none
