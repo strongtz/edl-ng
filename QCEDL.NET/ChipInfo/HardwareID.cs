@@ -23,7 +23,8 @@ public class HardwareId
 
         if (Enum.IsDefined(typeof(QualcommPartNumbers), productId))
         {
-            LibraryLogger.Info($"Product ID: {productId} ({(QualcommPartNumbers)productId})");
+            var partNumber = (QualcommPartNumbers)productId;
+            LibraryLogger.Info($"Product ID: {productId} ({partNumber.ToStringSnakeCaseUpper()})");
         }
         else
         {
