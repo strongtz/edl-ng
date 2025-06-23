@@ -90,8 +90,11 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 * Snapdragon 835 (MSM8998)
 * Dragonwing QCS6490
 * Dragonwing QCS8550
+* Snapdragon X Elite (SC8380)
 
-SoCs older than msm8998 are not tested and may not yet be supported.
+SoCs older than MSM8998 are not tested and may not yet be supported.
+
+Devices with vendor customized DevPrg may not be supported as well.
 
 ## Prerequisites
 
