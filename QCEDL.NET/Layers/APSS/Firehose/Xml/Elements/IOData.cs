@@ -12,10 +12,7 @@ public class IoData
         get => _storageType ?? StorageType.Ufs; set => _storageType = value;
     }
 
-    public bool ShouldSerializeStorageType()
-    {
-        return _storageType.HasValue;
-    }
+    public bool ShouldSerializeStorageType() => _storageType.HasValue;
 
     private uint? _slot;
 
@@ -25,10 +22,7 @@ public class IoData
         get => _slot ?? 0; set => _slot = value;
     }
 
-    public bool ShouldSerializeSlot()
-    {
-        return _slot.HasValue;
-    }
+    public bool ShouldSerializeSlot() => _slot.HasValue;
 
     private uint? _physicalPartitionNumber;
 
@@ -38,8 +32,5 @@ public class IoData
         get => _physicalPartitionNumber ?? 0; set => _physicalPartitionNumber = value;
     }
 
-    public bool ShouldSerializePhysicalPartitionNumber()
-    {
-        return _physicalPartitionNumber.HasValue;
-    }
+    public bool ShouldSerializePhysicalPartitionNumber() => _physicalPartitionNumber.HasValue;
 }

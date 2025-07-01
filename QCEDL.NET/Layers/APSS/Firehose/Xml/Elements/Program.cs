@@ -12,8 +12,5 @@ public class Program : IoDataDevDataMixin
         get => _filename ?? ""; set => _filename = value;
     }
 
-    public bool ShouldSerializeFileName()
-    {
-        return _filename != null;
-    }
+    public bool ShouldSerializeFileName() => _filename != null;
 }

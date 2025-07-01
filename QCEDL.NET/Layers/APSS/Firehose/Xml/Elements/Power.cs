@@ -12,10 +12,7 @@ public class Power
         get => _value ?? PowerValue.Reset; set => _value = value;
     }
 
-    public bool ShouldSerializeValue()
-    {
-        return _value.HasValue;
-    }
+    public bool ShouldSerializeValue() => _value.HasValue;
 
     private ulong? _delayInSeconds;
 
@@ -25,8 +22,5 @@ public class Power
         get => _delayInSeconds ?? 100; set => _delayInSeconds = value;
     }
 
-    public bool ShouldSerializeDelayInSeconds()
-    {
-        return _delayInSeconds.HasValue;
-    }
+    public bool ShouldSerializeDelayInSeconds() => _delayInSeconds.HasValue;
 }

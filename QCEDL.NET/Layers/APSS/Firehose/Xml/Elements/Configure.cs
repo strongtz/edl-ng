@@ -12,10 +12,7 @@ public class Configure
         get => _memoryName ?? StorageType.Ufs; set => _memoryName = value;
     }
 
-    public bool ShouldSerializeMemoryName()
-    {
-        return _memoryName.HasValue;
-    }
+    public bool ShouldSerializeMemoryName() => _memoryName.HasValue;
 
     private string? _verbose;
 
@@ -25,10 +22,7 @@ public class Configure
         get => _verbose ?? "0"; set => _verbose = value;
     }
 
-    public bool ShouldSerializeVerbose()
-    {
-        return _verbose != null;
-    }
+    public bool ShouldSerializeVerbose() => _verbose != null;
 
     private ulong? _maxPayloadSizeToTargetInBytes;
 
@@ -38,10 +32,7 @@ public class Configure
         get => _maxPayloadSizeToTargetInBytes ?? 0; set => _maxPayloadSizeToTargetInBytes = value;
     }
 
-    public bool ShouldSerializeMaxPayloadSizeToTargetInBytes()
-    {
-        return _maxPayloadSizeToTargetInBytes.HasValue;
-    }
+    public bool ShouldSerializeMaxPayloadSizeToTargetInBytes() => _maxPayloadSizeToTargetInBytes.HasValue;
 
     private string? _alwaysValidate;
 
@@ -51,10 +42,7 @@ public class Configure
         get => _alwaysValidate ?? "0"; set => _alwaysValidate = value;
     }
 
-    public bool ShouldSerializeAlwaysValidate()
-    {
-        return _alwaysValidate != null;
-    }
+    public bool ShouldSerializeAlwaysValidate() => _alwaysValidate != null;
 
     private ulong? _maxDigestTableSizeInBytes;
 
@@ -64,10 +52,7 @@ public class Configure
         get => _maxDigestTableSizeInBytes ?? 0; set => _maxDigestTableSizeInBytes = value;
     }
 
-    public bool ShouldSerializeMaxDigestTableSizeInBytes()
-    {
-        return _maxDigestTableSizeInBytes.HasValue;
-    }
+    public bool ShouldSerializeMaxDigestTableSizeInBytes() => _maxDigestTableSizeInBytes.HasValue;
 
     private string? _zlpAwareHost;
 
@@ -77,10 +62,7 @@ public class Configure
         get => _zlpAwareHost ?? "1"; set => _zlpAwareHost = value;
     }
 
-    public bool ShouldSerializeZlpAwareHost()
-    {
-        return _zlpAwareHost != null;
-    }
+    public bool ShouldSerializeZlpAwareHost() => _zlpAwareHost != null;
 
     private string? _skipWrite;
 
@@ -90,10 +72,7 @@ public class Configure
         get => _skipWrite ?? "0"; set => _skipWrite = value;
     }
 
-    public bool ShouldSerializeSkipWrite()
-    {
-        return _skipWrite != null;
-    }
+    public bool ShouldSerializeSkipWrite() => _skipWrite != null;
 
     private string? _skipStorageInit;
 
@@ -103,8 +82,5 @@ public class Configure
         get => _skipStorageInit ?? "0"; set => _skipStorageInit = value;
     }
 
-    public bool ShouldSerializeSkipStorageInit()
-    {
-        return _skipStorageInit != null;
-    }
+    public bool ShouldSerializeSkipStorageInit() => _skipStorageInit != null;
 }
