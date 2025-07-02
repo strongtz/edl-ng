@@ -1,20 +1,76 @@
 <Window xmlns="https://github.com/avaloniaui"
+        xmlns:i="https://github.com/projektanker/icons.avalonia"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:QCEDL.GUI.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:resources="clr-namespace:QCEDL.GUI.Resources"
+        xmlns:AvaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        Width="800"
+        Height="450"
         x:Class="QCEDL.GUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="QCEDL.GUI">
+        Title="{x:Static resources:Strings.AppName}">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
-
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-
+    <Grid ColumnDefinitions="Auto" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="10" Margin="5">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5">
+            <TextBlock Grid.Column="0" LineHeight="45" Text="{x:Static resources:Strings.StorageType}"/>
+            <ComboBox Grid.Column="1" SelectedIndex="0">
+                <ComboBoxItem>UFS</ComboBoxItem>
+                <ComboBoxItem>NVMe</ComboBoxItem>
+                <ComboBoxItem>eMMC</ComboBoxItem>
+                <ComboBoxItem>NAND</ComboBoxItem>
+                <ComboBoxItem>SPI NOR</ComboBoxItem>
+            </ComboBox>
+            <TextBlock Grid.Column="2" LineHeight="45" Text="{x:Static resources:Strings.Port}"/>
+            <ComboBox Grid.Column="3" SelectedIndex="0">
+                <ComboBoxItem>Placeholder</ComboBoxItem>
+            </ComboBox>
+            <Button Grid.Column="4" i:Attached.Icon="fa-solid fa-arrows-rotate" Classes="Basic"/>
+        </Grid>
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="{x:Static resources:Strings.Action}"/>
+            <RadioButton
+                Grid.Column="1"
+                GroupName="function"
+                Content="{x:Static resources:Strings.Provision}"
+                ToolTip.Tip="{x:Static resources:Strings.ProvisionTooltip}"/>
+            <RadioButton
+                Grid.Column="2"
+                GroupName="function"
+                Content="{x:Static resources:Strings.RawProgram}"
+                ToolTip.Tip="{x:Static resources:Strings.RawProgramTooltip}"/>
+            <RadioButton
+                Grid.Column="3"
+                GroupName="function"
+                Content="{x:Static resources:Strings.PrintGpt}"/>
+            <RadioButton
+                Grid.Column="4"
+                GroupName="function"
+                Content="{x:Static resources:Strings.ReadWritePartition}"/>
+            <RadioButton
+                Grid.Column="5"
+                GroupName="function"
+                Content="{x:Static resources:Strings.AdvancedActions}"/>
+        </Grid>
+        <Grid Grid.Row="2">
+            <TextBlock>[PLACEHOLDER] Detailed options for each function</TextBlock>
+        </Grid>
+        <Grid Grid.Row="3">
+            <AvaloniaEdit:TextEditor
+                Text="Logging placeholder"
+                ShowLineNumbers="True"
+                FontFamily="Cascadia Code,Consolas,Menlo,Monospace"/>
+        </Grid>
+        <Grid Grid.Row="4">
+            <Button HorizontalAlignment="Left" Content="{x:Static resources:Strings.Execute}"/>
+        </Grid>
+    </Grid>
 </Window>

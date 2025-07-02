@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.PartitionTable;

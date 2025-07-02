@@ -73,7 +73,7 @@ public abstract partial class HelperLauncherBase(ILogger logger) : IHostedServic
     {
         LogTerminating();
 
-        if (_client is null)
+        if (_client is null || !_client.IsConnected)
         {
             return;
         }
@@ -92,8 +92,6 @@ public abstract partial class HelperLauncherBase(ILogger logger) : IHostedServic
         _client = new(
             Pipe.Name,
             new SystemTextJsonFormatter());
-
-        // new SystemTextJsonNativeAotFormatter(MessageSerializerContext.Default)
 
         _client.MessageReceived += async (sender, e) =>
         {

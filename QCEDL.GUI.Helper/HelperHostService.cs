@@ -46,6 +46,7 @@ internal sealed partial class HelperHostService(
             }
 
             LogClientMessage(clientMessage);
+
             switch (clientMessage)
             {
                 case ClientHello hello:

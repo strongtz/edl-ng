@@ -1,15 +1,8 @@
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 namespace QCEDL.NET.Logging;
 
-public enum LogLevel
-{
-    Trace,
-    Debug,
-    Info,
-    Warning,
-    Error
-}
 public static class LibraryLogger
 {
     // Parameters: message, level, memberName, sourceFilePath, sourceLineNumber
@@ -25,7 +18,7 @@ public static class LibraryLogger
     public static void Info(string message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,
-        [CallerLineNumber] int sourceLineNumber = 0) => LogAction?.Invoke(message, LogLevel.Info, memberName, sourceFilePath, sourceLineNumber);
+        [CallerLineNumber] int sourceLineNumber = 0) => LogAction?.Invoke(message, LogLevel.Information, memberName, sourceFilePath, sourceLineNumber);
     public static void Warning(string message,
         [CallerMemberName] string? memberName = null,
         [CallerFilePath] string? sourceFilePath = null,

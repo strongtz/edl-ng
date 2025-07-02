@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.Logging;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 

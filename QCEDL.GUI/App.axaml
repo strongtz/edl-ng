@@ -2,15 +2,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="QCEDL.GUI.App"
              xmlns:local="using:QCEDL.GUI"
+             xmlns:semi="https://irihi.tech/semi"
              xmlns:sukiUi="clr-namespace:SukiUI;assembly=SukiUI"
              RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-
     <Application.DataTemplates>
-        <local:ViewLocator/>
+        <local:ViewLocator />
     </Application.DataTemplates>
-  
+
     <Application.Styles>
-        <sukiUi:SukiTheme ThemeColor="Blue"/> 
+        <sukiUi:SukiTheme ThemeColor="Blue"  /> 
+        <semi:AvaloniaEditSemiTheme />
     </Application.Styles>
 </Application>

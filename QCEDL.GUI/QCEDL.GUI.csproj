@@ -6,6 +6,7 @@
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <NeutralLanguage>en-US</NeutralLanguage>
     </PropertyGroup>
 
     <ItemGroup>
@@ -15,8 +16,8 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia" Version="11.3.2" />
+        <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
         <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
         <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.2" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics" Version="11.3.2">
@@ -25,10 +26,27 @@
         </PackageReference>
         <PackageReference Include="Avalonia.ReactiveUI" Version="11.3.2" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.6" />
+        <PackageReference Include="Projektanker.Icons.Avalonia.FontAwesome" Version="9.6.2" />
+        <PackageReference Include="Semi.Avalonia.AvaloniaEdit" Version="11.2.0" />
         <PackageReference Include="SukiUI" Version="6.0.2" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QCEDL.GUI.Helper\QCEDL.GUI.Helper.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Update="Resources\Strings.resx">
+        <Generator>PublicResXFileCodeGenerator</Generator>
+        <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+      </EmbeddedResource>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="Resources\Strings.Designer.cs">
+        <DesignTime>True</DesignTime>
+        <AutoGen>True</AutoGen>
+        <DependentUpon>Strings.resx</DependentUpon>
+      </Compile>
     </ItemGroup>
 </Project>

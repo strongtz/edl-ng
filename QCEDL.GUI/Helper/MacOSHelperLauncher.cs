@@ -16,8 +16,6 @@ public sealed class MacOSHelperLauncher(ILogger<MacOSHelperLauncher> logger) : H
         {
             FileName = "/usr/bin/osascript",
             ArgumentList = { "-e", appleScript },
-            // RedirectStandardOutput = true,
-            // RedirectStandardError = true,
             UseShellExecute = false
         };
 

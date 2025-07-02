@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using LibUsbDotNet.Main;
+using Microsoft.Extensions.Logging;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.Todo;
 using QCEDL.NET.USB;
