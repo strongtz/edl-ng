@@ -1,8 +1,8 @@
 ﻿using System.CommandLine;
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 using QCEDL.CLI.Commands;
 using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 // --- Define Global Options ---
@@ -62,7 +62,7 @@ var memoryOption = new Option<StorageType?>(
 var logLevelOption = new Option<LogLevel>(
     name: "--loglevel",
     description: "Set the logging level.",
-    getDefaultValue: () => LogLevel.Info);
+    getDefaultValue: () => LogLevel.Information);
 
 var maxPayloadOption = new Option<ulong?>(
     name: "--maxpayload",

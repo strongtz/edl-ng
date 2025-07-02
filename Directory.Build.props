@@ -6,7 +6,7 @@
       <Nullable>enable</Nullable>
       <AnalysisMode>Recommended</AnalysisMode>
       <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-      <WarningsNotAsErrors>CS1591;IDE0058;IDE0130</WarningsNotAsErrors>
+      <WarningsNotAsErrors>CS1591;IDE0058;IDE0130;CA1848</WarningsNotAsErrors>
       <Nullable>enable</Nullable>
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
       <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>

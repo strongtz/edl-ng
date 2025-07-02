@@ -34,20 +34,11 @@ public class HardwareId
         LibraryLogger.Debug($"Die Revision: {dieRevision:X1}");
     }
 
-    internal static uint GetManufacturerIdFromMsmid(uint msmid)
-    {
-        return msmid & 0xFFF;
-    }
+    internal static uint GetManufacturerIdFromMsmid(uint msmid) => msmid & 0xFFF;
 
-    internal static uint GetProductIdFromMsmid(uint msmid)
-    {
-        return (msmid >> 12) & 0xFFFF;
-    }
+    internal static uint GetProductIdFromMsmid(uint msmid) => (msmid >> 12) & 0xFFFF;
 
-    internal static uint GetDieRevisionFromMsmid(uint msmid)
-    {
-        return (msmid >> 28) & 0xF;
-    }
+    internal static uint GetDieRevisionFromMsmid(uint msmid) => (msmid >> 28) & 0xF;
 
     internal static uint GetMsmidFromHwid(byte[] hwid)
     {

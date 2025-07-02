@@ -319,10 +319,7 @@ public class QualcommSahara(QualcommSerial serial)
         return result;
     }
 
-    public void ResetSahara()
-    {
-        _ = serial.SendCommand(BuildCommandPacket(QualcommSaharaCommand.Reset), [0x08, 0x00, 0x00, 0x00]);
-    }
+    public void ResetSahara() => _ = serial.SendCommand(BuildCommandPacket(QualcommSaharaCommand.Reset), [0x08, 0x00, 0x00, 0x00]);
 
     public void SwitchMode(QualcommSaharaMode mode)
     {
@@ -398,23 +395,11 @@ public class QualcommSahara(QualcommSerial serial)
     }
 
 
-    public byte[][] GetRkHs()
-    {
-        return Execute.GetRkHs(serial);
-    }
+    public byte[][] GetRkHs() => Execute.GetRkHs(serial);
 
-    public byte[] GetRkh()
-    {
-        return Execute.GetRkh(serial);
-    }
+    public byte[] GetRkh() => Execute.GetRkh(serial);
 
-    public byte[] GetHwid()
-    {
-        return Execute.GetHwid(serial);
-    }
+    public byte[] GetHwid() => Execute.GetHwid(serial);
 
-    public byte[] GetSerialNumber()
-    {
-        return Execute.GetSerialNumber(serial);
-    }
+    public byte[] GetSerialNumber() => Execute.GetSerialNumber(serial);
 }

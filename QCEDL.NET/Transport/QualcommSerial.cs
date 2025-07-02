@@ -539,10 +539,7 @@ public class QualcommSerial : IDisposable
         Dispose(false);
     }
 
-    public void Close()
-    {
-        Dispose();
-    }
+    public void Close() => Dispose();
 
     protected virtual void Dispose(bool disposing)
     {

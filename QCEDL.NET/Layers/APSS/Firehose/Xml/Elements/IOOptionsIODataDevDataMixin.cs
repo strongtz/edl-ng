@@ -13,10 +13,7 @@ public class IoOptionsIoDataDevDataMixin : IoDataDevDataMixin
         get => _lastSector ?? 0; set => _lastSector = value;
     }
 
-    public bool ShouldSerializeLastSector()
-    {
-        return _lastSector.HasValue;
-    }
+    public bool ShouldSerializeLastSector() => _lastSector.HasValue;
 
     private byte? _skipBadBlock;
 
@@ -26,10 +23,7 @@ public class IoOptionsIoDataDevDataMixin : IoDataDevDataMixin
         get => _skipBadBlock ?? 0; set => _skipBadBlock = value;
     }
 
-    public bool ShouldSerializeSkipBadBlock()
-    {
-        return _skipBadBlock.HasValue;
-    }
+    public bool ShouldSerializeSkipBadBlock() => _skipBadBlock.HasValue;
 
     private byte? _getSpare;
 
@@ -39,10 +33,7 @@ public class IoOptionsIoDataDevDataMixin : IoDataDevDataMixin
         get => _getSpare ?? 0; set => _getSpare = value;
     }
 
-    public bool ShouldSerializeGetSpare()
-    {
-        return _getSpare.HasValue;
-    }
+    public bool ShouldSerializeGetSpare() => _getSpare.HasValue;
 
     private byte? _eccDisabled;
 
@@ -52,8 +43,5 @@ public class IoOptionsIoDataDevDataMixin : IoDataDevDataMixin
         get => _eccDisabled ?? 0; set => _eccDisabled = value;
     }
 
-    public bool ShouldSerializeEccDisabled()
-    {
-        return _eccDisabled.HasValue;
-    }
+    public bool ShouldSerializeEccDisabled() => _eccDisabled.HasValue;
 }

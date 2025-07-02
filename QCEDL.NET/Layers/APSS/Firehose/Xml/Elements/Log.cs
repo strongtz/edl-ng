@@ -7,8 +7,5 @@ public class Log
     [XmlAttribute(AttributeName = "value")]
     public string? Value { get; set; }
 
-    public bool ShouldSerializeValue()
-    {
-        return Value != null;
-    }
+    public bool ShouldSerializeValue() => Value != null;
 }

@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Xml.Linq;
+using Microsoft.Extensions.Logging;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;

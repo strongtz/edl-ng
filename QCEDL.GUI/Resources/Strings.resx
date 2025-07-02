@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<root>
+    <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+        <xsd:element name="root" msdata:IsDataSet="true">
+            
+        </xsd:element>
+    </xsd:schema>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="AppName" xml:space="preserve">
+        <value>QCEDL.Net</value>
+    </data>
+    <data name="StorageType" xml:space="preserve">
+        <value>Storage Type</value>
+    </data>
+    <data name="Port" xml:space="preserve">
+        <value>Port</value>
+    </data>
+    <data name="Action" xml:space="preserve">
+        <value>Action</value>
+    </data>
+    <data name="Provision" xml:space="preserve">
+        <value>Provision</value>
+    </data>
+    <data name="RawProgram" xml:space="preserve">
+        <value>Raw Program</value>
+    </data>
+    <data name="PrintGpt" xml:space="preserve">
+        <value>Print GPT</value>
+    </data>
+    <data name="ReadWritePartition" xml:space="preserve">
+        <value>Read/Write Partition</value>
+    </data>
+    <data name="AdvancedActions" xml:space="preserve">
+        <value>Advanced</value>
+    </data>
+    <data name="Execute" xml:space="preserve">
+        <value>Execute</value>
+    </data>
+    <data name="ProvisionTooltip" xml:space="preserve">
+        <value>Sends signed authorization packages to the device to configure its security settings.</value>
+    </data>
+    <data name="RawProgramTooltip" xml:space="preserve">
+        <value>Use rawprogram file to map and write partition images directly to the device’s flash memory.</value>
+    </data>
+</root>
