@@ -148,19 +148,30 @@ internal sealed class ErasePartitionCommand
                     {
                         foreach (var p in gpt.Partitions)
                         {
-                            var currentPartitionName = p.GetName();
+                            var currentPartitionName = p.GetName().TrimEnd('\0');
                             if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
                             {
-                                foundPartition = p; actualLun = currentLun; actualSectorSize = currentSectorSize;
-                                Logging.Log($"Found partition '{partitionName}' on LUN {actualLun} with sector size {actualSectorSize}.");
-                                Logging.Log($"  Details - Type: {p.TypeGUID}, UID: {p.UID}, LBA: {p.FirstLBA}-{p.LastLBA}", LogLevel.Debug);
+                                foundPartition = p;
+                                actualLun = currentLun;
+                                actualSectorSize = currentSectorSize;
+                                Logging.Log(
+                                    $"Found partition '{partitionName}' on LUN {actualLun} with sector size {actualSectorSize}.");
+                                Logging.Log(
+                                    $"  Details - Type: {p.TypeGUID}, UID: {p.UID}, LBA: {p.FirstLBA}-{p.LastLBA}",
+                                    LogLevel.Debug);
                                 break;
                             }
                         }
                     }
                 }
-                catch (InvalidDataException) { Logging.Log($"No valid GPT found or parse error on LUN {currentLun}.", LogLevel.Debug); }
-                catch (Exception ex) { Logging.Log($"Error processing GPT on LUN {currentLun}: {ex.Message}", LogLevel.Warning); }
+                catch (InvalidDataException)
+                {
+                    Logging.Log($"No valid GPT found or parse error on LUN {currentLun}.", LogLevel.Debug);
+                }
+                catch (Exception ex)
+                {
+                    Logging.Log($"Error processing GPT on LUN {currentLun}: {ex.Message}", LogLevel.Warning);
+                }
 
                 if (foundPartition.HasValue)
                 {
