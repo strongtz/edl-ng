@@ -39,6 +39,22 @@ internal sealed class ReadSectorCommand
         return command;
     }
 
+    public static Command CreateReadLunCommand(GlobalOptionsBinder globalOptionsBinder)
+    {
+        var command = new Command("read-lun", "Reads the entire LUN (all sectors) from a given LUN, saving to a file.")
+        {
+            FilenameArgument,
+            LunOption // Command-specific LUN
+        };
+
+        command.SetHandler(ExecuteReadLunAsync,
+            globalOptionsBinder,
+            FilenameArgument,
+            LunOption);
+
+        return command;
+    }
+
     private static async Task<int> ExecuteAsync(
         GlobalOptionsBinder globalOptions,
         ulong startSector,
@@ -47,13 +63,31 @@ internal sealed class ReadSectorCommand
         uint lun)
     {
         Logging.Log($"Executing 'read-sector' command: LUN {lun}, Start LBA {startSector}, Sectors {sectorsToRead}, File '{outputFile.FullName}'...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
-        if (sectorsToRead == 0)
-        {
-            Logging.Log("Error: Number of sectors to read must be greater than 0.", LogLevel.Error);
-            return 1;
-        }
+        return await ExecuteReadSectorsAsync(globalOptions, startSector, sectorsToRead, outputFile, lun, "read-sector");
+    }
+
+    private static async Task<int> ExecuteReadLunAsync(
+        GlobalOptionsBinder globalOptions,
+        FileInfo outputFile,
+        uint lun)
+    {
+        Logging.Log($"Executing 'read-lun' command: LUN {lun}, File '{outputFile.FullName}'...", LogLevel.Trace);
+
+        // For read-lun, we'll determine the total sectors dynamically
+        return await ExecuteReadSectorsAsync(globalOptions, 0, 0, outputFile, lun, "read-lun", readEntireLun: true);
+    }
+
+    private static async Task<int> ExecuteReadSectorsAsync(
+        GlobalOptionsBinder globalOptions,
+        ulong startSector,
+        ulong sectorsToRead,
+        FileInfo outputFile,
+        uint lun,
+        string commandName,
+        bool readEntireLun = false)
+    {
+        var commandStopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -64,7 +98,7 @@ internal sealed class ReadSectorCommand
             var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
             Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
 
-            // Determine sector size
+            // Get storage info to determine sector size and total blocks
             Root? storageInfo = null;
             try
             {
@@ -87,6 +121,27 @@ internal sealed class ReadSectorCommand
                 Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
             }
             Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
+
+            // For read-lun, determine total sectors from storage info
+            if (readEntireLun)
+            {
+                if (storageInfo?.StorageInfo?.TotalBlocks > 0)
+                {
+                    sectorsToRead = (ulong)storageInfo.StorageInfo.TotalBlocks;
+                    Logging.Log($"Read-lun: Total blocks from storage info: {sectorsToRead}", LogLevel.Info);
+                }
+                else
+                {
+                    Logging.Log("Error: Could not determine total blocks for read-lun command. Storage info unavailable.", LogLevel.Error);
+                    return 1;
+                }
+            }
+
+            if (sectorsToRead == 0)
+            {
+                Logging.Log("Error: Number of sectors to read must be greater than 0.", LogLevel.Error);
+                return 1;
+            }
 
             if (startSector > uint.MaxValue || startSector + sectorsToRead - 1 > uint.MaxValue)
             {
@@ -141,7 +196,7 @@ internal sealed class ReadSectorCommand
                     firstLba,
                     lastLba,
                     fileStream,
-ProgressAction
+                    ProgressAction
                 ));
                 readStopwatch.Stop();
             }
@@ -188,14 +243,14 @@ ProgressAction
         }
         catch (Exception ex)
         {
-            Logging.Log($"An unexpected error occurred in 'read-sector': {ex.Message}", LogLevel.Error);
+            Logging.Log($"An unexpected error occurred in '{commandName}': {ex.Message}", LogLevel.Error);
             Logging.Log(ex.ToString(), LogLevel.Debug);
             return 1;
         }
         finally
         {
             commandStopwatch.Stop();
-            Logging.Log($"'read-sector' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
+            Logging.Log($"'{commandName}' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
         }
 
         return 0;

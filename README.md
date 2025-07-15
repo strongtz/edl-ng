@@ -43,6 +43,7 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 * `printgpt`: Reads and prints the GPT from the device.
 * `read-part <partition_name> <filename>`: Reads a partition to a file.
 * `read-sector <start_sector> <num_sectors> <filename>`: Reads sectors to a file.
+* `read-lun <filename>`: Reads the entire LUN (all sectors) to a file.
 * `write-part <partition_name> <filename>`: Writes data from a file to a partition.
 * `write-sector <start_sector> <filename>`: Writes data from a file to sectors.
 * `erase-part <partition_name>`: Erases a partition by name from the device.
@@ -79,6 +80,11 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
     edl-ng --loader prog_firehose_ddr.elf write-part modem modem.bin
     ```
 
+* **Read the entire LUN 0 to `lun0.bin`:**
+
+    ```bash
+    edl-ng --loader prog_firehose_ddr.elf --memory UFS read-lun lun0.bin --lun 0
+    ```
 * **Reboot the device:**
 
     ```bash
