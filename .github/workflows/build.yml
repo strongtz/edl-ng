@@ -84,11 +84,13 @@ jobs:
           echo "artifact_name_base=edl-ng-${{ steps.vars.outputs.os_short_name }}-${{ matrix.arch }}${ARTIFACT_NAME_SUFFIX}" >> $GITHUB_OUTPUT
           echo "output_dir_path=$OUTPUT_DIR_NAME" >> $GITHUB_OUTPUT
 
-      - name: Copy LICENSE to output directory
+      - name: Copy LICENSE and README to output directory
         shell: bash
         run: |
           cp LICENSE ${{ steps.build-and-publish.outputs.output_dir_path }}/LICENSE
           echo "Copied LICENSE to ${{ steps.build-and-publish.outputs.output_dir_path }}"
+          cp README.md ${{ steps.build-and-publish.outputs.output_dir_path }}/README.md
+          echo "Copied README.md to ${{ steps.build-and-publish.outputs.output_dir_path }}"
 
       - name: Remove XML document
         shell: bash
