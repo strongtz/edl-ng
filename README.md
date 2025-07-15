@@ -44,6 +44,7 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 * `read-part <partition_name> <filename>`: Reads a partition to a file.
 * `read-sector <start_sector> <num_sectors> <filename>`: Reads sectors to a file.
 * `read-lun <filename>`: Reads the entire LUN (all sectors) to a file.
+* `dump-rawprogram <dump_save_dir>`: Reads all partitions to individual files from a certain LUN and generates rawprogram XML file.
 * `write-part <partition_name> <filename>`: Writes data from a file to a partition.
 * `write-sector <start_sector> <filename>`: Writes data from a file to sectors.
 * `erase-part <partition_name>`: Erases a partition by name from the device.
@@ -85,6 +86,21 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
     ```bash
     edl-ng --loader prog_firehose_ddr.elf --memory UFS read-lun lun0.bin --lun 0
     ```
+
+* **Dump all partitions from LUN 0 to directory and generate rawprogram XML:**
+
+    ```bash
+    edl-ng --loader prog_firehose_ddr.elf --memory UFS dump-rawprogram ./partitions --lun 0
+    ```
+
+    This will create partition files (e.g., `system.bin`, `vendor.bin`), GPT files (`gpt_main0.bin`, `gpt_backup0.bin`), and `rawprogram0.xml`.
+
+* **Write `lun0.bin` to the entire LUN 0:**
+
+    ```bash
+    edl-ng --loader prog_firehose_ddr.elf --memory UFS write-sector 0 lun0.bin --lun 0
+    ```
+
 * **Reboot the device:**
 
     ```bash

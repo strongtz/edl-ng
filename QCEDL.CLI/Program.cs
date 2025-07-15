@@ -111,6 +111,7 @@ rootCommand.AddCommand(PrintGptCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ReadPartitionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ReadSectorCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ReadSectorCommand.CreateReadLunCommand(globalOptionsBinder));
+rootCommand.AddCommand(DumpRawprogramCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(WritePartitionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(WriteSectorCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ErasePartitionCommand.Create(globalOptionsBinder));
