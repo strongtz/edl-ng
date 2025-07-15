@@ -386,6 +386,20 @@ internal sealed class DumpRawprogramCommand
                 return 1;
             }
 
+            // Generate patch XML file for GPT header fixes
+            var patchXmlPath = Path.Combine(dumpSaveDir.FullName, $"patch{lun}.xml");
+            try
+            {
+                var patchDoc = GeneratePatchXml(lun, sectorSize, mainGptFileName, backupGptFileName);
+                patchDoc.Save(patchXmlPath);
+                Logging.Log($"Generated patch XML file: '{patchXmlPath}'", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"Error saving patch XML file: {ex.Message}", LogLevel.Error);
+                return 1;
+            }
+
             Logging.Log($"Dump completed: {successfulDumps}/{totalPartitions + (backupGptData != null && backupGptSectors > 0 ? 2 : 1)} files successfully dumped to '{dumpSaveDir.FullName}'", LogLevel.Info);
         }
         catch (FileNotFoundException ex)
@@ -442,5 +456,68 @@ internal sealed class DumpRawprogramCommand
         }
 
         return safeName;
+    }
+
+    private static XDocument GeneratePatchXml(uint lun, uint sectorSize, string mainGptFileName, string backupGptFileName)
+    {
+        var patchesElement = new XElement("patches");
+        var doc = new XDocument(patchesElement);
+
+        // Patch 1: Update Primary Header with LastUsableLBA
+        AddPatch(patchesElement, "1", 48, lun, 8, "NUM_DISK_SECTORS-6.", mainGptFileName, sectorSize, "Update Primary Header with LastUseableLBA.");
+        AddPatch(patchesElement, "1", 48, lun, 8, "NUM_DISK_SECTORS-6.", "DISK", sectorSize, "Update Primary Header with LastUseableLBA.");
+
+        // Patch 2: Update Backup Header with LastUsableLBA
+        AddPatch(patchesElement, "4", 48, lun, 8, "NUM_DISK_SECTORS-6.", backupGptFileName, sectorSize, "Update Backup Header with LastUseableLBA.");
+        AddPatch(patchesElement, "NUM_DISK_SECTORS-1.", 48, lun, 8, "NUM_DISK_SECTORS-6.", "DISK", sectorSize, "Update Backup Header with LastUseableLBA.");
+
+        // Patch 3: Update Primary Header with BackupGPT Header Location
+        AddPatch(patchesElement, "1", 32, lun, 8, "NUM_DISK_SECTORS-1.", mainGptFileName, sectorSize, "Update Primary Header with BackupGPT Header Location.");
+        AddPatch(patchesElement, "1", 32, lun, 8, "NUM_DISK_SECTORS-1.", "DISK", sectorSize, "Update Primary Header with BackupGPT Header Location.");
+
+        // Patch 4: Update Backup Header with CurrentLBA
+        AddPatch(patchesElement, "4", 24, lun, 8, "NUM_DISK_SECTORS-1.", backupGptFileName, sectorSize, "Update Backup Header with CurrentLBA.");
+        AddPatch(patchesElement, "NUM_DISK_SECTORS-1.", 24, lun, 8, "NUM_DISK_SECTORS-1.", "DISK", sectorSize, "Update Backup Header with CurrentLBA.");
+
+        // Patch 5: Update Backup Header with Partition Array Location
+        AddPatch(patchesElement, "4", 72, lun, 8, "NUM_DISK_SECTORS-5.", backupGptFileName, sectorSize, "Update Backup Header with Partition Array Location.");
+        AddPatch(patchesElement, "NUM_DISK_SECTORS-1", 72, lun, 8, "NUM_DISK_SECTORS-5.", "DISK", sectorSize, "Update Backup Header with Partition Array Location.");
+
+        // Patch 6: Update Primary Header with CRC of Partition Array
+        AddPatch(patchesElement, "1", 88, lun, 4, "CRC32(2,4096)", mainGptFileName, sectorSize, "Update Primary Header with CRC of Partition Array.");
+        AddPatch(patchesElement, "1", 88, lun, 4, "CRC32(2,4096)", "DISK", sectorSize, "Update Primary Header with CRC of Partition Array.");
+
+        // Patch 7: Update Backup Header with CRC of Partition Array
+        AddPatch(patchesElement, "4", 88, lun, 4, "CRC32(0,4096)", backupGptFileName, sectorSize, "Update Backup Header with CRC of Partition Array.");
+        AddPatch(patchesElement, "NUM_DISK_SECTORS-1.", 88, lun, 4, "CRC32(NUM_DISK_SECTORS-5.,4096)", "DISK", sectorSize, "Update Backup Header with CRC of Partition Array.");
+
+        // Patch 8: Zero Out Header CRC in Primary Header
+        AddPatch(patchesElement, "1", 16, lun, 4, "0", mainGptFileName, sectorSize, "Zero Out Header CRC in Primary Header.");
+        AddPatch(patchesElement, "1", 16, lun, 4, "CRC32(1,92)", mainGptFileName, sectorSize, "Update Primary Header with CRC of Primary Header.");
+        AddPatch(patchesElement, "1", 16, lun, 4, "0", "DISK", sectorSize, "Zero Out Header CRC in Primary Header.");
+        AddPatch(patchesElement, "1", 16, lun, 4, "CRC32(1,92)", "DISK", sectorSize, "Update Primary Header with CRC of Primary Header.");
+
+        // Patch 9: Zero Out Header CRC in Backup Header
+        AddPatch(patchesElement, "4", 16, lun, 4, "0", backupGptFileName, sectorSize, "Zero Out Header CRC in Backup Header.");
+        AddPatch(patchesElement, "4", 16, lun, 4, "CRC32(4,92)", backupGptFileName, sectorSize, "Update Backup Header with CRC of Backup Header.");
+        AddPatch(patchesElement, "NUM_DISK_SECTORS-1.", 16, lun, 4, "0", "DISK", sectorSize, "Zero Out Header CRC in Backup Header.");
+        AddPatch(patchesElement, "NUM_DISK_SECTORS-1.", 16, lun, 4, "CRC32(NUM_DISK_SECTORS-1.,92)", "DISK", sectorSize, "Update Backup Header with CRC of Backup Header.");
+
+        return doc;
+    }
+
+    private static void AddPatch(XElement patchesElement, string startSector, uint byteOffset, uint physicalPartitionNumber, uint sizeInBytes, string value, string filename, uint sectorSizeInBytes, string what)
+    {
+        var patchElement = new XElement("patch",
+            new XAttribute("start_sector", startSector),
+            new XAttribute("byte_offset", byteOffset.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("physical_partition_number", physicalPartitionNumber.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("size_in_bytes", sizeInBytes.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("value", value),
+            new XAttribute("filename", filename),
+            new XAttribute("SECTOR_SIZE_IN_BYTES", sectorSizeInBytes.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("what", what)
+        );
+        patchesElement.Add(patchElement);
     }
 }
