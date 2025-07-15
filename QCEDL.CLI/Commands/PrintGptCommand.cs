@@ -50,23 +50,20 @@ internal sealed class PrintGptCommand
             {
                 Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Error);
             }
-            var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 4096;
-            // Override based on known types if GetStorageInfo failed or returned invalid size
-            if (sectorSize is <= 0 or > 1024 * 1024) // Basic sanity check
-            {
-                if (storageType is StorageType.Nvme or StorageType.Sdcc)
-                {
-                    sectorSize = 512;
-                    Logging.Log($"Storage info unreliable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-                }
-                else
-                {
-                    sectorSize = 4096;
-                    Logging.Log($"Storage info unreliable, using default sector size: {sectorSize}", LogLevel.Warning);
-                }
-            }
-            Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
 
+            var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
+            if (sectorSize == 0) // Fallback if GetStorageInfo failed or returned 0
+            {
+                sectorSize = storageType switch
+                {
+                    StorageType.Nvme => 512,
+                    StorageType.Sdcc => 512,
+                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
+                };
+                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
+            }
+
+            Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
 
             // Read the first few sectors where GPT resides (Primary: 0-?, Backup: depends on disk size)
             // Reading 34 sectors is usually safe for primary GPT header + entries (1 header + 128 entries * 128 bytes / sectorSize = ~33 sectors)

@@ -80,7 +80,7 @@ internal sealed class EraseSectorCommand
             }
 
             var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-            if (sectorSize == 0)
+            if (sectorSize == 0) // Fallback if GetStorageInfo failed or returned 0
             {
                 sectorSize = storageType switch
                 {
@@ -90,6 +90,7 @@ internal sealed class EraseSectorCommand
                 };
                 Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
             }
+
             Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
 
             Logging.Log($"Attempting to erase {numSectorsToErase} sectors starting at LBA {startSector} on LUN {lun}...");
