@@ -242,7 +242,7 @@ internal sealed class DumpRawprogramCommand
             // Add main GPT to rawprogram XML
             var mainGptElement = new XElement("program",
                 new XAttribute("filename", mainGptFileName),
-                new XAttribute("label", "gpt_main"),
+                new XAttribute("label", "PrimaryGPT"),
                 new XAttribute("start_sector", "0"),
                 new XAttribute("num_partition_sectors", mainGptSectors.ToString(CultureInfo.InvariantCulture)),
                 new XAttribute("SECTOR_SIZE_IN_BYTES", sectorSize.ToString(CultureInfo.InvariantCulture)),
@@ -255,7 +255,7 @@ internal sealed class DumpRawprogramCommand
             {
                 var backupGptElement = new XElement("program",
                     new XAttribute("filename", backupGptFileName),
-                    new XAttribute("label", "gpt_backup"),
+                    new XAttribute("label", "BackupGPT"),
                     new XAttribute("start_sector", $"NUM_DISK_SECTORS-{backupGptSectors}."),
                     new XAttribute("num_partition_sectors", backupGptSectors.ToString(CultureInfo.InvariantCulture)),
                     new XAttribute("SECTOR_SIZE_IN_BYTES", sectorSize.ToString(CultureInfo.InvariantCulture)),
