@@ -20,18 +20,25 @@ internal sealed class DumpRawprogramCommand
         description: "Specify the LUN number to dump partitions from.",
         getDefaultValue: () => 0);
 
+    private static readonly Option<bool> GenXmlOnlyOption = new(
+        aliases: ["--gen-xml-only"],
+        description: "Only generate rawprogram and patch XML files, do not dump partitions.",
+        getDefaultValue: () => false);
+
     public static Command Create(GlobalOptionsBinder globalOptionsBinder)
     {
         var command = new Command("dump-rawprogram", "Reads all partitions to individual files from a certain LUN and generates rawprogram XML file.")
         {
             DumpSaveDirArgument,
-            LunOption
+            LunOption,
+            GenXmlOnlyOption
         };
 
         command.SetHandler(ExecuteAsync,
             globalOptionsBinder,
             DumpSaveDirArgument,
-            LunOption);
+            LunOption,
+            GenXmlOnlyOption);
 
         return command;
     }
@@ -39,9 +46,10 @@ internal sealed class DumpRawprogramCommand
     private static async Task<int> ExecuteAsync(
         GlobalOptionsBinder globalOptions,
         DirectoryInfo dumpSaveDir,
-        uint lun)
+        uint lun,
+        bool genXmlOnly)
     {
-        Logging.Log($"Executing 'dump-rawprogram' command: LUN {lun}, Save Directory '{dumpSaveDir.FullName}'...", LogLevel.Trace);
+        Logging.Log($"Executing 'dump-rawprogram' command: LUN {lun}, Save Directory '{dumpSaveDir.FullName}', GenXmlOnly={genXmlOnly}...", LogLevel.Trace);
         var commandStopwatch = Stopwatch.StartNew();
 
         try
@@ -147,9 +155,10 @@ internal sealed class DumpRawprogramCommand
             // Save main GPT (from sector 0 to FirstUsableLBA-1)
             var mainGptFileName = $"gpt_main{lun}.bin";
             var mainGptFilePath = Path.Combine(dumpSaveDir.FullName, mainGptFileName);
+            byte[]? mainGptData = null;
             try
             {
-                var mainGptData = await Task.Run(() => manager.Firehose.Read(
+                mainGptData = await Task.Run(() => manager.Firehose.Read(
                     storageType,
                     lun,
                     globalOptions.Slot,
@@ -255,6 +264,69 @@ internal sealed class DumpRawprogramCommand
                 rawprogramDoc.Root.Add(backupGptElement);
             }
 
+            foreach (var partition in partitions)
+            {
+                var partitionName = partition.GetName().TrimEnd('\0');
+                if (string.IsNullOrWhiteSpace(partitionName))
+                {
+                    continue;
+                }
+
+                var partStartSector = partition.FirstLBA;
+                var partLastSector = partition.LastLBA;
+                var numSectorsToRead = partLastSector - partStartSector + 1;
+
+                if (partStartSector > uint.MaxValue || partLastSector > uint.MaxValue)
+                {
+                    continue;
+                }
+
+                var safeFileName = CreateSafeFileName(partitionName);
+
+                var programElement = new XElement("program",
+                    new XAttribute("filename", safeFileName),
+                    new XAttribute("label", partitionName),
+                    new XAttribute("start_sector", partStartSector.ToString(CultureInfo.InvariantCulture)),
+                    new XAttribute("num_partition_sectors", numSectorsToRead.ToString(CultureInfo.InvariantCulture)),
+                    new XAttribute("SECTOR_SIZE_IN_BYTES", sectorSize.ToString(CultureInfo.InvariantCulture)),
+                    new XAttribute("physical_partition_number", lun.ToString(CultureInfo.InvariantCulture))
+                );
+                rawprogramDoc.Root!.Add(programElement);
+            }
+
+            // Save rawprogram XML file
+            var rawprogramXmlPath = Path.Combine(dumpSaveDir.FullName, $"rawprogram{lun}.xml");
+            try
+            {
+                rawprogramDoc.Save(rawprogramXmlPath);
+                Logging.Log($"Generated rawprogram XML file: '{rawprogramXmlPath}'", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"Error saving rawprogram XML file: {ex.Message}", LogLevel.Error);
+                return 1;
+            }
+
+            // Generate patch XML file for GPT header fixes
+            var patchXmlPath = Path.Combine(dumpSaveDir.FullName, $"patch{lun}.xml");
+            try
+            {
+                var patchDoc = GeneratePatchXml(lun, sectorSize, mainGptFileName, backupGptFileName);
+                patchDoc.Save(patchXmlPath);
+                Logging.Log($"Generated patch XML file: '{patchXmlPath}'", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"Error saving patch XML file: {ex.Message}", LogLevel.Error);
+                return 1;
+            }
+
+            if (genXmlOnly)
+            {
+                Logging.Log("--gen-xml-only specified, skipping partition dump.", LogLevel.Info);
+                return 0;
+            }
+
             var successfulDumps = 0;
             var totalPartitions = partitions.Count;
 
@@ -358,46 +430,7 @@ internal sealed class DumpRawprogramCommand
                 }
 
                 Logging.Log($"Successfully dumped partition '{partitionName}' ({bytesReadReported / (1024.0 * 1024.0):F2} MiB) in {readStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-
-                // Add to rawprogram XML
-                var programElement = new XElement("program",
-                    new XAttribute("filename", safeFileName),
-                    new XAttribute("label", partitionName),
-                    new XAttribute("start_sector", partStartSector.ToString(CultureInfo.InvariantCulture)),
-                    new XAttribute("num_partition_sectors", numSectorsToRead.ToString(CultureInfo.InvariantCulture)),
-                    new XAttribute("SECTOR_SIZE_IN_BYTES", sectorSize.ToString(CultureInfo.InvariantCulture)),
-                    new XAttribute("physical_partition_number", lun.ToString(CultureInfo.InvariantCulture))
-                );
-
-                rawprogramDoc.Root!.Add(programElement);
                 successfulDumps++;
-            }
-
-            // Save rawprogram XML file
-            var rawprogramXmlPath = Path.Combine(dumpSaveDir.FullName, $"rawprogram{lun}.xml");
-            try
-            {
-                rawprogramDoc.Save(rawprogramXmlPath);
-                Logging.Log($"Generated rawprogram XML file: '{rawprogramXmlPath}'", LogLevel.Info);
-            }
-            catch (Exception ex)
-            {
-                Logging.Log($"Error saving rawprogram XML file: {ex.Message}", LogLevel.Error);
-                return 1;
-            }
-
-            // Generate patch XML file for GPT header fixes
-            var patchXmlPath = Path.Combine(dumpSaveDir.FullName, $"patch{lun}.xml");
-            try
-            {
-                var patchDoc = GeneratePatchXml(lun, sectorSize, mainGptFileName, backupGptFileName);
-                patchDoc.Save(patchXmlPath);
-                Logging.Log($"Generated patch XML file: '{patchXmlPath}'", LogLevel.Info);
-            }
-            catch (Exception ex)
-            {
-                Logging.Log($"Error saving patch XML file: {ex.Message}", LogLevel.Error);
-                return 1;
             }
 
             Logging.Log($"Dump completed: {successfulDumps}/{totalPartitions + (backupGptData != null && backupGptSectors > 0 ? 2 : 1)} files successfully dumped to '{dumpSaveDir.FullName}'", LogLevel.Info);
