@@ -13,10 +13,7 @@ public class IoDataDevDataMixin : DevData
         get => _sectorSizeInBytes ?? 0; set => _sectorSizeInBytes = value;
     }
 
-    public bool ShouldSerializeSectorSizeInBytes()
-    {
-        return _sectorSizeInBytes.HasValue;
-    }
+    public bool ShouldSerializeSectorSizeInBytes() => _sectorSizeInBytes.HasValue;
 
     private string? _numPartitionSectors;
 
@@ -26,10 +23,7 @@ public class IoDataDevDataMixin : DevData
         get => _numPartitionSectors ?? ""; set => _numPartitionSectors = value;
     }
 
-    public bool ShouldSerializeNumPartitionSectors()
-    {
-        return _numPartitionSectors != null;
-    }
+    public bool ShouldSerializeNumPartitionSectors() => _numPartitionSectors != null;
 
     private string? _startSector;
 
@@ -39,8 +33,5 @@ public class IoDataDevDataMixin : DevData
         get => _startSector ?? ""; set => _startSector = value;
     }
 
-    public bool ShouldSerializeStartSector()
-    {
-        return _startSector != null;
-    }
+    public bool ShouldSerializeStartSector() => _startSector != null;
 }

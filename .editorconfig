@@ -90,7 +90,7 @@ csharp_style_expression_bodied_constructors = false:error
 csharp_style_expression_bodied_indexers = true:error
 csharp_style_expression_bodied_lambdas = true:error
 csharp_style_expression_bodied_local_functions = false:error
-csharp_style_expression_bodied_methods = false:error
+csharp_style_expression_bodied_methods = when_on_single_line:error
 csharp_style_expression_bodied_operators = false:error
 csharp_style_expression_bodied_properties = true:error
 
@@ -133,7 +133,7 @@ csharp_style_prefer_tuple_swap = true:error
 csharp_style_prefer_utf8_string_literals = true:warning
 csharp_style_throw_expression = true:error
 csharp_style_unused_value_assignment_preference = discard_variable:error
-csharp_style_unused_value_expression_statement_preference = discard_variable:warning
+csharp_style_unused_value_expression_statement_preference = discard_variable:none
 
 # 'using' directive preferences
 csharp_using_directive_placement = outside_namespace:error
@@ -379,3 +379,4 @@ dotnet_naming_style.s_camelcase.capitalization = camel_case
 [*.{cs,vb}]
 dotnet_analyzer_diagnostic.category-Style.severity = error
 dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.IDE0110.severity = none

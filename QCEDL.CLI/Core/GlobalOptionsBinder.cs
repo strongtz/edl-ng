@@ -3,7 +3,7 @@ using System.CommandLine.Binding;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.Logging;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using LogLevel = QCEDL.CLI.Helpers.LogLevel;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace QCEDL.CLI.Core;
 
@@ -35,7 +35,7 @@ internal sealed class GlobalOptionsBinder(
 
         LibraryLogger.LogAction = (message, netLogLevel, memberName, sourceFilePath, sourceLineNumber) =>
         {
-            var mappedCliLevel = (LogLevel)netLogLevel;
+            var mappedCliLevel = netLogLevel;
             Logging.Log(message, mappedCliLevel);
         };
 

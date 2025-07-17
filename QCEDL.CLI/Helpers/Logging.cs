@@ -1,20 +1,13 @@
-namespace QCEDL.CLI.Helpers;
+using Microsoft.Extensions.Logging;
 
-public enum LogLevel
-{
-    Trace,
-    Debug,
-    Info,
-    Warning,
-    Error
-}
+namespace QCEDL.CLI.Helpers;
 
 internal static class Logging
 {
     private static readonly Lock LockObj = new();
-    public static LogLevel CurrentLogLevel { get; set; } = LogLevel.Info;
+    public static LogLevel CurrentLogLevel { get; set; } = LogLevel.Information;
 
-    public static void Log(string? message, LogLevel level = LogLevel.Info)
+    public static void Log(string? message, LogLevel level = LogLevel.Information)
     {
         if (level < CurrentLogLevel)
         {
@@ -27,18 +20,22 @@ internal static class Logging
             {
                 LogLevel.Trace => "[TRACE] ",
                 LogLevel.Debug => "[DEBUG] ",
-                LogLevel.Info => "[INFO]  ",
+                LogLevel.Information => "[INFO]  ",
                 LogLevel.Warning => "[WARN]  ",
                 LogLevel.Error => "[ERROR] ",
+                LogLevel.Critical => "[CRITICAL] ",
+                LogLevel.None => "[NONE] ",
                 _ => "[INFO]  ", // Default, should not happen with enum
             };
             Console.ForegroundColor = level switch
             {
                 LogLevel.Trace => ConsoleColor.DarkGray,
                 LogLevel.Debug => ConsoleColor.Gray,
-                LogLevel.Info => ConsoleColor.White,
+                LogLevel.Information => ConsoleColor.White,
                 LogLevel.Warning => ConsoleColor.Yellow,
                 LogLevel.Error => ConsoleColor.Red,
+                LogLevel.Critical => ConsoleColor.DarkRed,
+                LogLevel.None => ConsoleColor.DarkYellow,
                 _ => ConsoleColor.White,
             };
             Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {prefix}{message}");
