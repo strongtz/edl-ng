@@ -88,6 +88,11 @@ var hostDevAsTargetOption = new Option<string?>(
                  "This bypasses USB Firehose and writes directly to the host device. " +
                  "Currently only supports SPI NOR flash devices with 4K block size.");
 
+var imgSizeOption = new Option<string?>(
+    name: "--img-size",
+    description: "Size of the image file when using --hostdev-as-target with a file path (e.g., 32M, 1G, 512K). " +
+                 "Only used when --hostdev-as-target points to a file that doesn't exist.");
+
 // --- Create Global Options Binder ---
 var globalOptionsBinder = new GlobalOptionsBinder(
     loaderOption,
@@ -97,7 +102,8 @@ var globalOptionsBinder = new GlobalOptionsBinder(
     logLevelOption,
     maxPayloadOption,
     slotOption,
-    hostDevAsTargetOption
+    hostDevAsTargetOption,
+    imgSizeOption
 );
 
 // --- Define Root Command ---
@@ -111,6 +117,7 @@ rootCommand.AddGlobalOption(logLevelOption);
 rootCommand.AddGlobalOption(maxPayloadOption);
 rootCommand.AddGlobalOption(slotOption);
 rootCommand.AddGlobalOption(hostDevAsTargetOption);
+rootCommand.AddGlobalOption(imgSizeOption);
 
 // --- Define Commands (Add more commands here later) ---
 rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));

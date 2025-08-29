@@ -11,6 +11,8 @@ namespace QCEDL.CLI.Core;
 /// </summary>
 internal sealed class HostDeviceManager : IDisposable
 {
+    private const uint DEFAULT_IMAGE_BLOCK_SIZE = 4096; // 4K blocks for image files
+    private const ulong DEFAULT_IMAGE_SIZE = 32 * 1024 * 1024; // 32MB default
     private const uint MEMGETINFO = 0x80204D01;
     private const uint MEMERASE = 0x40084D02;
     private const int O_RDWR = 2;
@@ -63,7 +65,11 @@ internal sealed class HostDeviceManager : IDisposable
     public uint SectorSize => _mtdInfo.Erasesize;
     public uint DeviceSize => _mtdInfo.Size;
 
-    public HostDeviceManager(string devicePath)
+    private readonly bool _isImageFile;
+    private readonly string _imagePath;
+    private FileStream? _imageStream;
+
+    public HostDeviceManager(string devicePath, string? imgSize = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
@@ -72,12 +78,92 @@ internal sealed class HostDeviceManager : IDisposable
 
         _devicePath = devicePath ?? throw new ArgumentNullException(nameof(devicePath));
 
-        if (!File.Exists(_devicePath))
+        _isImageFile = !devicePath.StartsWith("/dev/");
+        _imagePath = devicePath;
+
+        if (_isImageFile)
         {
-            throw new FileNotFoundException($"Host device not found: {_devicePath}");
+            InitializeImageFile(imgSize);
+        }
+        else
+        {
+            if (!File.Exists(_devicePath))
+            {
+                throw new FileNotFoundException($"Host device not found: {_devicePath}");
+            }
+            InitializeDevice();
+        }
+    }
+
+    private void InitializeImageFile(string? imgSize)
+    {
+        Logging.Log($"Initializing image file: {_imagePath}", LogLevel.Debug);
+
+        var imageSize = DEFAULT_IMAGE_SIZE;
+
+        if (!string.IsNullOrEmpty(imgSize))
+        {
+            if (!ImageSizeParser.TryParseSize(imgSize, out imageSize))
+            {
+                throw new ArgumentException($"Invalid image size format: {imgSize}. Use formats like 32M, 1G, 512K");
+            }
         }
 
-        InitializeDevice();
+        if (imageSize == 0)
+        {
+            throw new ArgumentException("Image size cannot be zero");
+        }
+
+        if (imageSize % DEFAULT_IMAGE_BLOCK_SIZE != 0)
+        {
+            // Round up to nearest block boundary
+            imageSize = (imageSize + DEFAULT_IMAGE_BLOCK_SIZE - 1) / DEFAULT_IMAGE_BLOCK_SIZE * DEFAULT_IMAGE_BLOCK_SIZE;
+            Logging.Log($"Image size rounded up to block boundary: {imageSize} bytes", LogLevel.Info);
+        }
+
+        // Create directory if it doesn't exist
+        var directory = Path.GetDirectoryName(_imagePath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            _ = Directory.CreateDirectory(directory);
+        }
+
+        // Create or open the image file
+        var fileExists = File.Exists(_imagePath);
+
+        if (fileExists)
+        {
+            var existingSize = new FileInfo(_imagePath).Length;
+            if ((ulong)existingSize != imageSize)
+            {
+                Logging.Log($"Warning: Existing image file size ({existingSize} bytes) differs from specified size ({imageSize} bytes). Using existing file size.", LogLevel.Warning);
+                imageSize = (ulong)existingSize;
+            }
+        }
+
+        _imageStream = new FileStream(_imagePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+
+        if (!fileExists)
+        {
+            // Create the image file with the specified size
+            _imageStream.SetLength((long)imageSize);
+            Logging.Log($"Created new image file: {_imagePath} ({imageSize} bytes)", LogLevel.Info);
+        }
+
+        // Set up the MTD info structure for image file mode
+        _mtdInfo = new MtdInfoUser
+        {
+            Type = 0,
+            Flags = 0,
+            Size = (uint)imageSize,
+            Erasesize = DEFAULT_IMAGE_BLOCK_SIZE,
+            Writesize = DEFAULT_IMAGE_BLOCK_SIZE,
+            Oobsize = 0
+        };
+
+        Logging.Log($"Image file initialized: {_imagePath}", LogLevel.Info);
+        Logging.Log($"  Image size: {imageSize / (1024.0 * 1024.0):F2} MiB ({imageSize} bytes)", LogLevel.Info);
+        Logging.Log($"  Block size: {DEFAULT_IMAGE_BLOCK_SIZE} bytes", LogLevel.Info);
     }
 
     private void InitializeDevice()
@@ -130,12 +216,37 @@ internal sealed class HostDeviceManager : IDisposable
         var startOffset = startSector * SectorSize;
         var readLength = sectorCount * SectorSize;
 
-        if (startOffset + readLength > DeviceSize)
+        return startOffset + readLength > DeviceSize
+            ? throw new ArgumentException($"Read operation would exceed device bounds. Start: {startOffset}, Length: {readLength}, Device size: {DeviceSize}")
+            : _isImageFile ? ReadFromImageFile(startOffset, readLength) : ReadFromDevice(startOffset, readLength);
+    }
+
+    private byte[] ReadFromImageFile(ulong startOffset, uint readLength)
+    {
+        Logging.Log($"Reading {readLength} bytes from image file at offset 0x{startOffset:X8}", LogLevel.Debug);
+
+        _ = _imageStream!.Seek((long)startOffset, SeekOrigin.Begin);
+        var buffer = new byte[readLength];
+        var totalRead = 0;
+
+        while (totalRead < readLength)
         {
-            throw new ArgumentException($"Read operation would exceed device bounds. Start: {startOffset}, Length: {readLength}, Device size: {DeviceSize}");
+            var bytesRead = _imageStream.Read(buffer, totalRead, (int)(readLength - totalRead));
+            if (bytesRead == 0)
+            {
+                // Fill remaining with zeros if we hit EOF
+                Array.Fill<byte>(buffer, 0, totalRead, (int)(readLength - totalRead));
+                break;
+            }
+            totalRead += bytesRead;
         }
 
-        Logging.Log($"Reading {sectorCount} sectors ({readLength} bytes) from {_devicePath} at offset 0x{startOffset:X8} (sector {startSector})", LogLevel.Debug);
+        return buffer;
+    }
+
+    private byte[] ReadFromDevice(ulong startOffset, uint readLength)
+    {
+        Logging.Log($"Reading {readLength} bytes from device {_devicePath} at offset 0x{startOffset:X8}", LogLevel.Debug);
 
         // Seek to the start position
         if (lseek(_deviceFd, (long)startOffset, SEEK_SET) < 0)
@@ -178,7 +289,6 @@ internal sealed class HostDeviceManager : IDisposable
         }
     }
 
-
     public void WriteSectors(ulong startSector, byte[] data, Action<long, long>? progressCallback = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -196,7 +306,52 @@ internal sealed class HostDeviceManager : IDisposable
             throw new ArgumentException($"Write operation would exceed device bounds. Start: {startOffset}, Length: {alignedLength}, Device size: {DeviceSize}");
         }
 
-        Logging.Log($"Writing {data.Length} bytes to {_devicePath} at offset 0x{startOffset:X8} (sector {startSector})", LogLevel.Debug);
+        if (_isImageFile)
+        {
+            WriteToImageFile(startOffset, data, alignedLength, progressCallback);
+        }
+        else
+        {
+            WriteToDevice(startOffset, data, alignedLength, progressCallback);
+        }
+    }
+
+    private void WriteToImageFile(ulong startOffset, byte[] data, uint alignedLength, Action<long, long>? progressCallback)
+    {
+        Logging.Log($"Writing {data.Length} bytes to image file at offset 0x{startOffset:X8}", LogLevel.Debug);
+
+        // Prepare data with padding if necessary
+        var writeData = data;
+        if (data.Length != alignedLength)
+        {
+            Logging.Log($"Padding data from {data.Length} to {alignedLength} bytes", LogLevel.Debug);
+            writeData = new byte[alignedLength];
+            Array.Copy(data, writeData, data.Length);
+        }
+
+        _ = _imageStream!.Seek((long)startOffset, SeekOrigin.Begin);
+
+        long totalWritten = 0;
+        var writeSize = Math.Min(writeData.Length, (int)SectorSize);
+
+        while (totalWritten < writeData.Length)
+        {
+            var remaining = writeData.Length - totalWritten;
+            var currentWriteSize = Math.Min(writeSize, remaining);
+
+            _imageStream.Write(writeData, (int)totalWritten, (int)currentWriteSize);
+            _imageStream.Flush(); // Ensure data is written to disk
+
+            totalWritten += currentWriteSize;
+            progressCallback?.Invoke(totalWritten, writeData.Length);
+        }
+
+        Logging.Log($"Successfully wrote {data.Length} bytes to image file", LogLevel.Debug);
+    }
+
+    private void WriteToDevice(ulong startOffset, byte[] data, uint alignedLength, Action<long, long>? progressCallback)
+    {
+        Logging.Log($"Writing {data.Length} bytes to device {_devicePath} at offset 0x{startOffset:X8}", LogLevel.Debug);
 
         // Prepare data with padding if necessary
         var writeData = data;
@@ -653,6 +808,10 @@ internal sealed class HostDeviceManager : IDisposable
                 _ = close(_deviceFd);
                 _deviceFd = -1;
             }
+
+            _imageStream?.Dispose();
+            _imageStream = null;
+
             _disposed = true;
         }
     }

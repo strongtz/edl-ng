@@ -49,7 +49,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             throw new InvalidOperationException("Not in host device mode. Use --hostdev-as-target to enable this mode.");
         }
 
-        _hostDeviceManager ??= new HostDeviceManager(globalOptions.HostDevAsTarget!);
+        _hostDeviceManager ??= new HostDeviceManager(globalOptions.HostDevAsTarget!, globalOptions.ImgSize);
 
         return _hostDeviceManager;
     }
