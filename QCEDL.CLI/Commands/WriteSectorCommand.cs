@@ -2,9 +2,6 @@ using System.CommandLine;
 using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -49,7 +46,6 @@ internal sealed class WriteSectorCommand
         uint lun)
     {
         Logging.Log($"Executing 'write-sector' command: LUN {lun}, Start LBA {startSector}, File '{inputFile.FullName}'...", LogLevel.Trace);
-        _ = Stopwatch.StartNew();
 
         if (!inputFile.Exists)
         {
@@ -66,11 +62,88 @@ internal sealed class WriteSectorCommand
         try
         {
             using var manager = new EdlManager(globalOptions);
+            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
 
-            // Check if we're in host device mode
-            return manager.IsHostDeviceMode
-                ? await ExecuteHostDeviceModeAsync(manager, startSector, inputFile, lun)
-                : await ExecuteFirehoseModeAsync(manager, globalOptions, startSector, inputFile, lun);
+            var effectiveLun = isDirectMode ? 0u : lun;
+            if (isDirectMode && lun != 0)
+            {
+                Logging.Log("Warning: LUN parameter is ignored in direct mode.", LogLevel.Warning);
+            }
+
+            var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
+            var sectorSize = geometry.SectorSize;
+
+            var paddedBytes = AlignmentHelper.AlignTo((ulong)inputFile.Length, sectorSize);
+            if (paddedBytes == 0)
+            {
+                Logging.Log("No data to write after alignment.", LogLevel.Warning);
+                return 0;
+            }
+
+            var sectorsToWrite = paddedBytes / sectorSize;
+            if (!isDirectMode)
+            {
+                try
+                {
+                    checked
+                    {
+                        var endSector = startSector + sectorsToWrite - 1;
+                        Logging.Log($"Calculated end sector: {endSector}", LogLevel.Debug);
+                    }
+                }
+                catch (OverflowException)
+                {
+                    Logging.Log("Error: Sector range exceeds supported bounds.", LogLevel.Error);
+                    return 1;
+                }
+            }
+
+            var targetDescription = manager.IsHostDeviceMode
+                ? "host device"
+                : manager.IsRadxaWosMode
+                    ? "Radxa WoS platform"
+                    : $"LUN {effectiveLun}";
+            Logging.Log($"Writing {sectorsToWrite} sectors ({paddedBytes} bytes) to {targetDescription}, starting at sector {startSector}...");
+
+            long bytesWrittenReported = 0;
+            var writeStopwatch = Stopwatch.StartNew();
+
+            void ProgressAction(long current, long total)
+            {
+                bytesWrittenReported = current;
+                var percentage = total == 0 ? 100 : current * 100.0 / total;
+                var elapsed = writeStopwatch.Elapsed;
+                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
+                var speedStr = "N/A";
+                if (elapsed.TotalSeconds > 0.1)
+                {
+                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
+                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
+                        $"{speed:F0} B/s";
+                }
+
+                Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
+            }
+
+            await using var fileStream = inputFile.OpenRead();
+            await manager.WriteSectorsFromStreamAsync(
+                effectiveLun,
+                startSector,
+                fileStream,
+                fileStream.Length,
+                padToSector: true,
+                inputFile.Name,
+                ProgressAction);
+
+            writeStopwatch.Stop();
+            Console.WriteLine();
+
+            if (bytesWrittenReported == 0 && paddedBytes > 0)
+            {
+                bytesWrittenReported = (long)Math.Min(paddedBytes, long.MaxValue);
+            }
+
+            Logging.Log($"Successfully wrote {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB in {writeStopwatch.Elapsed.TotalSeconds:F2}s.");
         }
         catch (FileNotFoundException ex)
         {
@@ -98,216 +171,8 @@ internal sealed class WriteSectorCommand
             Logging.Log(ex.ToString(), LogLevel.Debug);
             return 1;
         }
-    }
-
-    private static async Task<int> ExecuteHostDeviceModeAsync(
-        EdlManager manager,
-        ulong startSector,
-        FileInfo inputFile,
-        uint lun)
-    {
-        Logging.Log("Operating in host device mode (direct MTD access)", LogLevel.Info);
-
-        if (lun != 0)
-        {
-            Logging.Log("Warning: LUN parameter is ignored in host device mode.", LogLevel.Warning);
-        }
-
-        var hostManager = manager.GetHostDeviceManager();
-        var sectorSize = hostManager.SectorSize;
-
-        Logging.Log($"Host device sector size: {sectorSize} bytes", LogLevel.Debug);
-
-        if (startSector > uint.MaxValue)
-        {
-            Logging.Log($"Error: Start sector LBA ({startSector}) exceeds uint.MaxValue.", LogLevel.Error);
-            return 1;
-        }
-
-        // Read the input file
-        byte[] inputData;
-        try
-        {
-            inputData = await File.ReadAllBytesAsync(inputFile.FullName);
-        }
-        catch (IOException ioEx)
-        {
-            Logging.Log($"Error reading input file '{inputFile.FullName}': {ioEx.Message}", LogLevel.Error);
-            return 1;
-        }
-
-        var originalFileLength = inputData.Length;
-        Logging.Log($"Input file size: {originalFileLength} bytes", LogLevel.Debug);
-
-        // Calculate required sectors
-        var requiredBytes = (originalFileLength + sectorSize - 1) / sectorSize * sectorSize;
-        var requiredSectors = requiredBytes / sectorSize;
-
-        if (originalFileLength != requiredBytes)
-        {
-            Logging.Log($"Input data will be padded from {originalFileLength} to {requiredBytes} bytes ({requiredSectors} sectors)", LogLevel.Info);
-        }
-
-        Logging.Log($"Writing {requiredSectors} sectors ({requiredBytes} bytes) starting at sector {startSector}...");
-
-        long bytesWrittenReported = 0;
-        var writeStopwatch = Stopwatch.StartNew();
-
-        void ProgressAction(long current, long total)
-        {
-            bytesWrittenReported = current;
-            var percentage = total == 0 ? 100 : current * 100.0 / total;
-            var elapsed = writeStopwatch.Elapsed;
-            var speed = current / elapsed.TotalSeconds;
-            var speedStr = "N/A";
-            if (elapsed.TotalSeconds > 0.1)
-            {
-                speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                    speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                    $"{speed:F0} B/s";
-            }
-            Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-        }
-
-        try
-        {
-            writeStopwatch.Start();
-            await Task.Run(() => hostManager.WriteSectors(startSector, inputData, ProgressAction));
-            writeStopwatch.Stop();
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"Error during host device write operation: {ex.Message}", LogLevel.Error);
-            Console.WriteLine(); // Clear progress line
-            return 1;
-        }
-
-        Console.WriteLine(); // Newline after progress bar
-
-        Logging.Log($"Successfully wrote {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB in {writeStopwatch.Elapsed.TotalSeconds:F2}s.");
-        return 0;
-    }
-
-    private static async Task<int> ExecuteFirehoseModeAsync(
-        EdlManager manager,
-        GlobalOptionsBinder globalOptions,
-        ulong startSector,
-        FileInfo inputFile,
-        uint lun)
-    {
-        await manager.EnsureFirehoseModeAsync();
-        await manager.ConfigureFirehoseAsync();
-
-        var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-        Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
-
-        Root? storageInfo = null;
-        try
-        {
-            storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
-        }
-        catch (Exception storageEx)
-        {
-            Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Warning);
-        }
-
-        var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-        if (sectorSize == 0)
-        {
-            sectorSize = storageType switch
-            {
-                StorageType.Nvme => 512,
-                StorageType.Sdcc => 512,
-                StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-            };
-            Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-        }
-        Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
-
-        var originalFileLength = inputFile.Length;
-        long totalBytesToWriteIncludingPadding;
-        uint numSectorsForXml;
-
-        var remainder = originalFileLength % sectorSize;
-        if (remainder != 0)
-        {
-            totalBytesToWriteIncludingPadding = originalFileLength + (sectorSize - remainder);
-            Logging.Log($"Input file size ({originalFileLength} bytes) is not a multiple of sector size ({sectorSize} bytes). Padding with zeros to {totalBytesToWriteIncludingPadding} bytes.", LogLevel.Warning);
-        }
-        else
-        {
-            totalBytesToWriteIncludingPadding = originalFileLength;
-        }
-        numSectorsForXml = (uint)(totalBytesToWriteIncludingPadding / sectorSize);
-
-        Logging.Log($"Data to write: {originalFileLength} bytes from file, padded to {totalBytesToWriteIncludingPadding} bytes ({numSectorsForXml} sectors).", LogLevel.Debug);
-
-        if (startSector > uint.MaxValue)
-        {
-            Logging.Log($"Error: Start sector LBA ({startSector}) exceeds uint.MaxValue, which is not supported by the current Firehose.ProgramFromStream implementation's start_sector parameter.", LogLevel.Error);
-            return 1;
-        }
-
-        Logging.Log($"Attempting to write {numSectorsForXml} sectors ({totalBytesToWriteIncludingPadding} bytes) to LUN {lun}, starting at LBA {startSector}...");
-
-        long bytesWrittenReported = 0;
-        var writeStopwatch = new Stopwatch();
-
-        void ProgressAction(long current, long total)
-        {
-            bytesWrittenReported = current;
-            var percentage = total == 0 ? 100 : current * 100.0 / total;
-            var elapsed = writeStopwatch.Elapsed;
-            var speed = current / elapsed.TotalSeconds;
-            var speedStr = "N/A";
-            if (elapsed.TotalSeconds > 0.1)
-            {
-                speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                    speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                    $"{speed:F0} B/s";
-            }
-            Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-        }
-
-        bool success;
-        try
-        {
-            using var fileStream = inputFile.OpenRead();
-
-            writeStopwatch.Start();
-            success = await Task.Run(() => manager.Firehose.ProgramFromStream(
-                storageType,
-                lun,
-                globalOptions.Slot,
-                sectorSize,
-                (uint)startSector,
-                numSectorsForXml,
-                totalBytesToWriteIncludingPadding,
-                inputFile.Name,
-                fileStream,
-                ProgressAction
-            ));
-            writeStopwatch.Stop();
-        }
-        catch (IOException ioEx)
-        {
-            Logging.Log($"IO Error reading input file '{inputFile.FullName}': {ioEx.Message}", LogLevel.Error);
-            Console.WriteLine();
-            return 1;
-        }
-
-        Console.WriteLine(); // Newline after progress bar
-
-        if (success)
-        {
-            Logging.Log($"Data ({bytesWrittenReported / (1024.0 * 1024.0):F2} MiB) written to sectors successfully in {writeStopwatch.Elapsed.TotalSeconds:F2}s.");
-        }
-        else
-        {
-            Logging.Log("Failed to write data to sectors. Check previous logs for NAK or errors.", LogLevel.Error);
-            return 1;
-        }
 
         return 0;
     }
+
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using LibUsbDotNet.Main;
@@ -22,6 +23,8 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
     private QualcommSerial? _serialPort;
     private QualcommSahara? _saharaClient;
     private QualcommFirehose? _firehoseClient;
+    private IStorageBackend? _storageBackend;
+    private bool _firehoseConfigured;
     private bool _disposed;
 
     // GUIDs for device detection on Windows
@@ -40,10 +43,24 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
     public bool IsFirehoseMode => _firehoseClient != null;
 
     public bool IsHostDeviceMode => !string.IsNullOrEmpty(globalOptions.HostDevAsTarget);
+    public bool IsRadxaWosMode => globalOptions.RadxaWosPlatform;
     private HostDeviceManager? _hostDeviceManager;
+    private RadxaWoSDeviceManager? _radxaWoSManager;
+
+    private GlobalOptionsBinder GlobalOptions => globalOptions;
+
+    private void EnsureValidDirectMode()
+    {
+        if (IsHostDeviceMode && IsRadxaWosMode)
+        {
+            throw new InvalidOperationException("Cannot use --hostdev-as-target and --radxa-wos-platform at the same time.");
+        }
+    }
 
     public HostDeviceManager GetHostDeviceManager()
     {
+        EnsureValidDirectMode();
+
         if (!IsHostDeviceMode)
         {
             throw new InvalidOperationException("Not in host device mode. Use --hostdev-as-target to enable this mode.");
@@ -54,43 +71,86 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         return _hostDeviceManager;
     }
 
+    private RadxaWoSDeviceManager GetRadxaWoSDeviceManager()
+    {
+        EnsureValidDirectMode();
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new PlatformNotSupportedException("Radxa WoS backend is only available on Windows.");
+        }
+
+        if (!IsRadxaWosMode)
+        {
+            throw new InvalidOperationException("Radxa WoS backend is not enabled. Use --radxa-wos-platform to enable it.");
+        }
+
+        _radxaWoSManager ??= new RadxaWoSDeviceManager();
+        return _radxaWoSManager;
+    }
+
+    private IStorageBackend StorageBackend => _storageBackend ??= CreateStorageBackend();
+
+    private IStorageBackend CreateStorageBackend()
+    {
+        EnsureValidDirectMode();
+
+        return IsHostDeviceMode
+            ? new HostStorageBackend(GetHostDeviceManager())
+            : IsRadxaWosMode
+                ? new RadxaWoSBackend(GetRadxaWoSDeviceManager())
+                : new FirehoseStorageBackend(this);
+    }
+
+    public async Task<StorageGeometry> GetStorageGeometryAsync(uint lun)
+    {
+        return await StorageBackend.GetGeometryAsync(lun);
+    }
+
+    public async Task ReadSectorsToStreamAsync(uint lun, ulong startSector, ulong sectorCount, Stream destination, Action<long, long>? progressCallback = null)
+    {
+        await StorageBackend.ReadSectorsToStreamAsync(lun, startSector, sectorCount, destination, progressCallback);
+    }
+
     public async Task ApplyPatchAsync(string startSectorStr, uint byteOffset, uint sizeInBytes, string valueStr, string filename)
     {
-        if (IsHostDeviceMode)
+        if (IsHostDeviceMode || IsRadxaWosMode)
         {
-            // Only process patches with filename="DISK" in host device mode
+            EnsureValidDirectMode();
+
             if (!string.Equals(filename, "DISK", StringComparison.OrdinalIgnoreCase))
             {
-                Logging.Log($"Skipping patch with filename='{filename}' (only 'DISK' patches are processed in host device mode)", LogLevel.Debug);
+                Logging.Log($"Skipping patch with filename='{filename}' (only 'DISK' patches are processed in direct host mode)", LogLevel.Debug);
                 return;
             }
 
-            var hostManager = GetHostDeviceManager();
-            await Task.Run(() => hostManager.ApplyPatch(startSectorStr, byteOffset, sizeInBytes, valueStr));
+            BlockDeviceManagerBase targetManager = IsHostDeviceMode
+                ? GetHostDeviceManager()
+                : GetRadxaWoSDeviceManager();
+
+            await Task.Run(() => targetManager.ApplyPatch(startSectorStr, byteOffset, sizeInBytes, valueStr));
+            return;
         }
-        else
+
+        // In Firehose mode, patches are sent to the device as XML
+        await EnsureFirehoseModeAsync();
+
+        var patchXml = $"""
+        <?xml version="1.0" ?>
+        <data>
+            <patch start_sector="{startSectorStr}" 
+                   byte_offset="{byteOffset}" 
+                   size_in_bytes="{sizeInBytes}" 
+                   value="{valueStr}" 
+                   filename="{filename}" 
+                   SECTOR_SIZE_IN_BYTES="{GetSectorSize()}" 
+                   physical_partition_number="{globalOptions.Slot}" />
+        </data>
+        """;
+
+        var success = await Task.Run(() => Firehose.SendRawXmlAndGetResponse(patchXml));
+        if (!success)
         {
-            // In Firehose mode, patches are sent to the device as XML
-            await EnsureFirehoseModeAsync();
-
-            var patchXml = $"""
-            <?xml version="1.0" ?>
-            <data>
-                <patch start_sector="{startSectorStr}" 
-                       byte_offset="{byteOffset}" 
-                       size_in_bytes="{sizeInBytes}" 
-                       value="{valueStr}" 
-                       filename="{filename}" 
-                       SECTOR_SIZE_IN_BYTES="{GetSectorSize()}" 
-                       physical_partition_number="{globalOptions.Slot}" />
-            </data>
-            """;
-
-            var success = await Task.Run(() => Firehose.SendRawXmlAndGetResponse(patchXml));
-            if (!success)
-            {
-                throw new InvalidOperationException($"Patch operation failed for sector {startSectorStr}");
-            }
+            throw new InvalidOperationException($"Patch operation failed for sector {startSectorStr}");
         }
     }
 
@@ -126,6 +186,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             _firehoseClient = null;
             CurrentMode = DeviceMode.Unknown;
             _initialSaharaHelloPacket = null;
+            _firehoseConfigured = false;
         }
 
         Logging.Log("Probing device mode...", LogLevel.Debug);
@@ -407,8 +468,10 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
     private bool FindDeviceLinuxSerial()
     {
         Logging.Log("Searching for Qualcomm EDL device on Linux (/dev/ttyUSB* or /dev/ttyACM*)...");
-        var targetVid = (globalOptions.Vid ?? DefaultVid).ToString("x4");
-        var targetPids = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value.ToString("x4")] : DefaultPids.Select(p => p.ToString("x4")).ToArray();
+        var targetVid = (globalOptions.Vid ?? DefaultVid).ToString("x4", CultureInfo.InvariantCulture);
+        var targetPids = globalOptions.Pid.HasValue
+            ? [globalOptions.Pid.Value.ToString("x4", CultureInfo.InvariantCulture)]
+            : DefaultPids.Select(p => p.ToString("x4", CultureInfo.InvariantCulture)).ToArray();
 
         Logging.Log($"Target VID: {targetVid}, PIDs: {string.Join(", ", targetPids)}", LogLevel.Debug);
         var potentialTtyPaths = new List<string>();
@@ -423,7 +486,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             foreach (var dirName in Directory.GetDirectories(sysTtyPath))
             {
                 var ttyName = Path.GetFileName(dirName);
-                if (ttyName.StartsWith("ttyUSB") || ttyName.StartsWith("ttyACM"))
+                if (ttyName.StartsWith("ttyUSB", StringComparison.Ordinal) || ttyName.StartsWith("ttyACM", StringComparison.Ordinal))
                 {
                     Logging.Log($"TTY dirName: {dirName}", LogLevel.Trace);
                     var realDevicePath = new FileInfo(dirName).ResolveLinkTarget(true)?.FullName;
@@ -452,7 +515,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                         continue;
                     }
 
-                    if (ttyName.StartsWith("ttyUSB"))
+                    if (ttyName.StartsWith("ttyUSB", StringComparison.Ordinal))
                     {
                         // Another level up
                         usbDeviceDir = usbDeviceDir.Parent;
@@ -601,182 +664,13 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
     public async Task<GptPartition?> FindPartitionAsync(string partitionName, uint? specifiedLun = null)
     {
-        if (IsHostDeviceMode)
-        {
-            if (specifiedLun.HasValue && specifiedLun.Value != 0)
-            {
-                Logging.Log("Warning: LUN parameter is ignored in host device mode.", LogLevel.Warning);
-            }
-
-            var hostManager = GetHostDeviceManager();
-            return await Task.Run(() => hostManager.FindPartition(partitionName));
-        }
-        else
-        {
-            await EnsureFirehoseModeAsync();
-            await ConfigureFirehoseAsync();
-
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-
-            List<uint> lunsToScan = [];
-            if (specifiedLun.HasValue)
-            {
-                lunsToScan.Add(specifiedLun.Value);
-                Logging.Log($"Scanning specified LUN: {specifiedLun.Value}", LogLevel.Debug);
-            }
-            else
-            {
-                Logging.Log("No LUN specified, attempting to determine number of LUNs and scan all.", LogLevel.Debug);
-                Root? devInfo = null;
-                try
-                {
-                    devInfo = await Task.Run(() => Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot));
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"Could not get device info to determine LUN count from LUN 0. Error: {ex.Message}. Will try a default range.", LogLevel.Warning);
-                }
-
-                if (devInfo?.StorageInfo?.NumPhysical > 0)
-                {
-                    for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++)
-                    {
-                        lunsToScan.Add(i);
-                    }
-                    Logging.Log($"Device reports {devInfo.StorageInfo.NumPhysical} LUN(s). Scanning LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Debug);
-                }
-                else
-                {
-                    if (storageType == StorageType.Spinor)
-                    {
-                        lunsToScan.Add(0);
-                    }
-                    else
-                    {
-                        lunsToScan.AddRange([0, 1, 2, 3, 4, 5]);
-                        Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", lunsToScan)}", LogLevel.Warning);
-                    }
-                }
-            }
-
-            foreach (var currentLun in lunsToScan)
-            {
-                Logging.Log($"Scanning LUN {currentLun} for partition '{partitionName}'...", LogLevel.Debug);
-
-                try
-                {
-                    var gptData = await ReadSectorsAsync(currentLun, 0, 64); // Read 64 sectors for GPT
-                    using var stream = new MemoryStream(gptData);
-
-                    var gpt = Gpt.ReadFromStream(stream, (int)GetSectorSize(currentLun));
-                    if (gpt != null)
-                    {
-                        foreach (var p in gpt.Partitions)
-                        {
-                            var currentPartitionName = p.GetName().TrimEnd('\0');
-                            if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                Logging.Log($"Found partition '{partitionName}' on LUN {currentLun}");
-                                return p; // Return the partition, caller will need to track which LUN it came from
-                            }
-                        }
-                    }
-                }
-                catch (InvalidDataException)
-                {
-                    Logging.Log($"No valid GPT found on LUN {currentLun}.", LogLevel.Debug);
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"Error scanning LUN {currentLun}: {ex.Message}", LogLevel.Warning);
-                }
-            }
-
-            return null; // Partition not found
-        }
+        return await StorageBackend.FindPartitionAsync(partitionName, specifiedLun);
     }
 
     // Helper method to find partition and return both partition info and LUN
     public async Task<(GptPartition partition, uint lun)?> FindPartitionWithLunAsync(string partitionName, uint? specifiedLun = null)
     {
-        if (IsHostDeviceMode)
-        {
-            var partition = await FindPartitionAsync(partitionName, specifiedLun);
-            return partition.HasValue ? (partition.Value, 0u) : null;
-        }
-        else
-        {
-            await EnsureFirehoseModeAsync();
-            await ConfigureFirehoseAsync();
-
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-
-            List<uint> lunsToScan = [];
-            if (specifiedLun.HasValue)
-            {
-                lunsToScan.Add(specifiedLun.Value);
-            }
-            else
-            {
-                // Same LUN discovery logic as above
-                Root? devInfo = null;
-                try
-                {
-                    devInfo = await Task.Run(() => Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot));
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"Could not get device info to determine LUN count from LUN 0. Error: {ex.Message}. Will try a default range.", LogLevel.Warning);
-                }
-
-                if (devInfo?.StorageInfo?.NumPhysical > 0)
-                {
-                    for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++)
-                    {
-                        lunsToScan.Add(i);
-                    }
-                }
-                else
-                {
-                    if (storageType == StorageType.Spinor)
-                    {
-                        lunsToScan.Add(0);
-                    }
-                    else
-                    {
-                        lunsToScan.AddRange([0, 1, 2, 3, 4, 5]);
-                    }
-                }
-            }
-
-            foreach (var currentLun in lunsToScan)
-            {
-                try
-                {
-                    var gptData = await ReadSectorsAsync(currentLun, 0, 64);
-                    using var stream = new MemoryStream(gptData);
-
-                    var gpt = Gpt.ReadFromStream(stream, (int)GetSectorSize(currentLun));
-                    if (gpt != null)
-                    {
-                        foreach (var p in gpt.Partitions)
-                        {
-                            var currentPartitionName = p.GetName().TrimEnd('\0');
-                            if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                return (p, currentLun);
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"Error scanning LUN {currentLun}: {ex.Message}", LogLevel.Debug);
-                }
-            }
-
-            return null;
-        }
+        return await StorageBackend.FindPartitionWithLunAsync(partitionName, specifiedLun);
     }
 
     private bool IsQualcommEdlDevice(string devicePath, string _)
@@ -809,6 +703,8 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 _serialPort?.Dispose();
                 _serialPort = new(_devicePath!);
                 _firehoseClient = new(_serialPort);
+                _firehoseConfigured = false;
+                CurrentMode = DeviceMode.Firehose;
                 break;
             case DeviceMode.Sahara:
                 Logging.Log("Device is in Sahara mode. Uploading loader...");
@@ -834,6 +730,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 FlushForResponse();
 
                 CurrentMode = DeviceMode.Firehose;
+                _firehoseConfigured = false;
                 break;
             case DeviceMode.SaharaMemoryDebug:
                 throw new InvalidOperationException("Device is in Sahara MemoryDebug (crashdump) mode. Firehose operations are not available. A different command is needed to handle this state.");
@@ -1037,6 +934,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 Logging.Log("Firehose configuration might have failed (check logs).", LogLevel.Warning);
             }
             Logging.Log($"Firehose configured for Memory: {storage}, MaxPayload: {maxPayload}\n");
+            _firehoseConfigured = true;
         }
         catch (Exception ex)
         {
@@ -1048,89 +946,39 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
     public async Task<byte[]> ReadSectorsAsync(uint lun, ulong startSector, uint sectorCount)
     {
-        if (IsHostDeviceMode)
+        return await StorageBackend.ReadSectorsAsync(lun, startSector, sectorCount);
+    }
+
+    public async Task WriteSectorsFromStreamAsync(uint lun, ulong startSector, Stream source, long sourceLength, bool padToSector, string sourceName, Action<long, long>? progressCallback = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!source.CanRead)
         {
-            if (lun != 0)
-            {
-                Logging.Log("Warning: LUN parameter is ignored in host device mode.", LogLevel.Warning);
-            }
-
-            var hostManager = GetHostDeviceManager();
-            return await Task.Run(() => hostManager.ReadSectors(startSector, sectorCount));
+            throw new ArgumentException("Source stream must be readable.", nameof(source));
         }
-        else
+
+        await StorageBackend.WriteSectorsAsync(lun, startSector, source, sourceLength, padToSector, sourceName, progressCallback);
+    }
+
+    public async Task WriteSectorsFromFileAsync(uint lun, ulong startSector, FileInfo inputFile, bool padToSector, string? sourceName = null, Action<long, long>? progressCallback = null)
+    {
+        if (!inputFile.Exists)
         {
-            await EnsureFirehoseModeAsync();
-            await ConfigureFirehoseAsync();
-
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-
-            // Get storage info to determine sector size
-            Root? storageInfo = null;
-            try
-            {
-                storageInfo = await Task.Run(() => Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
-            }
-            catch (Exception storageEx)
-            {
-                Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Warning);
-            }
-
-            var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-            if (sectorSize == 0)
-            {
-                sectorSize = storageType switch
-                {
-                    StorageType.Nvme => 512,
-                    StorageType.Sdcc => 512,
-                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-                };
-                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-            }
-
-            if (startSector + sectorCount - 1 > uint.MaxValue)
-            {
-                throw new ArgumentException("Sector range exceeds uint.MaxValue, which is not supported by the current Firehose.Read implementation.");
-            }
-
-            var firstLba = (uint)startSector;
-            var lastLba = (uint)(startSector + sectorCount - 1);
-
-            return await Task.Run(() => Firehose.Read(
-                storageType,
-                lun,
-                globalOptions.Slot,
-                sectorSize,
-                firstLba,
-                lastLba
-            )) ?? throw new InvalidOperationException("Failed to read data from device");
+            throw new FileNotFoundException($"Input file not found: {inputFile.FullName}", inputFile.FullName);
         }
+
+        await using var stream = inputFile.OpenRead();
+        await WriteSectorsFromStreamAsync(lun, startSector, stream, stream.Length, padToSector, sourceName ?? inputFile.Name, progressCallback);
+    }
+
+    public async Task EraseSectorsAsync(uint lun, ulong startSector, ulong sectorCount, Action<long, long>? progressCallback = null)
+    {
+        await StorageBackend.EraseSectorsAsync(lun, startSector, sectorCount, progressCallback);
     }
 
     public uint GetSectorSize(uint lun = 0)
     {
-        if (IsHostDeviceMode)
-        {
-            if (lun != 0)
-            {
-                Logging.Log("Warning: LUN parameter is ignored in host device mode.", LogLevel.Warning);
-            }
-
-            var hostManager = GetHostDeviceManager();
-            return hostManager.SectorSize;
-        }
-        else
-        {
-            // This would require Firehose connection, so we'll return a default
-            // The caller should handle getting the actual sector size from storage info
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-            return storageType switch
-            {
-                StorageType.Nvme => 512,
-                StorageType.Sdcc => 512,
-                StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-            };
-        }
+        return StorageBackend.GetDefaultSectorSize(lun);
     }
 
     public void Dispose()
@@ -1147,15 +995,440 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             {
                 _serialPort?.Dispose();
                 _hostDeviceManager?.Dispose();
+                _radxaWoSManager?.Dispose();
             }
 
             _serialPort = null;
             _saharaClient = null;
             _firehoseClient = null;
             _hostDeviceManager = null;
+            _radxaWoSManager = null;
             _devicePath = null;
+            _storageBackend = null;
+            _firehoseConfigured = false;
 
             _disposed = true;
         }
+    }
+
+    private interface IStorageBackend
+    {
+        Task<GptPartition?> FindPartitionAsync(string partitionName, uint? specifiedLun);
+        Task<(GptPartition partition, uint lun)?> FindPartitionWithLunAsync(string partitionName, uint? specifiedLun);
+        Task<byte[]> ReadSectorsAsync(uint lun, ulong startSector, uint sectorCount);
+        Task ReadSectorsToStreamAsync(uint lun, ulong startSector, ulong sectorCount, Stream destination, Action<long, long>? progressCallback);
+        Task<StorageGeometry> GetGeometryAsync(uint lun);
+        uint GetDefaultSectorSize(uint lun);
+        Task EraseSectorsAsync(uint lun, ulong startSector, ulong sectorCount, Action<long, long>? progressCallback);
+        Task WriteSectorsAsync(uint lun, ulong startSector, Stream source, long sourceLength, bool padToSector, string sourceName, Action<long, long>? progressCallback);
+    }
+
+    private abstract class DirectStorageBackendBase(BlockDeviceManagerBase device) : IStorageBackend
+    {
+        private readonly BlockDeviceManagerBase _device = device;
+
+        public Task<GptPartition?> FindPartitionAsync(string partitionName, uint? specifiedLun)
+        {
+            WarnIfUnsupportedLun(specifiedLun);
+            return Task.Run(() => _device.FindPartition(partitionName));
+        }
+
+        public async Task<(GptPartition partition, uint lun)?> FindPartitionWithLunAsync(string partitionName, uint? specifiedLun)
+        {
+            var partition = await FindPartitionAsync(partitionName, specifiedLun);
+            return partition.HasValue ? (partition.Value, 0u) : null;
+        }
+
+        public Task<byte[]> ReadSectorsAsync(uint lun, ulong startSector, uint sectorCount)
+        {
+            WarnIfUnsupportedLun(lun);
+            return Task.Run(() => _device.ReadSectors(startSector, sectorCount));
+        }
+
+        public Task ReadSectorsToStreamAsync(uint lun, ulong startSector, ulong sectorCount, Stream destination, Action<long, long>? progressCallback)
+        {
+            WarnIfUnsupportedLun(lun);
+            return Task.Run(() => _device.ReadSectorsToStream(startSector, sectorCount, destination, progressCallback));
+        }
+
+        public Task<StorageGeometry> GetGeometryAsync(uint lun)
+        {
+            WarnIfUnsupportedLun(lun);
+            var totalSectors = _device.TotalSectors;
+            var blocks = totalSectors == 0 ? (ulong?)null : totalSectors;
+            return Task.FromResult(new StorageGeometry(_device.SectorSize, blocks));
+        }
+
+        public uint GetDefaultSectorSize(uint _)
+        {
+            return _device.SectorSize;
+        }
+
+        public Task EraseSectorsAsync(uint lun, ulong startSector, ulong sectorCount, Action<long, long>? progressCallback)
+        {
+            WarnIfUnsupportedLun(lun);
+            return Task.Run(() => _device.EraseSectors(startSector, sectorCount, progressCallback));
+        }
+
+        public Task WriteSectorsAsync(uint lun, ulong startSector, Stream source, long sourceLength, bool padToSector, string sourceName, Action<long, long>? progressCallback)
+        {
+            WarnIfUnsupportedLun(lun);
+            return Task.Run(() => _device.WriteStream(startSector, source, sourceLength, padToSector, progressCallback));
+        }
+
+        private static void WarnIfUnsupportedLun(uint? lun)
+        {
+            if (lun.HasValue)
+            {
+                WarnIfUnsupportedLun(lun.Value);
+            }
+        }
+
+        private static void WarnIfUnsupportedLun(uint lun)
+        {
+            if (lun != 0)
+            {
+                Logging.Log("Warning: LUN parameter is ignored in host device mode.", LogLevel.Warning);
+            }
+        }
+    }
+
+    private sealed class HostStorageBackend(HostDeviceManager hostManager) : DirectStorageBackendBase(hostManager);
+
+    private sealed class RadxaWoSBackend(RadxaWoSDeviceManager manager) : DirectStorageBackendBase(manager);
+
+    private sealed class FirehoseStorageBackend(EdlManager owner) : IStorageBackend
+    {
+        private readonly Dictionary<uint, StorageGeometry> _geometryCache = [];
+
+        public async Task<GptPartition?> FindPartitionAsync(string partitionName, uint? specifiedLun)
+        {
+            var result = await FindPartitionWithLunAsync(partitionName, specifiedLun);
+            return result?.partition;
+        }
+
+        public async Task<(GptPartition partition, uint lun)?> FindPartitionWithLunAsync(string partitionName, uint? specifiedLun)
+        {
+            var lunsToScan = await DetermineLunsToScanAsync(specifiedLun);
+
+            foreach (var currentLun in lunsToScan)
+            {
+                var partition = await FindPartitionOnLunAsync(partitionName, currentLun);
+                if (partition.HasValue)
+                {
+                    return (partition.Value, currentLun);
+                }
+            }
+
+            return null;
+        }
+
+        public async Task<byte[]> ReadSectorsAsync(uint lun, ulong startSector, uint sectorCount)
+        {
+            ValidateLbaRange(startSector, sectorCount);
+            var geometry = await GetGeometryAsync(lun);
+
+            await EnsureReadyAsync();
+
+            var firstLba = (uint)startSector;
+            var lastLba = (uint)(startSector + sectorCount - 1);
+
+            var data = await Task.Run(() => owner.Firehose.Read(
+                CurrentStorageType,
+                lun,
+                owner.GlobalOptions.Slot,
+                geometry.SectorSize,
+                firstLba,
+                lastLba
+            ));
+
+            return data ?? throw new InvalidOperationException("Failed to read data from device");
+        }
+
+        public async Task ReadSectorsToStreamAsync(uint lun, ulong startSector, ulong sectorCount, Stream destination, Action<long, long>? progressCallback)
+        {
+            ArgumentNullException.ThrowIfNull(destination);
+
+            if (sectorCount == 0)
+            {
+                return;
+            }
+
+            ValidateLbaRange(startSector, sectorCount);
+            var geometry = await GetGeometryAsync(lun);
+
+            await EnsureReadyAsync();
+
+            var firstLba = (uint)startSector;
+            var lastLba = (uint)(startSector + sectorCount - 1);
+
+            var success = await Task.Run(() => owner.Firehose.ReadToStream(
+                CurrentStorageType,
+                lun,
+                owner.GlobalOptions.Slot,
+                geometry.SectorSize,
+                firstLba,
+                lastLba,
+                destination,
+                progressCallback
+            ));
+
+            if (!success)
+            {
+                throw new InvalidOperationException("Failed to read sector data or write to stream.");
+            }
+        }
+
+        public async Task<StorageGeometry> GetGeometryAsync(uint lun)
+        {
+            if (_geometryCache.TryGetValue(lun, out var cached))
+            {
+                return cached;
+            }
+
+            var storageInfo = await GetDeviceInfoAsync(lun);
+            var sectorSize = DetermineSectorSize(storageInfo, logFallback: true);
+            ulong? totalBlocks = storageInfo?.StorageInfo?.TotalBlocks > 0 ? (ulong)storageInfo.StorageInfo.TotalBlocks : null;
+
+            var geometry = new StorageGeometry(sectorSize, totalBlocks);
+            _geometryCache[lun] = geometry;
+            return geometry;
+        }
+
+        public uint GetDefaultSectorSize(uint lun)
+        {
+            return _geometryCache.TryGetValue(lun, out var cached)
+                ? cached.SectorSize
+                : DetermineSectorSize(null, logFallback: false);
+        }
+
+        public async Task EraseSectorsAsync(uint lun, ulong startSector, ulong sectorCount, Action<long, long>? progressCallback)
+        {
+            ValidateLbaRange(startSector, sectorCount);
+            await EnsureReadyAsync();
+
+            var geometry = await GetGeometryAsync(lun);
+            var start = (uint)startSector;
+            var count = (uint)sectorCount;
+
+            var success = await Task.Run(() => owner.Firehose.Erase(
+                CurrentStorageType,
+                lun,
+                owner.GlobalOptions.Slot,
+                geometry.SectorSize,
+                start,
+                count
+            ));
+
+            if (!success)
+            {
+                throw new InvalidOperationException("Failed to erase sectors.");
+            }
+
+            var totalBytes = CalculateTotalBytes(sectorCount, geometry.SectorSize);
+            progressCallback?.Invoke(totalBytes, totalBytes);
+        }
+
+        public async Task WriteSectorsAsync(uint lun, ulong startSector, Stream source, long sourceLength, bool padToSector, string sourceName, Action<long, long>? progressCallback)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+
+            if (sourceLength < 0)
+            {
+                throw new ArgumentException("Source length cannot be negative.", nameof(sourceLength));
+            }
+
+            var geometry = await GetGeometryAsync(lun);
+            var totalBytes = padToSector ? AlignmentHelper.AlignTo((ulong)sourceLength, geometry.SectorSize) : (ulong)sourceLength;
+            if (totalBytes == 0)
+            {
+                Logging.Log("Write request contains zero bytes. Skipping.", LogLevel.Debug);
+                return;
+            }
+
+            var sectorCount = totalBytes / geometry.SectorSize;
+            ValidateLbaRange(startSector, sectorCount);
+
+            if (startSector > uint.MaxValue)
+            {
+                throw new ArgumentException("Start sector exceeds Firehose limit (uint32).", nameof(startSector));
+            }
+
+            if (sectorCount > uint.MaxValue)
+            {
+                throw new ArgumentException("Write length exceeds Firehose limit (uint32 sectors).", nameof(sourceLength));
+            }
+
+            if (totalBytes > long.MaxValue)
+            {
+                throw new ArgumentException("Write size exceeds supported range.", nameof(sourceLength));
+            }
+
+            await EnsureReadyAsync();
+
+            var success = await Task.Run(() => owner.Firehose.ProgramFromStream(
+                CurrentStorageType,
+                lun,
+                owner.GlobalOptions.Slot,
+                geometry.SectorSize,
+                (uint)startSector,
+                (uint)sectorCount,
+                (long)totalBytes,
+                sourceName,
+                source,
+                progressCallback
+            ));
+
+            if (!success)
+            {
+                throw new InvalidOperationException("Failed to write data to device.");
+            }
+        }
+
+        private async Task<Root?> GetDeviceInfoAsync(uint lun)
+        {
+            await EnsureReadyAsync();
+            try
+            {
+                return await Task.Run(() => owner.Firehose.GetStorageInfo(CurrentStorageType, lun, owner.GlobalOptions.Slot));
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {CurrentStorageType}). Using defaults. Error: {ex.Message}", LogLevel.Warning);
+                return null;
+            }
+        }
+
+        private async Task<GptPartition?> FindPartitionOnLunAsync(string partitionName, uint lun)
+        {
+            Logging.Log($"Scanning LUN {lun} for partition '{partitionName}'...", LogLevel.Debug);
+
+            try
+            {
+                var geometry = await GetGeometryAsync(lun);
+                var gptData = await ReadSectorsAsync(lun, 0, 64);
+                using var stream = new MemoryStream(gptData);
+
+                var gpt = Gpt.ReadFromStream(stream, (int)geometry.SectorSize);
+                if (gpt == null)
+                {
+                    return null;
+                }
+
+                foreach (var partition in gpt.Partitions)
+                {
+                    var currentPartitionName = partition.GetName().TrimEnd('\0');
+                    if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Logging.Log($"Found partition '{partitionName}' on LUN {lun}");
+                        return partition;
+                    }
+                }
+            }
+            catch (InvalidDataException)
+            {
+                Logging.Log($"No valid GPT found on LUN {lun}.", LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"Error scanning LUN {lun}: {ex.Message}", LogLevel.Warning);
+            }
+
+            return null;
+        }
+
+        private async Task<List<uint>> DetermineLunsToScanAsync(uint? specifiedLun)
+        {
+            if (specifiedLun.HasValue)
+            {
+                Logging.Log($"Scanning specified LUN: {specifiedLun.Value}", LogLevel.Debug);
+                return [specifiedLun.Value];
+            }
+
+            Logging.Log("No LUN specified, attempting to determine number of LUNs and scan all.", LogLevel.Debug);
+
+            var devInfo = await GetDeviceInfoAsync(0);
+            if (devInfo?.StorageInfo?.NumPhysical > 0)
+            {
+                var luns = new List<uint>();
+                for (uint i = 0; i < devInfo.StorageInfo.NumPhysical; i++)
+                {
+                    luns.Add(i);
+                }
+                Logging.Log($"Device reports {devInfo.StorageInfo.NumPhysical} LUN(s). Scanning LUNs: {string.Join(", ", luns)}", LogLevel.Debug);
+                return luns;
+            }
+
+            if (CurrentStorageType == StorageType.Spinor)
+            {
+                return [0];
+            }
+
+            List<uint> fallback = [0, 1, 2, 3, 4, 5];
+            Logging.Log($"Could not determine LUN count. Scanning default LUNs: {string.Join(", ", fallback)}", LogLevel.Warning);
+            return fallback;
+        }
+
+        private async Task EnsureReadyAsync()
+        {
+            await owner.EnsureFirehoseModeAsync();
+            if (!owner._firehoseConfigured)
+            {
+                await owner.ConfigureFirehoseAsync();
+            }
+        }
+
+        private StorageType CurrentStorageType => owner.GlobalOptions.MemoryType ?? StorageType.Ufs;
+
+        private uint DetermineSectorSize(Root? storageInfo, bool logFallback)
+        {
+            if (storageInfo?.StorageInfo?.BlockSize > 0)
+            {
+                return (uint)storageInfo.StorageInfo.BlockSize;
+            }
+
+            var sectorSize = DefaultSectorSize;
+            if (logFallback)
+            {
+                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {CurrentStorageType}: {sectorSize}", LogLevel.Warning);
+            }
+
+            return sectorSize;
+        }
+
+        private uint DefaultSectorSize => CurrentStorageType switch
+        {
+            StorageType.Nvme => 512,
+            StorageType.Sdcc => 512,
+            StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
+        };
+
+        private static void ValidateLbaRange(ulong startSector, ulong sectorCount)
+        {
+            if (sectorCount == 0)
+            {
+                throw new ArgumentException("Sector count must be greater than zero", nameof(sectorCount));
+            }
+
+            var lastSector = startSector + sectorCount - 1;
+            if (startSector > uint.MaxValue || lastSector > uint.MaxValue)
+            {
+                throw new ArgumentException("Sector range exceeds uint.MaxValue, which is not supported by the current Firehose implementation.");
+            }
+        }
+
+        private static long CalculateTotalBytes(ulong sectorCount, uint sectorSize)
+        {
+            try
+            {
+                var bytes = checked(sectorCount * sectorSize);
+                return bytes > long.MaxValue ? long.MaxValue : (long)bytes;
+            }
+            catch (OverflowException)
+            {
+                return long.MaxValue;
+            }
+        }
+
     }
 }

@@ -5,9 +5,6 @@ using System.Xml.Linq;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.PartitionTable;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -70,60 +67,40 @@ internal sealed class DumpRawprogramCommand
         try
         {
             using var manager = new EdlManager(globalOptions);
-            await manager.EnsureFirehoseModeAsync();
-            await manager.ConfigureFirehoseAsync();
+            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
+            var effectiveLun = isDirectMode ? 0u : lun;
+            var targetDescription = manager.IsHostDeviceMode
+                ? "host device"
+                : manager.IsRadxaWosMode
+                    ? "Radxa WoS platform"
+                    : $"LUN {effectiveLun}";
 
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-            Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
+            var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
+            var sectorSize = geometry.SectorSize;
+            var totalBlocks = geometry.TotalSectors ?? 0;
 
-            // Get storage info to determine sector size
-            Root? storageInfo = null;
-            try
+            Logging.Log($"Using sector size: {sectorSize} bytes for {targetDescription}.", LogLevel.Debug);
+            if (totalBlocks == 0)
             {
-                storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
-            }
-            catch (Exception storageEx)
-            {
-                Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Warning);
+                Logging.Log("Total block count unavailable; backup GPT calculations may be incomplete.", LogLevel.Warning);
             }
 
-            var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-            if (sectorSize == 0) // Fallback if GetStorageInfo failed or returned 0
-            {
-                sectorSize = storageType switch
-                {
-                    StorageType.Nvme => 512,
-                    StorageType.Sdcc => 512,
-                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-                };
-                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-            }
-            Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
-
-            // Create save directory if it doesn't exist
             dumpSaveDir.Create();
 
             // Read GPT to get partition information
-            Logging.Log($"Reading GPT from LUN {lun}...");
+            Logging.Log($"Reading GPT from {targetDescription}...");
 
             // Read enough sectors to contain GPT header and partition entries
             // Reading 64 sectors is usually safe for primary GPT header + entries
-            uint sectorsForGptRead = 64;
-            byte[]? gptData;
+            const uint sectorsForGptRead = 64;
+            byte[] gptData;
             try
             {
-                gptData = await Task.Run(() => manager.Firehose.Read(
-                    storageType,
-                    lun,
-                    globalOptions.Slot,
-                    sectorSize,
-                    0, // Start sector for GPT
-                    sectorsForGptRead - 1 // Last sector for GPT
-                ));
+                gptData = await manager.ReadSectorsAsync(effectiveLun, 0, sectorsForGptRead);
             }
             catch (Exception readEx)
             {
-                Logging.Log($"Failed to read GPT area from LUN {lun}. Error: {readEx.Message}", LogLevel.Error);
+                Logging.Log($"Failed to read GPT area from {targetDescription}. Error: {readEx.Message}", LogLevel.Error);
                 return 1;
             }
 
@@ -160,7 +137,6 @@ internal sealed class DumpRawprogramCommand
 
             // Calculate GPT sizes based on FirstUsableLBA and LastUsableLBA
             var mainGptSectors = gpt.Header.FirstUsableLBA; // From sector 0 to FirstUsableLBA-1
-            var totalBlocks = (ulong)(storageInfo?.StorageInfo?.TotalBlocks ?? 0);
             var backupGptSectors = totalBlocks > 0 ? totalBlocks - gpt.Header.LastUsableLBA - 1 : 0; // From LastUsableLBA+1 to TotalBlocks-1
 
             Logging.Log($"GPT header indicates FirstUsableLBA: {gpt.Header.FirstUsableLBA}, LastUsableLBA: {gpt.Header.LastUsableLBA}", LogLevel.Debug);
@@ -171,31 +147,30 @@ internal sealed class DumpRawprogramCommand
             var mainGptFileName = $"gpt_main{lun}.bin";
             var mainGptFilePath = Path.Combine(dumpSaveDir.FullName, mainGptFileName);
             byte[]? mainGptData = null;
-            try
+            if (mainGptSectors is > 0 and <= uint.MaxValue)
             {
-                mainGptData = await Task.Run(() => manager.Firehose.Read(
-                    storageType,
-                    lun,
-                    globalOptions.Slot,
-                    sectorSize,
-                    0, // Start sector
-                    (uint)(mainGptSectors - 1) // Last sector (FirstUsableLBA-1)
-                ));
-
-                if (mainGptData != null && mainGptData.Length >= sectorSize)
+                try
                 {
-                    await File.WriteAllBytesAsync(mainGptFilePath, mainGptData);
-                    Logging.Log($"Saved main GPT to '{mainGptFilePath}' ({mainGptSectors} sectors)", LogLevel.Info);
+                    mainGptData = await manager.ReadSectorsAsync(effectiveLun, 0, (uint)mainGptSectors);
+                    if (mainGptData.Length >= sectorSize)
+                    {
+                        await File.WriteAllBytesAsync(mainGptFilePath, mainGptData);
+                        Logging.Log($"Saved main GPT to '{mainGptFilePath}' ({mainGptSectors} sectors)", LogLevel.Info);
+                    }
+                    else
+                    {
+                        Logging.Log("Main GPT data insufficient, skipping main GPT save.", LogLevel.Warning);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Logging.Log("Main GPT data insufficient, skipping main GPT save.", LogLevel.Warning);
+                    Logging.Log($"Error reading/saving main GPT: {ex.Message}", LogLevel.Error);
+                    return 1;
                 }
             }
-            catch (Exception ex)
+            else
             {
-                Logging.Log($"Error reading/saving main GPT: {ex.Message}", LogLevel.Error);
-                return 1;
+                Logging.Log("Main GPT size exceeds supported range. Skipping main GPT dump.", LogLevel.Warning);
             }
 
             // Try to read backup GPT (from LastUsableLBA+1 to TotalBlocks-1)
@@ -205,31 +180,31 @@ internal sealed class DumpRawprogramCommand
 
             if (backupGptSectors > 0 && gpt.Header.LastUsableLBA + 1 < totalBlocks)
             {
-                try
+                if (backupGptSectors <= uint.MaxValue)
                 {
-                    Logging.Log($"Reading backup GPT from LBA {gpt.Header.LastUsableLBA + 1} to {totalBlocks - 1}...", LogLevel.Debug);
-                    backupGptData = await Task.Run(() => manager.Firehose.Read(
-                        storageType,
-                        lun,
-                        globalOptions.Slot,
-                        sectorSize,
-                        (uint)(gpt.Header.LastUsableLBA + 1), // Backup GPT start sector
-                        (uint)(totalBlocks - 1) // Backup GPT end sector
-                    ));
+                    try
+                    {
+                        Logging.Log($"Reading backup GPT from LBA {gpt.Header.LastUsableLBA + 1} to {totalBlocks - 1}...", LogLevel.Debug);
+                        backupGptData = await manager.ReadSectorsAsync(effectiveLun, gpt.Header.LastUsableLBA + 1, (uint)backupGptSectors);
 
-                    if (backupGptData != null && backupGptData.Length >= sectorSize)
-                    {
-                        await File.WriteAllBytesAsync(backupGptFilePath, backupGptData);
-                        Logging.Log($"Saved backup GPT to '{backupGptFilePath}' ({backupGptSectors} sectors)", LogLevel.Info);
+                        if (backupGptData.Length >= sectorSize)
+                        {
+                            await File.WriteAllBytesAsync(backupGptFilePath, backupGptData);
+                            Logging.Log($"Saved backup GPT to '{backupGptFilePath}' ({backupGptSectors} sectors)", LogLevel.Info);
+                        }
+                        else
+                        {
+                            Logging.Log("Backup GPT data insufficient, skipping backup GPT save.", LogLevel.Warning);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Logging.Log("Backup GPT data insufficient, skipping backup GPT save.", LogLevel.Warning);
+                        Logging.Log($"Error reading/saving backup GPT: {ex.Message}", LogLevel.Warning);
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logging.Log($"Error reading/saving backup GPT: {ex.Message}", LogLevel.Warning);
+                    Logging.Log("Backup GPT size exceeds supported range. Skipping backup GPT dump.", LogLevel.Warning);
                 }
             }
             else
@@ -372,24 +347,19 @@ internal sealed class DumpRawprogramCommand
                 var partLastSector = partition.LastLBA;
                 var numSectorsToRead = partLastSector - partStartSector + 1;
 
-                if (partStartSector > uint.MaxValue || partLastSector > uint.MaxValue)
+                if (numSectorsToRead == 0)
                 {
-                    Logging.Log($"Warning: Partition '{partitionName}' sector range (LBA {partStartSector}-{partLastSector}) exceeds uint.MaxValue. Skipping.", LogLevel.Warning);
+                    Logging.Log($"Warning: Partition '{partitionName}' has zero size. Skipping.", LogLevel.Warning);
                     continue;
                 }
 
-                var totalBytesToRead = (long)numSectorsToRead * sectorSize;
-                if (totalBytesToRead <= 0)
-                {
-                    Logging.Log($"Warning: Partition '{partitionName}' has zero or negative size. Skipping.", LogLevel.Warning);
-                    continue;
-                }
+                var totalBytesDecimal = (decimal)numSectorsToRead * sectorSize;
+                var totalBytes = totalBytesDecimal > long.MaxValue ? long.MaxValue : (long)totalBytesDecimal;
 
-                // Create safe filename
                 var safeFileName = CreateSafeFileName(partitionName);
                 var partitionFilePath = Path.Combine(dumpSaveDir.FullName, safeFileName);
 
-                Logging.Log($"Dumping partition '{partitionName}' ({numSectorsToRead} sectors, {totalBytesToRead / (1024.0 * 1024.0):F2} MiB) to '{partitionFilePath}'...", LogLevel.Debug);
+                Logging.Log($"Dumping partition '{partitionName}' ({numSectorsToRead} sectors, {totalBytesDecimal / (1024.0m * 1024.0m):F2} MiB) to '{partitionFilePath}'...", LogLevel.Debug);
 
                 long bytesReadReported = 0;
                 var readStopwatch = new Stopwatch();
@@ -399,7 +369,7 @@ internal sealed class DumpRawprogramCommand
                     bytesReadReported = current;
                     var percentage = total == 0 ? 100 : current * 100.0 / total;
                     var elapsed = readStopwatch.Elapsed;
-                    var speed = current / elapsed.TotalSeconds;
+                    var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
                     var speedStr = "N/A";
                     if (elapsed.TotalSeconds > 0.1)
                     {
@@ -410,45 +380,28 @@ internal sealed class DumpRawprogramCommand
                     Console.Write($"\rDumping {partitionName}: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
                 }
 
-                bool success;
                 try
                 {
                     using var fileStream = File.Open(partitionFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
 
                     readStopwatch.Start();
-                    success = await Task.Run(() => manager.Firehose.ReadToStream(
-                        storageType,
-                        lun,
-                        globalOptions.Slot,
-                        sectorSize,
-                        (uint)partStartSector,
-                        (uint)partLastSector,
-                        fileStream,
-                        ProgressAction
-                    ));
+                    await manager.ReadSectorsToStreamAsync(lun, partStartSector, numSectorsToRead, fileStream, ProgressAction);
                     readStopwatch.Stop();
                 }
                 catch (Exception ex)
                 {
                     Logging.Log($"Error dumping partition '{partitionName}': {ex.Message}", LogLevel.Error);
+                    Logging.Log(ex.ToString(), LogLevel.Debug);
                     Console.WriteLine();
+                    TryDeleteFile(partitionFilePath);
                     continue;
                 }
 
-                Console.WriteLine(); // Newline after progress bar
+                Console.WriteLine();
 
-                if (!success)
+                if (bytesReadReported == 0 && totalBytes > 0)
                 {
-                    Logging.Log($"Failed to dump partition '{partitionName}'.", LogLevel.Error);
-                    try
-                    {
-                        if (File.Exists(partitionFilePath))
-                        {
-                            File.Delete(partitionFilePath);
-                        }
-                    }
-                    catch (Exception ex) { Logging.Log($"Could not delete failed dump file '{partitionFilePath}': {ex.Message}", LogLevel.Warning); }
-                    continue;
+                    bytesReadReported = totalBytes;
                 }
 
                 Logging.Log($"Successfully dumped partition '{partitionName}' ({bytesReadReported / (1024.0 * 1024.0):F2} MiB) in {readStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
@@ -574,5 +527,20 @@ internal sealed class DumpRawprogramCommand
             new XAttribute("what", what)
         );
         patchesElement.Add(patchElement);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"Could not delete file '{path}': {ex.Message}", LogLevel.Warning);
+        }
     }
 }

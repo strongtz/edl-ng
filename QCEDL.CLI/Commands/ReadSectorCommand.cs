@@ -2,9 +2,6 @@ using System.CommandLine;
 using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -89,45 +86,47 @@ internal sealed class ReadSectorCommand
     {
         var commandStopwatch = Stopwatch.StartNew();
 
+        static void TryDeletePartialFile(FileInfo file, long expectedBytes)
+        {
+            try
+            {
+                if (file.Exists && expectedBytes > 0 && file.Length < expectedBytes)
+                {
+                    file.Delete();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"Could not delete partial file '{file.FullName}': {ex.Message}", LogLevel.Warning);
+            }
+        }
+
         try
         {
             using var manager = new EdlManager(globalOptions);
-            await manager.EnsureFirehoseModeAsync();
-            await manager.ConfigureFirehoseAsync();
+            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
 
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-            Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
-
-            // Get storage info to determine sector size and total blocks
-            Root? storageInfo = null;
-            try
+            var effectiveLun = lun;
+            if (isDirectMode && lun != 0)
             {
-                storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
-            }
-            catch (Exception storageEx)
-            {
-                Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Warning);
+                Logging.Log("Warning: LUN parameter is ignored in direct mode.", LogLevel.Warning);
+                effectiveLun = 0;
             }
 
-            var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-            if (sectorSize == 0) // Fallback if GetStorageInfo failed or returned 0
-            {
-                sectorSize = storageType switch
-                {
-                    StorageType.Nvme => 512,
-                    StorageType.Sdcc => 512,
-                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-                };
-                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-            }
-            Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
+            var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
+            var sectorSize = geometry.SectorSize;
+            var targetDescription = manager.IsHostDeviceMode
+                ? "host device"
+                : manager.IsRadxaWosMode
+                    ? "Radxa WoS platform"
+                    : $"LUN {effectiveLun}";
+            Logging.Log($"Using sector size: {sectorSize} bytes for {targetDescription}.", LogLevel.Debug);
 
-            // For read-lun, determine total sectors from storage info
             if (readEntireLun)
             {
-                if (storageInfo?.StorageInfo?.TotalBlocks > 0)
+                if (geometry.TotalSectors.HasValue && geometry.TotalSectors.Value > 0)
                 {
-                    sectorsToRead = (ulong)storageInfo.StorageInfo.TotalBlocks;
+                    sectorsToRead = geometry.TotalSectors.Value;
                     Logging.Log($"Read-lun: Total blocks from storage info: {sectorsToRead}", LogLevel.Info);
                 }
                 else
@@ -143,24 +142,42 @@ internal sealed class ReadSectorCommand
                 return 1;
             }
 
-            if (startSector > uint.MaxValue || startSector + sectorsToRead - 1 > uint.MaxValue)
+            ulong endSector;
+            try
+            {
+                endSector = checked(startSector + sectorsToRead - 1);
+            }
+            catch (OverflowException)
+            {
+                Logging.Log("Error: Sector range exceeds supported bounds.", LogLevel.Error);
+                return 1;
+            }
+
+            if (!isDirectMode && (startSector > uint.MaxValue || endSector > uint.MaxValue))
             {
                 Logging.Log("Error: Sector range exceeds uint.MaxValue, which is not supported by the current Firehose.Read implementation.", LogLevel.Error);
                 return 1;
             }
 
-            var firstLba = (uint)startSector;
-            var lastLba = (uint)(startSector + sectorsToRead - 1);
-            var totalBytesToRead = (long)sectorsToRead * sectorSize;
-
-            if (totalBytesToRead <= 0)
+            decimal totalBytesDecimal;
+            try
             {
-                Logging.Log($"Warning: Calculated total bytes to read is {totalBytesToRead}. Nothing to read.", LogLevel.Warning);
+                totalBytesDecimal = checked((decimal)sectorsToRead * sectorSize);
+            }
+            catch (OverflowException)
+            {
+                totalBytesDecimal = decimal.MaxValue;
+            }
+
+            if (totalBytesDecimal <= 0)
+            {
+                Logging.Log($"Warning: Calculated total bytes to read is {totalBytesDecimal}. Nothing to read.", LogLevel.Warning);
                 await File.WriteAllBytesAsync(outputFile.FullName, []);
                 return 0;
             }
 
-            Logging.Log($"Preparing to read {sectorsToRead} sectors (LBA {firstLba} to {lastLba}, {totalBytesToRead} bytes) from LUN {lun} into '{outputFile.FullName}'...");
+            var totalBytesToRead = totalBytesDecimal > long.MaxValue ? long.MaxValue : (long)totalBytesDecimal;
+            Logging.Log($"Preparing to read {sectorsToRead} sectors (LBA {startSector} to {endSector}, {totalBytesDecimal} bytes) from {targetDescription} into '{outputFile.FullName}'...");
 
             long bytesReadReported = 0;
             var readStopwatch = new Stopwatch();
@@ -170,7 +187,7 @@ internal sealed class ReadSectorCommand
                 bytesReadReported = current;
                 var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = readStopwatch.Elapsed;
-                var speed = current / elapsed.TotalSeconds;
+                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
                 var speedStr = "N/A";
                 if (elapsed.TotalSeconds > 0.1)
                 {
@@ -181,23 +198,18 @@ internal sealed class ReadSectorCommand
                 Console.Write($"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
             }
 
-            bool success;
             try
             {
                 outputFile.Directory?.Create();
                 using var fileStream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None);
 
                 readStopwatch.Start();
-                success = await Task.Run(() => manager.Firehose.ReadToStream(
-                    storageType,
-                    lun,
-                    globalOptions.Slot,
-                    sectorSize,
-                    firstLba,
-                    lastLba,
+                await manager.ReadSectorsToStreamAsync(
+                    effectiveLun,
+                    startSector,
+                    sectorsToRead,
                     fileStream,
-                    ProgressAction
-                ));
+                    ProgressAction);
                 readStopwatch.Stop();
             }
             catch (IOException ioEx)
@@ -206,21 +218,18 @@ internal sealed class ReadSectorCommand
                 Console.WriteLine();
                 return 1;
             }
+            catch
+            {
+                Console.WriteLine();
+                TryDeletePartialFile(outputFile, totalBytesToRead);
+                throw;
+            }
 
             Console.WriteLine(); // Newline after progress bar
 
-            if (!success)
+            if (bytesReadReported == 0)
             {
-                Logging.Log("Failed to read sector data or write to stream.", LogLevel.Error);
-                try
-                {
-                    if (outputFile.Exists && outputFile.Length < totalBytesToRead)
-                    {
-                        outputFile.Delete();
-                    }
-                }
-                catch (Exception ex) { Logging.Log($"Could not delete partial file '{outputFile.FullName}': {ex.Message}", LogLevel.Warning); }
-                return 1;
+                bytesReadReported = totalBytesToRead;
             }
 
             Logging.Log($"Successfully read {bytesReadReported / (1024.0 * 1024.0):F2} MiB and wrote to '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.");

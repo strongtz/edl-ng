@@ -2,9 +2,6 @@ using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.PartitionTable;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -32,10 +29,30 @@ internal sealed class PrintGptCommand
         try
         {
             using var manager = new EdlManager(globalOptions);
+            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
+            var effectiveLun = isDirectMode ? 0u : lun;
 
-            return manager.IsHostDeviceMode
-                ? await ExecuteHostDeviceModeAsync(manager, lun)
-                : await ExecuteFirehoseModeAsync(manager, globalOptions, lun);
+            var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
+            var sectorSize = geometry.SectorSize;
+            var targetDescription = manager.IsHostDeviceMode
+                ? "host device"
+                : manager.IsRadxaWosMode
+                    ? "Radxa WoS platform"
+                    : $"LUN {effectiveLun}";
+
+            Logging.Log($"Using sector size: {sectorSize} bytes for {targetDescription}.", LogLevel.Debug);
+
+            const uint sectorsToRead = 64;
+            var gptData = await manager.ReadSectorsAsync(effectiveLun, 0, sectorsToRead);
+
+            if (gptData.Length < sectorSize * 2)
+            {
+                Logging.Log("Failed to read sufficient data for GPT.", LogLevel.Error);
+                return 1;
+            }
+
+            var deviceDescription = targetDescription;
+            return ProcessGptData(gptData, sectorSize, deviceDescription);
         }
         catch (FileNotFoundException ex)
         {
@@ -58,99 +75,6 @@ internal sealed class PrintGptCommand
             Logging.Log(ex.ToString(), LogLevel.Debug);
             return 1;
         }
-    }
-
-    private static async Task<int> ExecuteHostDeviceModeAsync(EdlManager manager, uint lun)
-    {
-        Logging.Log("Operating in host device mode (direct MTD access)", LogLevel.Info);
-
-        if (lun != 0)
-        {
-            Logging.Log("Warning: LUN parameter is ignored in host device mode. Reading from host device.", LogLevel.Warning);
-        }
-
-        var sectorSize = manager.GetSectorSize(lun);
-        Logging.Log($"Using sector size: {sectorSize} bytes for host device.", LogLevel.Debug);
-
-        Logging.Log($"Attempting to read GPT from host device...");
-
-        // Read enough sectors for GPT (64 sectors should be sufficient)
-        const uint sectorsToRead = 64;
-        byte[] gptData;
-
-        try
-        {
-            gptData = await manager.ReadSectorsAsync(lun, 0, sectorsToRead);
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"Failed to read GPT data from host device: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-
-        if (gptData.Length < sectorSize * 2) // Need at least MBR + GPT Header
-        {
-            Logging.Log("Failed to read sufficient data for GPT from host device.", LogLevel.Error);
-            return 1;
-        }
-
-        return ProcessGptData(gptData, sectorSize, "host device");
-    }
-
-    private static async Task<int> ExecuteFirehoseModeAsync(EdlManager manager, GlobalOptionsBinder globalOptions, uint lun)
-    {
-        await manager.EnsureFirehoseModeAsync();
-        await manager.ConfigureFirehoseAsync();
-
-        Logging.Log($"Attempting to read GPT from LUN {lun}...");
-
-        var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-        // Get Storage Info to determine sector size more reliably
-        Root? storageInfo = null;
-        try
-        {
-            // Wrap GetStorageInfo in Task.Run if it's potentially blocking or synchronous
-            storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
-        }
-        catch (Exception storageEx)
-        {
-            Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Error);
-        }
-
-        var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-        if (sectorSize == 0) // Fallback if GetStorageInfo failed or returned 0
-        {
-            sectorSize = storageType switch
-            {
-                StorageType.Nvme => 512,
-                StorageType.Sdcc => 512,
-                StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-            };
-            Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-        }
-
-        Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
-
-        // Read the first few sectors where GPT resides (Primary: 0-?, Backup: depends on disk size)
-        // Reading 34 sectors is usually safe for primary GPT header + entries (1 header + 128 entries * 128 bytes / sectorSize = ~33 sectors)
-        // Let's read a bit more just in case, but keep it reasonable. 64 sectors * 4k = 256k
-        uint sectorsToRead = 64;
-        var gptData = await Task.Run(() => manager.Firehose.Read(
-            storageType,
-            lun,
-            globalOptions.Slot,
-            sectorSize,
-            0, // Start sector
-            sectorsToRead - 1 // Last sector (inclusive)
-        ));
-
-        if (gptData == null || gptData.Length < sectorSize * 2) // Need at least MBR + GPT Header
-        {
-            Logging.Log($"Failed to read sufficient data for GPT from LUN {lun}.", LogLevel.Error);
-            return 1;
-        }
-
-        return ProcessGptData(gptData, sectorSize, $"LUN {lun}");
     }
 
     private static int ProcessGptData(byte[] gptData, uint sectorSize, string deviceDescription)

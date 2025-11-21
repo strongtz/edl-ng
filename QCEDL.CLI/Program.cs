@@ -93,6 +93,10 @@ var imgSizeOption = new Option<string?>(
     description: "Size of the image file when using --hostdev-as-target with a file path (e.g., 32M, 1G, 512K). " +
                  "Only used when --hostdev-as-target points to a file that doesn't exist.");
 
+var radxaWosOption = new Option<bool>(
+    name: "--radxa-wos-platform",
+    description: "Access the Radxa Windows on Snapdragon SPI NOR backend via the local driver (Windows only).");
+
 // --- Create Global Options Binder ---
 var globalOptionsBinder = new GlobalOptionsBinder(
     loaderOption,
@@ -103,7 +107,8 @@ var globalOptionsBinder = new GlobalOptionsBinder(
     maxPayloadOption,
     slotOption,
     hostDevAsTargetOption,
-    imgSizeOption
+    imgSizeOption,
+    radxaWosOption
 );
 
 // --- Define Root Command ---
@@ -118,6 +123,7 @@ rootCommand.AddGlobalOption(maxPayloadOption);
 rootCommand.AddGlobalOption(slotOption);
 rootCommand.AddGlobalOption(hostDevAsTargetOption);
 rootCommand.AddGlobalOption(imgSizeOption);
+rootCommand.AddGlobalOption(radxaWosOption);
 
 // --- Define Commands (Add more commands here later) ---
 rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));

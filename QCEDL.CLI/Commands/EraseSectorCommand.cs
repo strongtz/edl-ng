@@ -2,9 +2,6 @@ using System.CommandLine;
 using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -51,70 +48,27 @@ internal sealed class EraseSectorCommand
             return 1;
         }
 
-        if (startSectorUlong > uint.MaxValue || sectorsToEraseUlong > uint.MaxValue || startSectorUlong + sectorsToEraseUlong - 1 > uint.MaxValue)
-        {
-            Logging.Log($"Error: Sector range (Start: {startSectorUlong}, Count: {sectorsToEraseUlong}) exceeds uint.MaxValue, which is not supported by the current Firehose.Erase implementation.", LogLevel.Error);
-            return 1;
-        }
-
-        var startSector = (uint)startSectorUlong;
-        var numSectorsToErase = (uint)sectorsToEraseUlong;
-
         try
         {
             using var manager = new EdlManager(globalOptions);
-            await manager.EnsureFirehoseModeAsync();
-            await manager.ConfigureFirehoseAsync();
+            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
 
-            var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-            Logging.Log($"Using storage type: {storageType}", LogLevel.Debug);
+            var effectiveLun = isDirectMode ? 0u : lun;
+            var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
+            var targetDescription = manager.IsHostDeviceMode
+                ? "host device"
+                : manager.IsRadxaWosMode
+                    ? "Radxa WoS platform"
+                    : $"LUN {effectiveLun}";
+            Logging.Log($"Using sector size: {geometry.SectorSize} bytes for {targetDescription}.", LogLevel.Debug);
 
-            Root? storageInfo = null;
-            try
-            {
-                storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, lun, globalOptions.Slot));
-            }
-            catch (Exception storageEx)
-            {
-                Logging.Log($"Could not get storage info for LUN {lun} (StorageType: {storageType}). Using default sector size. Error: {storageEx.Message}", LogLevel.Warning);
-            }
-
-            var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0 ? (uint)storageInfo.StorageInfo.BlockSize : 0;
-            if (sectorSize == 0) // Fallback if GetStorageInfo failed or returned 0
-            {
-                sectorSize = storageType switch
-                {
-                    StorageType.Nvme => 512,
-                    StorageType.Sdcc => 512,
-                    StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
-                };
-                Logging.Log($"Storage info unreliable or unavailable, using default sector size for {storageType}: {sectorSize}", LogLevel.Warning);
-            }
-
-            Logging.Log($"Using sector size: {sectorSize} bytes for LUN {lun}.", LogLevel.Debug);
-
-            Logging.Log($"Attempting to erase {numSectorsToErase} sectors starting at LBA {startSector} on LUN {lun}...");
+            Logging.Log($"Attempting to erase {sectorsToEraseUlong} sectors starting at LBA {startSectorUlong} on {targetDescription}...");
             var eraseStopwatch = Stopwatch.StartNew();
 
-            var success = await Task.Run(() => manager.Firehose.Erase(
-                storageType,
-                lun,
-                globalOptions.Slot,
-                sectorSize,
-                startSector,
-                numSectorsToErase
-            ));
-            eraseStopwatch.Stop();
+            await manager.EraseSectorsAsync(effectiveLun, startSectorUlong, sectorsToEraseUlong);
 
-            if (success)
-            {
-                Logging.Log($"Successfully erased {numSectorsToErase} sectors in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.");
-            }
-            else
-            {
-                Logging.Log("Failed to erase sectors. Check previous logs for NAK or errors.", LogLevel.Error);
-                return 1;
-            }
+            eraseStopwatch.Stop();
+            Logging.Log($"Successfully erased {sectorsToEraseUlong} sectors in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.");
         }
         catch (FileNotFoundException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
         catch (ArgumentException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }

@@ -31,9 +31,10 @@
         <OutputType>Exe</OutputType>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="LibUsbDotNet" Version="3.0.167-alpha"/>
-        <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1"/>
-        <PackageReference Include="System.CommandLine.NamingConventionBinder" Version="2.0.0-beta4.22272.1"/>
-        <ProjectReference Include="..\QCEDL.NET\QCEDL.NET.csproj"/>
+        <PackageReference Include="LibUsbDotNet" Version="3.0.167-alpha" />
+        <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+        <PackageReference Include="System.CommandLine.NamingConventionBinder" Version="2.0.0-beta4.22272.1" />
+        <PackageReference Include="Vanara.PInvoke.Kernel32" Version="4.2.1" />
+        <ProjectReference Include="..\QCEDL.NET\QCEDL.NET.csproj" />
     </ItemGroup>
 </Project>

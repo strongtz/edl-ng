@@ -1,15 +1,12 @@
-using System.Globalization;
 using System.Runtime.InteropServices;
 using QCEDL.CLI.Helpers;
-using QCEDL.NET.PartitionTable;
-
 namespace QCEDL.CLI.Core;
 
 /// <summary>
 /// Manages direct access to host MTD devices for operations bypassing USB Firehose.
 /// Currently supports SPI NOR flash devices only.
 /// </summary>
-internal sealed class HostDeviceManager : IDisposable
+internal sealed class HostDeviceManager : BlockDeviceManagerBase
 {
     private const uint DEFAULT_IMAGE_BLOCK_SIZE = 4096; // 4K blocks for image files
     private const ulong DEFAULT_IMAGE_SIZE = 32 * 1024 * 1024; // 32MB default
@@ -19,7 +16,6 @@ internal sealed class HostDeviceManager : IDisposable
     private const int O_SYNC = 0x1000;
     private const int SEEK_SET = 0;
     private const uint EXPECTED_BLOCK_SIZE = 4096; // 4K blocks for SPI NOR
-
     [StructLayout(LayoutKind.Sequential)]
     private struct MtdInfoUser
     {
@@ -60,11 +56,6 @@ internal sealed class HostDeviceManager : IDisposable
     private readonly string _devicePath;
     private int _deviceFd = -1;
     private MtdInfoUser _mtdInfo;
-    private bool _disposed;
-
-    public uint SectorSize => _mtdInfo.Erasesize;
-    public uint DeviceSize => _mtdInfo.Size;
-
     private readonly bool _isImageFile;
     private readonly string _imagePath;
     private FileStream? _imageStream;
@@ -78,7 +69,7 @@ internal sealed class HostDeviceManager : IDisposable
 
         _devicePath = devicePath ?? throw new ArgumentNullException(nameof(devicePath));
 
-        _isImageFile = !devicePath.StartsWith("/dev/");
+        _isImageFile = !devicePath.StartsWith("/dev/", StringComparison.Ordinal);
         _imagePath = devicePath;
 
         if (_isImageFile)
@@ -164,6 +155,8 @@ internal sealed class HostDeviceManager : IDisposable
         Logging.Log($"Image file initialized: {_imagePath}", LogLevel.Info);
         Logging.Log($"  Image size: {imageSize / (1024.0 * 1024.0):F2} MiB ({imageSize} bytes)", LogLevel.Info);
         Logging.Log($"  Block size: {DEFAULT_IMAGE_BLOCK_SIZE} bytes", LogLevel.Info);
+
+        InitializeGeometry(_mtdInfo.Erasesize, imageSize);
     }
 
     private void InitializeDevice()
@@ -202,23 +195,54 @@ internal sealed class HostDeviceManager : IDisposable
         Logging.Log($"  Device size: {_mtdInfo.Size / (1024.0 * 1024.0):F2} MiB ({_mtdInfo.Size} bytes)", LogLevel.Info);
         Logging.Log($"  Erase block size: {_mtdInfo.Erasesize} bytes", LogLevel.Info);
         Logging.Log($"  Write page size: {_mtdInfo.Writesize} bytes", LogLevel.Debug);
+
+        InitializeGeometry(_mtdInfo.Erasesize, _mtdInfo.Size);
     }
 
-    public byte[] ReadSectors(ulong startSector, uint sectorCount)
+    protected override byte[] ReadFromStorage(ulong startOffset, uint readLength)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _isImageFile
+            ? ReadFromImageFile(startOffset, readLength)
+            : ReadFromDevice(startOffset, readLength);
+    }
 
-        if (sectorCount == 0)
+    protected override void WriteAlignedRangeCore(ulong startOffset, byte[] alignedData, Action<long, long>? progressCallback)
+    {
+        if (_isImageFile)
         {
-            throw new ArgumentException("Sector count must be greater than zero", nameof(sectorCount));
+            WriteToImageFile(startOffset, alignedData, progressCallback);
+            return;
         }
 
-        var startOffset = startSector * SectorSize;
-        var readLength = sectorCount * SectorSize;
+        var offset32 = checked((uint)startOffset);
+        var length32 = checked((uint)alignedData.Length);
 
-        return startOffset + readLength > DeviceSize
-            ? throw new ArgumentException($"Read operation would exceed device bounds. Start: {startOffset}, Length: {readLength}, Device size: {DeviceSize}")
-            : _isImageFile ? ReadFromImageFile(startOffset, readLength) : ReadFromDevice(startOffset, readLength);
+        EraseBlocks(offset32, length32);
+        WriteData(offset32, alignedData, progressCallback);
+    }
+
+    protected override void ZeroRangeInternal(ulong startOffset, ulong length, Action<long, long>? progressCallback)
+    {
+        if (_isImageFile)
+        {
+            ZeroImageRange(startOffset, length, progressCallback);
+            return;
+        }
+
+        var remaining = length;
+        var currentOffset = startOffset;
+        long processed = 0;
+        var totalBytes = ClampToInt64(length);
+
+        while (remaining > 0)
+        {
+            var chunkLength = (uint)Math.Min(uint.MaxValue, remaining);
+            EraseBlocks(checked((uint)currentOffset), chunkLength);
+            currentOffset += chunkLength;
+            remaining -= chunkLength;
+            processed = SafeAdvanceLong(processed, chunkLength);
+            progressCallback?.Invoke(Math.Min(processed, totalBytes), totalBytes);
+        }
     }
 
     private byte[] ReadFromImageFile(ulong startOffset, uint readLength)
@@ -289,87 +313,28 @@ internal sealed class HostDeviceManager : IDisposable
         }
     }
 
-    public void WriteSectors(ulong startSector, byte[] data, Action<long, long>? progressCallback = null)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (data == null || data.Length == 0)
-        {
-            throw new ArgumentException("Data cannot be null or empty", nameof(data));
-        }
-
-        var startOffset = startSector * SectorSize;
-        var alignedLength = ((uint)data.Length + SectorSize - 1) / SectorSize * SectorSize;
-
-        if (startOffset + alignedLength > DeviceSize)
-        {
-            throw new ArgumentException($"Write operation would exceed device bounds. Start: {startOffset}, Length: {alignedLength}, Device size: {DeviceSize}");
-        }
-
-        if (_isImageFile)
-        {
-            WriteToImageFile(startOffset, data, alignedLength, progressCallback);
-        }
-        else
-        {
-            WriteToDevice(startOffset, data, alignedLength, progressCallback);
-        }
-    }
-
-    private void WriteToImageFile(ulong startOffset, byte[] data, uint alignedLength, Action<long, long>? progressCallback)
+    private void WriteToImageFile(ulong startOffset, byte[] data, Action<long, long>? progressCallback)
     {
         Logging.Log($"Writing {data.Length} bytes to image file at offset 0x{startOffset:X8}", LogLevel.Debug);
-
-        // Prepare data with padding if necessary
-        var writeData = data;
-        if (data.Length != alignedLength)
-        {
-            Logging.Log($"Padding data from {data.Length} to {alignedLength} bytes", LogLevel.Debug);
-            writeData = new byte[alignedLength];
-            Array.Copy(data, writeData, data.Length);
-        }
 
         _ = _imageStream!.Seek((long)startOffset, SeekOrigin.Begin);
 
         long totalWritten = 0;
-        var writeSize = Math.Min(writeData.Length, (int)SectorSize);
+        var writeSize = Math.Min(data.Length, (int)SectorSize);
 
-        while (totalWritten < writeData.Length)
+        while (totalWritten < data.Length)
         {
-            var remaining = writeData.Length - totalWritten;
+            var remaining = data.Length - totalWritten;
             var currentWriteSize = Math.Min(writeSize, remaining);
 
-            _imageStream.Write(writeData, (int)totalWritten, (int)currentWriteSize);
+            _imageStream.Write(data, (int)totalWritten, (int)currentWriteSize);
             _imageStream.Flush(); // Ensure data is written to disk
 
             totalWritten += currentWriteSize;
-            progressCallback?.Invoke(totalWritten, writeData.Length);
+            progressCallback?.Invoke(totalWritten, data.Length);
         }
 
         Logging.Log($"Successfully wrote {data.Length} bytes to image file", LogLevel.Debug);
-    }
-
-    private void WriteToDevice(ulong startOffset, byte[] data, uint alignedLength, Action<long, long>? progressCallback)
-    {
-        Logging.Log($"Writing {data.Length} bytes to device {_devicePath} at offset 0x{startOffset:X8}", LogLevel.Debug);
-
-        // Prepare data with padding if necessary
-        var writeData = data;
-        if (data.Length != alignedLength)
-        {
-            Logging.Log($"Padding data from {data.Length} to {alignedLength} bytes", LogLevel.Debug);
-            writeData = new byte[alignedLength];
-            Array.Copy(data, writeData, data.Length);
-            // Rest is zero-padded automatically
-        }
-
-        // Erase affected blocks
-        EraseBlocks((uint)startOffset, alignedLength);
-
-        // Write data
-        WriteData((uint)startOffset, writeData, progressCallback);
-
-        Logging.Log($"Successfully wrote {data.Length} bytes to {_devicePath}", LogLevel.Debug);
     }
 
     private void EraseBlocks(uint startOffset, uint length)
@@ -445,363 +410,37 @@ internal sealed class HostDeviceManager : IDisposable
         }
     }
 
-    public Gpt? ReadGpt()
+    private void ZeroImageRange(ulong startOffset, ulong length, Action<long, long>? progressCallback)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        Logging.Log($"Reading GPT from {_devicePath}", LogLevel.Debug);
-
-        // Read enough sectors for GPT (64 sectors should be sufficient)
-        const uint sectorsToRead = 64;
-        var gptData = ReadSectors(0, sectorsToRead);
-
-        if (gptData.Length < SectorSize * 2)
+        Logging.Log($"Zeroing {length} bytes in image file at offset 0x{startOffset:X8}", LogLevel.Debug);
+        if (_imageStream == null)
         {
-            Logging.Log("Insufficient data read for GPT parsing", LogLevel.Warning);
-            return null;
+            throw new InvalidOperationException("Image stream is not initialized.");
         }
 
-        using var stream = new MemoryStream(gptData);
-        try
+        _ = _imageStream.Seek((long)startOffset, SeekOrigin.Begin);
+        var bufferSize = (int)Math.Min(DEFAULT_IMAGE_BLOCK_SIZE, length);
+        bufferSize = bufferSize <= 0 ? (int)Math.Min(length, 4096UL) : bufferSize;
+
+        var zeroBuffer = new byte[bufferSize];
+        long processed = 0;
+        var remaining = length;
+        var totalBytes = ClampToInt64(length);
+
+        while (remaining > 0)
         {
-            var gpt = Gpt.ReadFromStream(stream, (int)SectorSize);
-            if (gpt != null)
-            {
-                Logging.Log($"Successfully parsed GPT with {gpt.Partitions.Count} partitions", LogLevel.Debug);
-            }
-            return gpt;
-        }
-        catch (InvalidDataException ex)
-        {
-            Logging.Log($"Failed to parse GPT from {_devicePath}: {ex.Message}", LogLevel.Warning);
-            return null;
+            var chunk = (int)Math.Min((ulong)zeroBuffer.Length, remaining);
+            _imageStream.Write(zeroBuffer, 0, chunk);
+            _imageStream.Flush();
+            remaining -= (ulong)chunk;
+            processed = SafeAdvance(processed, chunk);
+            progressCallback?.Invoke(Math.Min(processed, totalBytes), totalBytes);
         }
     }
 
-    public GptPartition? FindPartition(string partitionName)
+    protected override void Dispose(bool disposing)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (string.IsNullOrWhiteSpace(partitionName))
-        {
-            throw new ArgumentException("Partition name cannot be null or empty", nameof(partitionName));
-        }
-
-        var gpt = ReadGpt();
-        if (gpt == null)
-        {
-            Logging.Log($"No GPT found on {_devicePath}, cannot search for partition '{partitionName}'", LogLevel.Warning);
-            return null;
-        }
-
-        foreach (var partition in gpt.Partitions)
-        {
-            var currentPartitionName = partition.GetName().TrimEnd('\0');
-            if (currentPartitionName.Equals(partitionName, StringComparison.OrdinalIgnoreCase))
-            {
-                Logging.Log($"Found partition '{partitionName}': LBA {partition.FirstLBA}-{partition.LastLBA}, Size: {(partition.LastLBA - partition.FirstLBA + 1) * SectorSize / 1024.0 / 1024.0:F2} MiB", LogLevel.Debug);
-                return partition;
-            }
-        }
-
-        Logging.Log($"Partition '{partitionName}' not found in GPT", LogLevel.Debug);
-        return null;
-    }
-
-    public void WritePartition(string partitionName, byte[] data, Action<long, long>? progressCallback = null)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (string.IsNullOrWhiteSpace(partitionName))
-        {
-            throw new ArgumentException("Partition name cannot be null or empty", nameof(partitionName));
-        }
-
-        if (data == null || data.Length == 0)
-        {
-            throw new ArgumentException("Data cannot be null or empty", nameof(data));
-        }
-
-        var partition = FindPartition(partitionName);
-        if (!partition.HasValue)
-        {
-            throw new ArgumentException($"Partition '{partitionName}' not found on device {_devicePath}");
-        }
-
-        var partitionSizeInBytes = (long)(partition.Value.LastLBA - partition.Value.FirstLBA + 1) * SectorSize;
-
-        if (data.Length > partitionSizeInBytes)
-        {
-            throw new ArgumentException($"Data size ({data.Length} bytes) exceeds partition '{partitionName}' size ({partitionSizeInBytes} bytes)");
-        }
-
-        Logging.Log($"Writing {data.Length} bytes to partition '{partitionName}' on {_devicePath}", LogLevel.Info);
-        Logging.Log($"Partition details: LBA {partition.Value.FirstLBA}-{partition.Value.LastLBA}, Size: {partitionSizeInBytes / 1024.0 / 1024.0:F2} MiB", LogLevel.Debug);
-
-        // Write data starting at the partition's first LBA
-        WriteSectors(partition.Value.FirstLBA, data, progressCallback);
-    }
-
-    private static readonly uint[] Crc32Table = GenerateCrc32Table();
-
-    private const uint CRC32_SEED = 0;
-
-    private static uint[] GenerateCrc32Table()
-    {
-        var table = new uint[256];
-        for (uint i = 0; i < 256; i++)
-        {
-            var crc = i;
-            for (var j = 0; j < 8; j++)
-            {
-                if ((crc & 1) != 0)
-                {
-                    crc = (crc >> 1) ^ 0xEDB88320;
-                }
-                else
-                {
-                    crc >>= 1;
-                }
-            }
-            table[i] = crc;
-        }
-        return table;
-    }
-
-    private static uint CalculateCrc32(ReadOnlySpan<byte> data, uint seed = CRC32_SEED)
-    {
-        var crc = 0xFFFFFFFF ^ seed;
-
-        foreach (var b in data)
-        {
-            crc = (crc >> 8) ^ Crc32Table[(byte)(crc ^ b)];
-        }
-
-        return crc ^ 0xFFFFFFFF;
-    }
-
-    private uint CalculateCrc32OverSectors(ulong startSector, uint numBytes)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var crc = CRC32_SEED;
-        var remainingBytes = numBytes;
-        var currentSector = startSector;
-
-        while (remainingBytes > 0)
-        {
-            var readSize = Math.Min(remainingBytes, SectorSize);
-            var numSectors = ((readSize - 1) / SectorSize) + 1; // Round up to sector size
-
-            var data = ReadSectors(currentSector, numSectors);
-
-            // Only CRC over the actual requested bytes, not the full sectors
-            var bytesToCrc = Math.Min((int)readSize, data.Length);
-            crc = CalculateCrc32(data.AsSpan(0, bytesToCrc), crc);
-
-            remainingBytes -= readSize;
-            currentSector += numSectors;
-        }
-
-        return crc;
-    }
-
-    private bool TryParseValue(string valueStr, out ulong result)
-    {
-        result = 0;
-
-        if (string.IsNullOrWhiteSpace(valueStr))
-        {
-            return false;
-        }
-
-        // Handle NUM_DISK_SECTORS expressions
-        if (valueStr.StartsWith("NUM_DISK_SECTORS"))
-        {
-            var totalSectors = DeviceSize / SectorSize;
-
-            if (valueStr.Length == "NUM_DISK_SECTORS".Length)
-            {
-                result = totalSectors;
-                return true;
-            }
-
-            if (valueStr.Length > "NUM_DISK_SECTORS".Length + 1 && valueStr["NUM_DISK_SECTORS".Length] == '-')
-            {
-                var subtractStr = valueStr["NUM_DISK_SECTORS-".Length..];
-
-                // Remove trailing dot if present
-                if (subtractStr.EndsWith('.'))
-                {
-                    subtractStr = subtractStr[..^1];
-                }
-
-                if (TryParseNumber(subtractStr, out var subtractValue))
-                {
-                    if (totalSectors >= subtractValue)
-                    {
-                        result = totalSectors - subtractValue;
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        // Handle regular numbers
-        return TryParseNumber(valueStr, out result);
-    }
-
-    private static bool TryParseNumber(string str, out ulong result)
-    {
-        result = 0;
-
-        if (string.IsNullOrWhiteSpace(str))
-        {
-            return false;
-        }
-
-        // Handle hex numbers
-        if (str.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            return ulong.TryParse(str[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
-        }
-
-        // Handle decimal numbers
-        return ulong.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
-    }
-
-    private bool TryParseCrc32Value(string valueStr, out uint result)
-    {
-        result = 0;
-
-        if (!valueStr.StartsWith("CRC32(") || !valueStr.EndsWith(')'))
-        {
-            return false;
-        }
-
-        var innerContent = valueStr[6..^1]; // Remove "CRC32(" and ")"
-        var parts = innerContent.Split(',');
-
-        if (parts.Length != 2)
-        {
-            return false;
-        }
-
-        var startSectorStr = parts[0].Trim();
-        var numBytesStr = parts[1].Trim();
-
-        if (!TryParseValue(startSectorStr, out var startSector))
-        {
-            return false;
-        }
-
-        if (!TryParseNumber(numBytesStr, out var numBytesUlong))
-        {
-            return false;
-        }
-
-        if (numBytesUlong > uint.MaxValue)
-        {
-            return false;
-        }
-
-        var numBytes = (uint)numBytesUlong;
-
-        try
-        {
-            result = CalculateCrc32OverSectors(startSector, numBytes);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"Failed to calculate CRC32 for sectors {startSector}, {numBytes} bytes: {ex.Message}", LogLevel.Error);
-            return false;
-        }
-    }
-
-    public void ApplyPatch(string startSectorStr, uint byteOffset, uint sizeInBytes, string valueStr)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (string.IsNullOrWhiteSpace(startSectorStr))
-        {
-            throw new ArgumentException("Start sector cannot be null or empty", nameof(startSectorStr));
-        }
-
-        if (string.IsNullOrWhiteSpace(valueStr))
-        {
-            throw new ArgumentException("Value cannot be null or empty", nameof(valueStr));
-        }
-
-        if (sizeInBytes is 0 or > 8)
-        {
-            throw new ArgumentException("Size in bytes must be between 1 and 8", nameof(sizeInBytes));
-        }
-
-        if (byteOffset >= SectorSize)
-        {
-            throw new ArgumentException($"Byte offset ({byteOffset}) must be less than sector size ({SectorSize})", nameof(byteOffset));
-        }
-
-        // Parse start sector
-        if (!TryParseValue(startSectorStr, out var startSector))
-        {
-            throw new ArgumentException($"Invalid start sector value: {startSectorStr}", nameof(startSectorStr));
-        }
-
-        // Parse patch value
-        ulong patchValue;
-        if (valueStr.StartsWith("CRC32("))
-        {
-            if (!TryParseCrc32Value(valueStr, out var crc32Value))
-            {
-                throw new ArgumentException($"Invalid CRC32 expression: {valueStr}", nameof(valueStr));
-            }
-
-            patchValue = crc32Value;
-        }
-        else
-        {
-            if (!TryParseValue(valueStr, out patchValue))
-            {
-                throw new ArgumentException($"Invalid patch value: {valueStr}", nameof(valueStr));
-            }
-        }
-
-        Logging.Log($"Applying patch: sector {startSector}, offset {byteOffset}, size {sizeInBytes}, value 0x{patchValue:X}", LogLevel.Debug);
-
-        // Read the sector
-        var sectorData = ReadSectors(startSector, 1);
-
-        // Apply the patch
-        var patchBytes = new byte[8]; // Maximum size
-        if (BitConverter.IsLittleEndian)
-        {
-            var valueBytes = BitConverter.GetBytes(patchValue);
-            Array.Copy(valueBytes, patchBytes, Math.Min(valueBytes.Length, (int)sizeInBytes));
-        }
-        else
-        {
-            // Handle big-endian if needed (unlikely on most platforms)
-            var valueBytes = BitConverter.GetBytes(patchValue);
-            Array.Reverse(valueBytes);
-            Array.Copy(valueBytes, patchBytes, Math.Min(valueBytes.Length, (int)sizeInBytes));
-        }
-
-        // Copy patch bytes to sector data
-        Array.Copy(patchBytes, 0, sectorData, byteOffset, sizeInBytes);
-
-        // Write the modified sector back
-        WriteSectors(startSector, sectorData);
-
-        Logging.Log($"Applied patch to sector {startSector} at offset {byteOffset}", LogLevel.Debug);
-    }
-
-    public void Dispose()
-    {
-        if (!_disposed)
+        if (disposing)
         {
             if (_deviceFd >= 0)
             {
@@ -811,8 +450,8 @@ internal sealed class HostDeviceManager : IDisposable
 
             _imageStream?.Dispose();
             _imageStream = null;
-
-            _disposed = true;
         }
+
+        base.Dispose(disposing);
     }
 }

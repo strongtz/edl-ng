@@ -6,8 +6,6 @@ using System.Xml.Linq;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.JSON.StorageInfo;
-using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 namespace QCEDL.CLI.Commands;
 
@@ -150,26 +148,25 @@ internal sealed class RawProgramCommand
             return 1;
         }
 
-        var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
-        var lunTotalSectorsCache = new Dictionary<uint, ulong>();
-
         try
         {
             using var manager = new EdlManager(globalOptions);
 
-            // Handle host device mode vs Firehose mode
-            if (manager.IsHostDeviceMode)
+            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
+
+            if (isDirectMode)
             {
-                Logging.Log("Operating in host device mode (direct MTD access)", LogLevel.Info);
+                var modeLabel = manager.IsHostDeviceMode ? "host device (Linux MTD/image)" : "Radxa WoS platform";
+                Logging.Log($"Operating in direct-access mode: {modeLabel}", LogLevel.Info);
                 if (sortedLunsToProcess.Count > 1)
                 {
-                    Logging.Log($"Warning: Multiple LUN files found ({string.Join(", ", sortedLunsToProcess)}), but host device mode only supports single device. Processing all files to the same host device.", LogLevel.Warning);
+                    Logging.Log($"Warning: Multiple LUN files found ({string.Join(", ", sortedLunsToProcess)}), but direct mode only supports a single physical target. Processing all files on the same device.", LogLevel.Warning);
                 }
             }
             else
             {
                 await manager.EnsureFirehoseModeAsync();
-                await manager.ConfigureFirehoseAsync(); // Initial configure
+                await manager.ConfigureFirehoseAsync();
             }
 
             foreach (var lunKey in sortedLunsToProcess)
@@ -197,23 +194,10 @@ internal sealed class RawProgramCommand
                 var programElements = rawDoc.Root.Elements("program").ToList();
                 Logging.Log($"Found {programElements.Count} <program> elements in {rawFile.Name}.", LogLevel.Debug);
 
-                if (manager.IsHostDeviceMode)
+                var result = await ProcessProgramElementsAsync(manager, programElements, rawFile);
+                if (result != 0)
                 {
-                    // Process in host device mode
-                    var result = await ProcessRawProgramHostDeviceMode(manager, programElements, rawFile, lunKey);
-                    if (result != 0)
-                    {
-                        return result;
-                    }
-                }
-                else
-                {
-                    // Process in Firehose mode
-                    var result = await ProcessRawProgramFirehoseMode(manager, globalOptions, programElements, rawFile, lunKey, lunTotalSectorsCache, storageType);
-                    if (result != 0)
-                    {
-                        return result;
-                    }
+                    return result;
                 }
 
                 // Process corresponding patch file, if it exists
@@ -270,51 +254,40 @@ internal sealed class RawProgramCommand
         return 0;
     }
 
-    private static async Task<int> ProcessRawProgramHostDeviceMode(
+    private static async Task<int> ProcessProgramElementsAsync(
         EdlManager manager,
         List<XElement> programElements,
-        FileInfo rawFile,
-        int lunKey)
+        FileInfo rawFile)
     {
-        if (lunKey != 0)
-        {
-            Logging.Log("Warning: LUN parameter is ignored in host device mode. All operations target the host device.", LogLevel.Warning);
-        }
-
-        var hostManager = manager.GetHostDeviceManager();
-        var sectorSize = hostManager.SectorSize;
-
         var maxFilenameDisplayLength = 0;
-        if (programElements.Count != 0)
+        foreach (var element in programElements)
         {
-            foreach (var progElementForLengthCalc in programElements)
+            var fileName = element.Attribute("filename")?.Value;
+            if (string.IsNullOrEmpty(fileName))
             {
-                var filenameCalc = progElementForLengthCalc.Attribute("filename")?.Value;
-                if (string.IsNullOrEmpty(filenameCalc))
-                {
-                    continue;
-                }
-                var labelCalc = progElementForLengthCalc.Attribute("label")?.Value ?? "N/A";
-                var currentDisplayString = $"Writing {labelCalc} ({filenameCalc}): ";
-                if (currentDisplayString.Length > maxFilenameDisplayLength)
-                {
-                    maxFilenameDisplayLength = currentDisplayString.Length;
-                }
+                continue;
+            }
+
+            var labelCalc = element.Attribute("label")?.Value ?? "N/A";
+            var display = $"Writing {labelCalc} ({fileName}): ";
+            if (display.Length > maxFilenameDisplayLength)
+            {
+                maxFilenameDisplayLength = display.Length;
             }
         }
         maxFilenameDisplayLength += 2;
 
-        var programElementIndex = 0;
-
+        var programIndex = 0;
+        var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
         foreach (var progElement in programElements)
         {
-            programElementIndex++;
+            programIndex++;
             var filename = progElement.Attribute("filename")?.Value;
             var label = progElement.Attribute("label")?.Value ?? "N/A";
 
             if (string.IsNullOrEmpty(filename))
             {
-                Logging.Log($"Skipping <program> element with empty filename (Label: {progElement.Attribute("label")?.Value ?? "N/A"}).", LogLevel.Debug);
+                Logging.Log($"Skipping <program> element with empty filename (Label: {label}).", LogLevel.Debug);
                 continue;
             }
 
@@ -322,96 +295,95 @@ internal sealed class RawProgramCommand
             var sectorSizeStr = progElement.Attribute("SECTOR_SIZE_IN_BYTES")?.Value;
             var physicalPartitionNumberStr = progElement.Attribute("physical_partition_number")?.Value;
 
-            if (string.IsNullOrEmpty(startSectorStr) || string.IsNullOrEmpty(sectorSizeStr) || string.IsNullOrEmpty(physicalPartitionNumberStr))
+            if (string.IsNullOrEmpty(startSectorStr) ||
+                string.IsNullOrEmpty(sectorSizeStr) ||
+                string.IsNullOrEmpty(physicalPartitionNumberStr))
             {
-                Logging.Log($"Error: <program> element (Label: {progElement.Attribute("label")?.Value}) in {rawFile.Name} is missing required attributes.", LogLevel.Error);
+                Logging.Log($"Error: <program> element (Label: {label}) in {rawFile.Name} is missing required attributes.", LogLevel.Error);
                 continue;
             }
 
-            if (!uint.TryParse(sectorSizeStr, out var elementSectorSize) || elementSectorSize == 0)
+            if (!uint.TryParse(sectorSizeStr, out var sectorSizeFromXml) || sectorSizeFromXml == 0)
             {
-                Logging.Log($"Error: Invalid SECTOR_SIZE_IN_BYTES '{sectorSizeStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
+                Logging.Log($"Error: Invalid SECTOR_SIZE_IN_BYTES '{sectorSizeStr}' for <program> (Label: {label}).", LogLevel.Error);
                 continue;
-            }
-
-            if (elementSectorSize != sectorSize)
-            {
-                Logging.Log($"Warning: XML sector size ({elementSectorSize}) differs from host device sector size ({sectorSize}). Using host device sector size.", LogLevel.Warning);
             }
 
             if (!uint.TryParse(physicalPartitionNumberStr, out var targetLun))
             {
-                Logging.Log($"Error: Invalid physical_partition_number '{physicalPartitionNumberStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
+                Logging.Log($"Error: Invalid physical_partition_number '{physicalPartitionNumberStr}' for <program> (Label: {label}).", LogLevel.Error);
                 continue;
             }
 
-            // Get total sectors for NUM_DISK_SECTORS resolution
-            ulong numDiskSectorsForTargetLun = 0;
-            if (startSectorStr.Contains("NUM_DISK_SECTORS"))
+            var effectiveLun = isDirectMode ? 0u : targetLun;
+            var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
+            var sectorSize = geometry.SectorSize;
+
+            if (sectorSize != sectorSizeFromXml)
             {
-                // In host device mode, use the actual device size
-                numDiskSectorsForTargetLun = hostManager.DeviceSize / hostManager.SectorSize;
-                Logging.Log($"NUM_DISK_SECTORS for host device: {numDiskSectorsForTargetLun}", LogLevel.Debug);
+                Logging.Log($"Warning: XML sector size ({sectorSizeFromXml}) differs from device sector size ({sectorSize}). Using device sector size.", LogLevel.Warning);
             }
 
-            if (!TryParseSectorExpression(startSectorStr, numDiskSectorsForTargetLun, out var resolvedStartSector))
+            var totalDiskSectors = geometry.TotalSectors ?? 0;
+            if (!TryParseSectorExpression(startSectorStr, totalDiskSectors, out var resolvedStartSector))
             {
-                Logging.Log($"Error: Could not parse start_sector expression '{startSectorStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
+                Logging.Log($"Error: Could not parse start_sector expression '{startSectorStr}' for <program> (Label: {label}).", LogLevel.Error);
                 return 1;
             }
 
-            var imageFile = new FileInfo(Path.Combine(rawFile.DirectoryName ?? "", filename));
-            if (!imageFile.Exists)
+            Stream dataStream;
+            long dataLength;
+            if (string.Equals(filename, "ZERO", StringComparison.OrdinalIgnoreCase))
             {
-                Logging.Log($"Error: Image file '{imageFile.FullName}' for <program> (Label: {progElement.Attribute("label")?.Value}) not found. Skipping this file.", LogLevel.Error);
-                continue;
-            }
-
-            if (imageFile.Length == 0 && !string.Equals(filename, "ZERO", StringComparison.OrdinalIgnoreCase))
-            {
-                Logging.Log($"Warning: Image file '{imageFile.FullName}' (Label: {label}) is empty. Skipping write for this file.", LogLevel.Warning);
-                continue;
-            }
-
-            // Read file data
-            byte[] fileData;
-            try
-            {
-                if (string.Equals(filename, "ZERO", StringComparison.OrdinalIgnoreCase))
+                var numPartitionSectorsStr = progElement.Attribute("num_partition_sectors")?.Value;
+                if (string.IsNullOrEmpty(numPartitionSectorsStr) || !ulong.TryParse(numPartitionSectorsStr, out var numSectors))
                 {
-                    // Handle special ZERO file case - create zeroed data
-                    var numPartitionSectorsStr = progElement.Attribute("num_partition_sectors")?.Value;
-                    if (string.IsNullOrEmpty(numPartitionSectorsStr) || !uint.TryParse(numPartitionSectorsStr, out var numSectors))
-                    {
-                        Logging.Log($"Error: ZERO file requires valid num_partition_sectors attribute", LogLevel.Error);
-                        continue;
-                    }
-                    fileData = new byte[numSectors * sectorSize];
-                    // Already zeroed by default
-                    Logging.Log($"Created {fileData.Length} bytes of zero data for ZERO file", LogLevel.Debug);
+                    Logging.Log("Error: ZERO file requires valid num_partition_sectors attribute.", LogLevel.Error);
+                    return 1;
                 }
-                else
-                {
-                    fileData = await File.ReadAllBytesAsync(imageFile.FullName);
-                }
+
+                dataLength = (long)(numSectors * sectorSize);
+                dataStream = new ZeroFillStream(dataLength);
+                Logging.Log($"Created zero-filled stream for '{label}' ({filename}) with length {dataLength} bytes.", LogLevel.Debug);
             }
-            catch (IOException ioEx)
+            else
             {
-                Logging.Log($"Error reading file '{imageFile.FullName}': {ioEx.Message}", LogLevel.Error);
-                continue;
+                var imageFile = new FileInfo(Path.Combine(rawFile.DirectoryName ?? string.Empty, filename));
+                if (!imageFile.Exists)
+                {
+                    Logging.Log($"Error: Image file '{imageFile.FullName}' (Label: {label}) not found.", LogLevel.Error);
+                    continue;
+                }
+
+                if (imageFile.Length == 0)
+                {
+                    Logging.Log($"Warning: Image file '{imageFile.FullName}' (Label: {label}) is empty. Skipping.", LogLevel.Warning);
+                    continue;
+                }
+
+                dataLength = imageFile.Length;
+                dataStream = imageFile.OpenRead();
             }
 
-            Logging.Log($"Programming '{filename}' (Label: {label}) to host device, StartSector {resolvedStartSector}, SectorSize {sectorSize}. Data size: {fileData.Length} bytes.", LogLevel.Debug);
+            await using var stream = dataStream;
+
+            var paddedBytes = AlignmentHelper.AlignTo((ulong)dataLength, sectorSize);
+            var totalSectors = paddedBytes / sectorSize;
+
+            var targetDescription = isDirectMode
+                ? (manager.IsHostDeviceMode ? "host device" : "Radxa WoS platform")
+                : $"LUN {targetLun}";
+            Logging.Log($"Programming '{filename}' (Label: {label}) to {targetDescription}, StartSector {resolvedStartSector}, SectorSize {sectorSize}. Total to stream: {paddedBytes} bytes.", LogLevel.Debug);
 
             long bytesWrittenReported = 0;
-            var writeStopwatch = new Stopwatch();
+            var writeStopwatch = Stopwatch.StartNew();
 
             void ProgressAction(long current, long total)
             {
                 bytesWrittenReported = current;
                 var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = writeStopwatch.Elapsed;
-                var speed = current / elapsed.TotalSeconds;
+                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
                 var speedStr = "N/A";
                 if (elapsed.TotalSeconds > 0.1)
                 {
@@ -422,7 +394,6 @@ internal sealed class RawProgramCommand
 
                 var fileDisplayString = $"Writing {label} ({filename}): ";
                 var paddedFileDisplay = fileDisplayString.PadRight(maxFilenameDisplayLength);
-
                 var progressDetails = $"{percentage,5:F1}% ({current / (1024.0 * 1024.0),6:F2} / {total / (1024.0 * 1024.0),6:F2} MiB) [{speedStr,-10}]";
 
                 Console.Write($"\r{paddedFileDisplay}{progressDetails}    ");
@@ -431,214 +402,30 @@ internal sealed class RawProgramCommand
             try
             {
                 writeStopwatch.Start();
-                await Task.Run(() => hostManager.WriteSectors(resolvedStartSector, fileData, ProgressAction));
+                await manager.WriteSectorsFromStreamAsync(
+                    effectiveLun,
+                    resolvedStartSector,
+                    stream,
+                    dataLength,
+                    padToSector: true,
+                    filename,
+                    ProgressAction);
                 writeStopwatch.Stop();
             }
             catch (Exception ex)
             {
-                Logging.Log($"Error writing '{filename}' (Label: {label}) to host device: {ex.Message}", LogLevel.Error);
+                Logging.Log($"Error writing '{filename}' (Label: {label}): {ex.Message}", LogLevel.Error);
                 Console.WriteLine();
                 return 1;
             }
 
-            Console.WriteLine(); // Newline after progress bar
+            Console.WriteLine();
 
-            Logging.Log($"Successfully programmed '{filename}' (Label: {label}). {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
-
-        return 0;
-    }
-
-    private static async Task<int> ProcessRawProgramFirehoseMode(
-        EdlManager manager,
-        GlobalOptionsBinder globalOptions,
-        List<XElement> programElements,
-        FileInfo rawFile,
-        int lunKey,
-        Dictionary<uint, ulong> lunTotalSectorsCache,
-        StorageType storageType)
-    {
-        var maxFilenameDisplayLength = 0;
-        if (programElements.Count != 0)
-        {
-            foreach (var progElementForLengthCalc in programElements)
+            if (bytesWrittenReported == 0 && paddedBytes > 0)
             {
-                var filenameCalc = progElementForLengthCalc.Attribute("filename")?.Value;
-                if (string.IsNullOrEmpty(filenameCalc))
-                {
-                    continue;
-                }
-                var labelCalc = progElementForLengthCalc.Attribute("label")?.Value ?? "N/A";
-                var currentDisplayString = $"Writing {labelCalc} ({filenameCalc}): ";
-                if (currentDisplayString.Length > maxFilenameDisplayLength)
-                {
-                    maxFilenameDisplayLength = currentDisplayString.Length;
-                }
-            }
-        }
-        maxFilenameDisplayLength += 2;
-
-        var programElementIndex = 0;
-
-        foreach (var progElement in programElements)
-        {
-            programElementIndex++;
-            var filename = progElement.Attribute("filename")?.Value;
-            var label = progElement.Attribute("label")?.Value ?? "N/A";
-
-            if (string.IsNullOrEmpty(filename))
-            {
-                Logging.Log($"Skipping <program> element with empty filename (Label: {progElement.Attribute("label")?.Value ?? "N/A"}).", LogLevel.Debug);
-                continue;
+                bytesWrittenReported = (long)Math.Min(paddedBytes, long.MaxValue);
             }
 
-            var startSectorStr = progElement.Attribute("start_sector")?.Value;
-            var sectorSizeStr = progElement.Attribute("SECTOR_SIZE_IN_BYTES")?.Value;
-            var physicalPartitionNumberStr = progElement.Attribute("physical_partition_number")?.Value;
-
-            if (string.IsNullOrEmpty(startSectorStr) || string.IsNullOrEmpty(sectorSizeStr) || string.IsNullOrEmpty(physicalPartitionNumberStr))
-            {
-                Logging.Log($"Error: <program> element (Label: {progElement.Attribute("label")?.Value}) in {rawFile.Name} is missing required attributes (start_sector, SECTOR_SIZE_IN_BYTES, physical_partition_number).", LogLevel.Error);
-                continue;
-            }
-
-            if (!uint.TryParse(sectorSizeStr, out var sectorSize) || sectorSize == 0)
-            {
-                Logging.Log($"Error: Invalid SECTOR_SIZE_IN_BYTES '{sectorSizeStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
-                continue;
-            }
-            if (!uint.TryParse(physicalPartitionNumberStr, out var targetLun))
-            {
-                Logging.Log($"Error: Invalid physical_partition_number '{physicalPartitionNumberStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
-                continue;
-            }
-
-            ulong numDiskSectorsForTargetLun = 0;
-            if (startSectorStr.Contains("NUM_DISK_SECTORS"))
-            {
-                if (lunTotalSectorsCache.TryGetValue(targetLun, out var cachedSectors))
-                {
-                    numDiskSectorsForTargetLun = cachedSectors;
-                }
-                else
-                {
-                    Logging.Log($"Fetching NUM_DISK_SECTORS for LUN {targetLun}...", LogLevel.Debug);
-                    Root? storageInfo = null;
-                    try
-                    {
-                        storageInfo = await Task.Run(() => manager.Firehose.GetStorageInfo(storageType, targetLun, globalOptions.Slot));
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.Log($"Could not get storage info for LUN {targetLun} to resolve NUM_DISK_SECTORS. Error: {ex.Message}", LogLevel.Error);
-                        return 1;
-                    }
-                    if (storageInfo?.StorageInfo?.TotalBlocks <= 0)
-                    {
-                        Logging.Log($"Error: NUM_DISK_SECTORS (total_blocks) for LUN {targetLun} is invalid or zero.", LogLevel.Error);
-                        return 1;
-                    }
-                    numDiskSectorsForTargetLun = (ulong)(storageInfo?.StorageInfo?.TotalBlocks ?? 0);
-                    lunTotalSectorsCache[targetLun] = numDiskSectorsForTargetLun;
-                    Logging.Log($"NUM_DISK_SECTORS for LUN {targetLun} is {numDiskSectorsForTargetLun}.", LogLevel.Debug);
-                }
-            }
-
-            if (!TryParseSectorExpression(startSectorStr, numDiskSectorsForTargetLun, out var resolvedStartSector))
-            {
-                Logging.Log($"Error: Could not parse start_sector expression '{startSectorStr}' for <program> (Label: {progElement.Attribute("label")?.Value}).", LogLevel.Error);
-                return 1;
-            }
-
-            var imageFile = new FileInfo(Path.Combine(rawFile.DirectoryName ?? "", filename));
-            if (!imageFile.Exists)
-            {
-                Logging.Log($"Error: Image file '{imageFile.FullName}' for <program> (Label: {progElement.Attribute("label")?.Value}) not found. Skipping this file.", LogLevel.Error);
-                continue;
-            }
-
-            if (imageFile.Length == 0 && !string.Equals(filename, "ZERO", StringComparison.OrdinalIgnoreCase))
-            {
-                Logging.Log($"Warning: Image file '{imageFile.FullName}' (Label: {label}) is empty. Skipping write for this file.", LogLevel.Warning);
-                continue;
-            }
-
-            var originalFileLength = imageFile.Length;
-            long totalBytesToWriteIncludingPadding;
-            uint numSectorsForXmlAttribute;
-
-            var remainder = originalFileLength % sectorSize;
-            if (remainder != 0)
-            {
-                totalBytesToWriteIncludingPadding = originalFileLength + (sectorSize - remainder);
-                Logging.Log($"Padding '{filename}' (Label: {label}) from {originalFileLength} to {totalBytesToWriteIncludingPadding} bytes (SectorSize: {sectorSize}).", LogLevel.Debug);
-            }
-            else
-            {
-                totalBytesToWriteIncludingPadding = originalFileLength;
-            }
-            numSectorsForXmlAttribute = (uint)(totalBytesToWriteIncludingPadding / sectorSize);
-
-            Logging.Log($"Programming '{filename}' (Label: {label}) to LUN {targetLun}, StartSector {resolvedStartSector}, SectorSize {sectorSize}. Total to stream: {totalBytesToWriteIncludingPadding} bytes.", LogLevel.Debug);
-
-            long bytesWrittenReported = 0;
-            var writeStopwatch = new Stopwatch();
-
-            void ProgressAction(long current, long total)
-            {
-                bytesWrittenReported = current;
-                var percentage = total == 0 ? 100 : current * 100.0 / total;
-                var elapsed = writeStopwatch.Elapsed;
-                var speed = current / elapsed.TotalSeconds;
-                var speedStr = "N/A";
-                if (elapsed.TotalSeconds > 0.1)
-                {
-                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                        $"{speed:F0} B/s";
-                }
-
-                var fileDisplayString = $"Writing {label} ({filename}): ";
-                var paddedFileDisplay = fileDisplayString.PadRight(maxFilenameDisplayLength);
-                var progressDetails = $"{percentage,5:F1}% ({current / (1024.0 * 1024.0),6:F2} / {total / (1024.0 * 1024.0),6:F2} MiB) [{speedStr,-10}]";
-
-                Console.Write($"\r{paddedFileDisplay}{progressDetails}    ");
-            }
-
-            bool success;
-            try
-            {
-                using var fileStream = imageFile.OpenRead();
-
-                writeStopwatch.Start();
-                success = await Task.Run(() => manager.Firehose.ProgramFromStream(
-                    storageType,
-                    targetLun,
-                    globalOptions.Slot,
-                    sectorSize,
-                    (uint)resolvedStartSector,
-                    numSectorsForXmlAttribute,
-                    totalBytesToWriteIncludingPadding,
-                    filename,
-                    fileStream,
-                    ProgressAction
-                ));
-                writeStopwatch.Stop();
-            }
-            catch (IOException ioEx)
-            {
-                Logging.Log($"IO Error reading input file '{imageFile.FullName}' (Label: {label}): {ioEx.Message}", LogLevel.Error);
-                Console.WriteLine();
-                continue;
-            }
-
-            Console.WriteLine(); // Newline after progress bar for this file
-
-            if (!success)
-            {
-                Logging.Log($"Failed to program '{filename}' (Label: {label}). Aborting 'rawprogram' for LUN {lunKey}.", LogLevel.Error);
-                return 1;
-            }
             Logging.Log($"Successfully programmed '{filename}' (Label: {label}). {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB in {writeStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
         }
 
@@ -668,6 +455,7 @@ internal sealed class RawProgramCommand
         Logging.Log($"Found {patchElements.Count} <patch> elements in {patchFile.Name}.", LogLevel.Debug);
 
         var patchIndex = 0;
+        var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
         foreach (var patchElement in patchElements)
         {
             patchIndex++;
@@ -676,7 +464,7 @@ internal sealed class RawProgramCommand
             {
                 Logging.Log($"Applying patch {patchIndex}/{patchElements.Count}", LogLevel.Debug);
 
-                if (manager.IsHostDeviceMode)
+                if (isDirectMode)
                 {
                     var startSector = patchElement.Attribute("start_sector")?.Value;
                     var byteOffsetStr = patchElement.Attribute("byte_offset")?.Value;
@@ -704,7 +492,8 @@ internal sealed class RawProgramCommand
                     }
 
                     await manager.ApplyPatchAsync(startSector, byteOffset, sizeInBytes, value, filename);
-                    Logging.Log($"Patch {patchIndex} applied successfully in host device mode.", LogLevel.Debug);
+                    var modeLabel = manager.IsHostDeviceMode ? "host device" : "Radxa WoS platform";
+                    Logging.Log($"Patch {patchIndex} applied successfully in direct mode ({modeLabel}).", LogLevel.Debug);
                 }
                 else
                 {
@@ -799,5 +588,59 @@ internal sealed class RawProgramCommand
             return false;
         }
         return false;
+    }
+
+    private sealed class ZeroFillStream : Stream
+    {
+        private readonly long _length;
+        private long _position;
+
+        public ZeroFillStream(long length)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
+            _length = length;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _length;
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_position >= _length)
+            {
+                return 0;
+            }
+
+            var toRead = (int)Math.Min(count, _length - _position);
+            Array.Clear(buffer, offset, toRead);
+            _position += toRead;
+            return toRead;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

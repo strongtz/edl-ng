@@ -19,7 +19,8 @@ internal sealed class GlobalOptionsBinder(
     Option<ulong?> maxPayloadOption,
     Option<uint> slotOption,
     Option<string?> hostDevAsTargetOption,
-    Option<string?> imgSizeOption)
+    Option<string?> imgSizeOption,
+    Option<bool> radxaWosOption)
     : BinderBase<GlobalOptionsBinder>
 {
     public string? LoaderPath { get; set; }
@@ -31,6 +32,7 @@ internal sealed class GlobalOptionsBinder(
     public uint Slot { get; set; }
     public string? HostDevAsTarget { get; set; }
     public string? ImgSize { get; set; }
+    public bool RadxaWosPlatform { get; set; }
 
     protected override GlobalOptionsBinder GetBoundValue(BindingContext bindingContext)
     {
@@ -43,7 +45,7 @@ internal sealed class GlobalOptionsBinder(
             Logging.Log(message, mappedCliLevel);
         };
 
-        return new(loaderOption, vidOption, pidOption, memoryOption, logLevelOption, maxPayloadOption, slotOption, hostDevAsTargetOption, imgSizeOption)
+        return new(loaderOption, vidOption, pidOption, memoryOption, logLevelOption, maxPayloadOption, slotOption, hostDevAsTargetOption, imgSizeOption, radxaWosOption)
         {
             LoaderPath = bindingContext.ParseResult.GetValueForOption(loaderOption)?.FullName,
             Vid = bindingContext.ParseResult.GetValueForOption(vidOption),
@@ -53,7 +55,8 @@ internal sealed class GlobalOptionsBinder(
             MaxPayloadSize = bindingContext.ParseResult.GetValueForOption(maxPayloadOption),
             Slot = bindingContext.ParseResult.GetValueForOption(slotOption),
             HostDevAsTarget = bindingContext.ParseResult.GetValueForOption(hostDevAsTargetOption),
-            ImgSize = bindingContext.ParseResult.GetValueForOption(imgSizeOption)
+            ImgSize = bindingContext.ParseResult.GetValueForOption(imgSizeOption),
+            RadxaWosPlatform = bindingContext.ParseResult.GetValueForOption(radxaWosOption)
         };
     }
 }
