@@ -14,7 +14,16 @@
         <File Path=".github/workflows/release.yml"/>
         <File Path=".github/workflows/format.yml"/>
     </Folder>
-    <Project Path="QCEDL.Analyzer\QCEDL.Analyzer.csproj" Type="Classic C#"/>
-    <Project Path="QCEDL.CLI\QCEDL.CLI.csproj" Type="Classic C#"/>
-    <Project Path="QCEDL.NET\QCEDL.NET.csproj" Type="Classic C#"/>
+    <Project Path="QCEDL.Analyzer\QCEDL.Analyzer.csproj" Type="Classic C#">
+        <Platform Solution="*|ARM64" Project="ARM64"/>
+        <Platform Solution="*|x64" Project="x64"/>
+    </Project>
+    <Project Path="QCEDL.CLI\QCEDL.CLI.csproj" Type="Classic C#">
+        <Platform Solution="*|ARM64" Project="ARM64"/>
+        <Platform Solution="*|x64" Project="x64"/>
+    </Project>
+    <Project Path="QCEDL.NET\QCEDL.NET.csproj" Type="Classic C#">
+        <Platform Solution="*|ARM64" Project="ARM64"/>
+        <Platform Solution="*|x64" Project="x64"/>
+    </Project>
 </Solution>
