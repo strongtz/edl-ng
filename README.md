@@ -32,6 +32,11 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
 
 ## Usage
 
+`edl-ng` can be downloaded from:
+
+- [Releases](https://github.com/strongtz/edl-ng/releases)
+- [Arch Linux CN repo](https://www.archlinuxcn.org/archlinux-cn-repo-and-mirror/) [Maintainer = @Cryolitia]
+
 The general command structure is:
 `edl-ng [global-options] <command> [command-options-and-arguments]`
 
