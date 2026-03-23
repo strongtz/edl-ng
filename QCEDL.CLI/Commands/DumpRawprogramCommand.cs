@@ -363,7 +363,7 @@ internal sealed class DumpRawprogramCommand
                     using var fileStream = File.Open(partitionFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
 
                     readStopwatch.Start();
-                    await manager.ReadSectorsToStreamAsync(lun, partStartSector, numSectorsToRead, fileStream, progress.Report);
+                    await manager.ReadSectorsToStreamAsync(effectiveLun, partStartSector, numSectorsToRead, fileStream, progress.Report);
                     readStopwatch.Stop();
                 }
                 catch (Exception ex)
