@@ -28,7 +28,7 @@ internal sealed class UploadLoaderCommand
             return 1;
         }
 
-        try
+        return await CommandExecutor.RunAsync("upload-loader", async () =>
         {
             using var manager = new EdlManager(globalOptions);
             var currentMode = await manager.DetectCurrentModeAsync();
@@ -52,29 +52,8 @@ internal sealed class UploadLoaderCommand
                     Logging.Log($"Error: Cannot upload loader. Device mode is {currentMode} or could not be reliably determined.", LogLevel.Error);
                     return 1;
             }
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log($"Configuration Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred: {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
 
-        return 0;
+            return 0;
+        });
     }
 }

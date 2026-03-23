@@ -55,7 +55,6 @@ internal sealed class DumpRawprogramCommand
         string[] skipPartitions)
     {
         Logging.Log($"Executing 'dump-rawprogram' command: LUN {lun}, Save Directory '{dumpSaveDir.FullName}', GenXmlOnly={genXmlOnly}, SkipPartitions=[{string.Join(",", skipPartitions)}]...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
         // Parse skip partitions into a set for efficient lookup
         var skipPartitionSet = new HashSet<string>(skipPartitions.SelectMany(p => p.Split(',')).Select(p => p.Trim()).Where(p => !string.IsNullOrEmpty(p)), StringComparer.OrdinalIgnoreCase);
@@ -64,16 +63,11 @@ internal sealed class DumpRawprogramCommand
             Logging.Log($"Will skip dumping partitions: {string.Join(", ", skipPartitionSet)}", LogLevel.Info);
         }
 
-        try
+        return await CommandExecutor.RunAsync("dump-rawprogram", async () =>
         {
             using var manager = new EdlManager(globalOptions);
-            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
-            var effectiveLun = isDirectMode ? 0u : lun;
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {effectiveLun}";
+            var effectiveLun = manager.IsDirectMode ? 0u : lun;
+            var targetDescription = manager.GetTargetDescription(effectiveLun);
 
             var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
             var sectorSize = geometry.SectorSize;
@@ -361,31 +355,15 @@ internal sealed class DumpRawprogramCommand
 
                 Logging.Log($"Dumping partition '{partitionName}' ({numSectorsToRead} sectors, {totalBytesDecimal / (1024.0m * 1024.0m):F2} MiB) to '{partitionFilePath}'...", LogLevel.Debug);
 
-                long bytesReadReported = 0;
                 var readStopwatch = new Stopwatch();
-
-                void ProgressAction(long current, long total)
-                {
-                    bytesReadReported = current;
-                    var percentage = total == 0 ? 100 : current * 100.0 / total;
-                    var elapsed = readStopwatch.Elapsed;
-                    var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
-                    var speedStr = "N/A";
-                    if (elapsed.TotalSeconds > 0.1)
-                    {
-                        speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                            speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                            $"{speed:F0} B/s";
-                    }
-                    Console.Write($"\rDumping {partitionName}: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-                }
+                var progress = new ProgressReporter(readStopwatch, $"Dumping {partitionName}");
 
                 try
                 {
                     using var fileStream = File.Open(partitionFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
 
                     readStopwatch.Start();
-                    await manager.ReadSectorsToStreamAsync(lun, partStartSector, numSectorsToRead, fileStream, ProgressAction);
+                    await manager.ReadSectorsToStreamAsync(lun, partStartSector, numSectorsToRead, fileStream, progress.Report);
                     readStopwatch.Stop();
                 }
                 catch (Exception ex)
@@ -399,45 +377,15 @@ internal sealed class DumpRawprogramCommand
 
                 Console.WriteLine();
 
-                if (bytesReadReported == 0 && totalBytes > 0)
-                {
-                    bytesReadReported = totalBytes;
-                }
-
+                var bytesReadReported = progress.BytesReported == 0 && totalBytes > 0 ? totalBytes : progress.BytesReported;
                 Logging.Log($"Successfully dumped partition '{partitionName}' ({bytesReadReported / (1024.0 * 1024.0):F2} MiB) in {readStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
                 successfulDumps++;
             }
 
             Logging.Log($"Dump completed: {successfulDumps}/{totalPartitions + (backupGptData != null && backupGptSectors > 0 ? 2 : 1)} files successfully dumped to '{dumpSaveDir.FullName}'", LogLevel.Info);
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'dump-rawprogram': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'dump-rawprogram' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
 
-        return 0;
+            return 0;
+        });
     }
 
     private static string CreateSafeFileName(string partitionName)

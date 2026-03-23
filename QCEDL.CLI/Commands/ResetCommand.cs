@@ -44,7 +44,7 @@ internal sealed class ResetCommand
     {
         Logging.Log($"Executing 'reset' command: Mode '{powerMode}', Delay '{delayInSeconds}s'...", LogLevel.Trace);
 
-        try
+        return await CommandExecutor.RunAsync("reset", async () =>
         {
             using var manager = new EdlManager(globalOptions);
             await manager.EnsureFirehoseModeAsync();
@@ -70,29 +70,8 @@ internal sealed class ResetCommand
                 Logging.Log($"Failed to send power command '{powerMode}'. Check previous logs for NAK or errors.", LogLevel.Error);
                 return 1;
             }
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'reset': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
 
-        return 0;
+            return 0;
+        });
     }
 }

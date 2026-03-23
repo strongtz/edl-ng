@@ -59,13 +59,11 @@ internal sealed class WriteSectorCommand
             return 1;
         }
 
-        try
+        return await CommandExecutor.RunAsync("write-sector", async () =>
         {
             using var manager = new EdlManager(globalOptions);
-            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
-
-            var effectiveLun = isDirectMode ? 0u : lun;
-            if (isDirectMode && lun != 0)
+            var effectiveLun = manager.IsDirectMode ? 0u : lun;
+            if (manager.IsDirectMode && lun != 0)
             {
                 Logging.Log("Warning: LUN parameter is ignored in direct mode.", LogLevel.Warning);
             }
@@ -81,7 +79,7 @@ internal sealed class WriteSectorCommand
             }
 
             var sectorsToWrite = paddedBytes / sectorSize;
-            if (!isDirectMode)
+            if (!manager.IsDirectMode)
             {
                 try
                 {
@@ -98,32 +96,11 @@ internal sealed class WriteSectorCommand
                 }
             }
 
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {effectiveLun}";
+            var targetDescription = manager.GetTargetDescription(effectiveLun);
             Logging.Log($"Writing {sectorsToWrite} sectors ({paddedBytes} bytes) to {targetDescription}, starting at sector {startSector}...");
 
-            long bytesWrittenReported = 0;
             var writeStopwatch = Stopwatch.StartNew();
-
-            void ProgressAction(long current, long total)
-            {
-                bytesWrittenReported = current;
-                var percentage = total == 0 ? 100 : current * 100.0 / total;
-                var elapsed = writeStopwatch.Elapsed;
-                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
-                var speedStr = "N/A";
-                if (elapsed.TotalSeconds > 0.1)
-                {
-                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                        $"{speed:F0} B/s";
-                }
-
-                Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-            }
+            var progress = new ProgressReporter(writeStopwatch, "Writing");
 
             await using var fileStream = inputFile.OpenRead();
             await manager.WriteSectorsFromStreamAsync(
@@ -133,46 +110,18 @@ internal sealed class WriteSectorCommand
                 fileStream.Length,
                 padToSector: true,
                 inputFile.Name,
-                ProgressAction);
+                progress.Report);
 
             writeStopwatch.Stop();
             Console.WriteLine();
 
-            if (bytesWrittenReported == 0 && paddedBytes > 0)
-            {
-                bytesWrittenReported = (long)Math.Min(paddedBytes, long.MaxValue);
-            }
-
+            var bytesWrittenReported = progress.BytesReported == 0 && paddedBytes > 0
+                ? (long)Math.Min(paddedBytes, long.MaxValue)
+                : progress.BytesReported;
             Logging.Log($"Successfully wrote {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB in {writeStopwatch.Elapsed.TotalSeconds:F2}s.");
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error (e.g., reading input file): {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (PlatformNotSupportedException ex)
-        {
-            Logging.Log($"Platform Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'write-sector': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
 
-        return 0;
+            return 0;
+        });
     }
 
 }

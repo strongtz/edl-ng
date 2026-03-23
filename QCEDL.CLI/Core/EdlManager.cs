@@ -44,6 +44,17 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
     public bool IsHostDeviceMode => !string.IsNullOrEmpty(globalOptions.HostDevAsTarget);
     public bool IsRadxaWosMode => globalOptions.RadxaWosPlatform;
+    public bool IsDirectMode => IsHostDeviceMode || IsRadxaWosMode;
+
+    public string GetTargetDescription(uint lun)
+    {
+        return IsHostDeviceMode
+            ? "host device"
+            : IsRadxaWosMode
+                ? "Radxa WoS platform"
+                : $"LUN {lun}";
+    }
+
     private HostDeviceManager? _hostDeviceManager;
     private RadxaWoSDeviceManager? _radxaWoSManager;
 

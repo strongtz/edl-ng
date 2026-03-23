@@ -39,9 +39,8 @@ internal sealed class ReadPartitionCommand
         uint? specifiedLun)
     {
         Logging.Log($"Executing 'read-part' command: Partition '{partitionName}', File '{outputFile.FullName}'...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
-        try
+        return await CommandExecutor.RunAsync("read-part", async () =>
         {
             using var manager = new EdlManager(globalOptions);
 
@@ -66,30 +65,11 @@ internal sealed class ReadPartitionCommand
             var totalBytesDecimal = (decimal)sectorCount * sectorSize;
             var totalBytes = totalBytesDecimal > long.MaxValue ? long.MaxValue : (long)totalBytesDecimal;
 
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {actualLun}";
+            var targetDescription = manager.GetTargetDescription(actualLun);
             Logging.Log($"Reading partition '{partitionName}' ({targetDescription}, LBA {partition.FirstLBA}-{partition.LastLBA}, {totalBytesDecimal / (1024.0m * 1024.0m):F2} MiB) into '{outputFile.FullName}'...");
 
-            long bytesReadReported = 0;
             var readStopwatch = new Stopwatch();
-            void ProgressAction(long current, long total)
-            {
-                bytesReadReported = current;
-                var percentage = total == 0 ? 100 : current * 100.0 / total;
-                var elapsed = readStopwatch.Elapsed;
-                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
-                var speedStr = "N/A";
-                if (elapsed.TotalSeconds > 0.1)
-                {
-                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                        $"{speed:F0} B/s";
-                }
-                Console.Write($"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-            }
+            var progress = new ProgressReporter(readStopwatch, "Reading");
 
             try
             {
@@ -97,7 +77,7 @@ internal sealed class ReadPartitionCommand
                 using var fileStream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None);
 
                 readStopwatch.Start();
-                await manager.ReadSectorsToStreamAsync(actualLun, partition.FirstLBA, sectorCount, fileStream, ProgressAction);
+                await manager.ReadSectorsToStreamAsync(actualLun, partition.FirstLBA, sectorCount, fileStream, progress.Report);
                 readStopwatch.Stop();
             }
             catch (IOException ioEx)
@@ -118,42 +98,11 @@ internal sealed class ReadPartitionCommand
 
             Console.WriteLine();
 
-            if (bytesReadReported == 0 && totalBytes > 0)
-            {
-                bytesReadReported = totalBytes;
-            }
-
+            var bytesReadReported = progress.BytesReported == 0 && totalBytes > 0 ? totalBytes : progress.BytesReported;
             Logging.Log($"Successfully read partition '{partitionName}' ({bytesReadReported / (1024.0 * 1024.0):F2} MiB) into '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.");
 
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error (e.g., writing file): {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'read-part': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'read-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
-
-        return 0;
+            return 0;
+        });
     }
 
     private static void TryDeletePartialFile(FileInfo file)

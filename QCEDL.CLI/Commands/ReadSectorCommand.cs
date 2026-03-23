@@ -84,8 +84,6 @@ internal sealed class ReadSectorCommand
         string commandName,
         bool readEntireLun = false)
     {
-        var commandStopwatch = Stopwatch.StartNew();
-
         static void TryDeletePartialFile(FileInfo file, long expectedBytes)
         {
             try
@@ -101,13 +99,12 @@ internal sealed class ReadSectorCommand
             }
         }
 
-        try
+        return await CommandExecutor.RunAsync(commandName, async () =>
         {
             using var manager = new EdlManager(globalOptions);
-            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
 
             var effectiveLun = lun;
-            if (isDirectMode && lun != 0)
+            if (manager.IsDirectMode && lun != 0)
             {
                 Logging.Log("Warning: LUN parameter is ignored in direct mode.", LogLevel.Warning);
                 effectiveLun = 0;
@@ -115,11 +112,7 @@ internal sealed class ReadSectorCommand
 
             var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
             var sectorSize = geometry.SectorSize;
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {effectiveLun}";
+            var targetDescription = manager.GetTargetDescription(effectiveLun);
             Logging.Log($"Using sector size: {sectorSize} bytes for {targetDescription}.", LogLevel.Debug);
 
             if (readEntireLun)
@@ -153,7 +146,7 @@ internal sealed class ReadSectorCommand
                 return 1;
             }
 
-            if (!isDirectMode && (startSector > uint.MaxValue || endSector > uint.MaxValue))
+            if (!manager.IsDirectMode && (startSector > uint.MaxValue || endSector > uint.MaxValue))
             {
                 Logging.Log("Error: Sector range exceeds uint.MaxValue, which is not supported by the current Firehose.Read implementation.", LogLevel.Error);
                 return 1;
@@ -179,24 +172,8 @@ internal sealed class ReadSectorCommand
             var totalBytesToRead = totalBytesDecimal > long.MaxValue ? long.MaxValue : (long)totalBytesDecimal;
             Logging.Log($"Preparing to read {sectorsToRead} sectors (LBA {startSector} to {endSector}, {totalBytesDecimal} bytes) from {targetDescription} into '{outputFile.FullName}'...");
 
-            long bytesReadReported = 0;
             var readStopwatch = new Stopwatch();
-
-            void ProgressAction(long current, long total)
-            {
-                bytesReadReported = current;
-                var percentage = total == 0 ? 100 : current * 100.0 / total;
-                var elapsed = readStopwatch.Elapsed;
-                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
-                var speedStr = "N/A";
-                if (elapsed.TotalSeconds > 0.1)
-                {
-                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                        $"{speed:F0} B/s";
-                }
-                Console.Write($"\rReading: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-            }
+            var progress = new ProgressReporter(readStopwatch, "Reading");
 
             try
             {
@@ -209,7 +186,7 @@ internal sealed class ReadSectorCommand
                     startSector,
                     sectorsToRead,
                     fileStream,
-                    ProgressAction);
+                    progress.Report);
                 readStopwatch.Stop();
             }
             catch (IOException ioEx)
@@ -225,43 +202,12 @@ internal sealed class ReadSectorCommand
                 throw;
             }
 
-            Console.WriteLine(); // Newline after progress bar
+            Console.WriteLine();
 
-            if (bytesReadReported == 0)
-            {
-                bytesReadReported = totalBytesToRead;
-            }
-
+            var bytesReadReported = progress.BytesReported == 0 ? totalBytesToRead : progress.BytesReported;
             Logging.Log($"Successfully read {bytesReadReported / (1024.0 * 1024.0):F2} MiB and wrote to '{outputFile.FullName}' in {readStopwatch.Elapsed.TotalSeconds:F2}s.");
 
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error (e.g., writing file): {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in '{commandName}': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'{commandName}' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
-
-        return 0;
+            return 0;
+        });
     }
 }

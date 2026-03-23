@@ -328,7 +328,7 @@ internal sealed class RadxaWoSDeviceManager : BlockDeviceManagerBase
         try
         {
             Marshal.Copy(buffer, offset, ptr, size);
-            return Marshal.PtrToStructure<T>(ptr)!;
+            return Marshal.PtrToStructure<T>(ptr);
         }
         finally
         {

@@ -45,7 +45,6 @@ internal sealed class WritePartitionCommand
         uint? specifiedLun)
     {
         Logging.Log($"Executing 'write-part' command: Partition '{partitionName}', File '{inputFile.FullName}'...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
         if (!inputFile.Exists)
         {
@@ -59,7 +58,7 @@ internal sealed class WritePartitionCommand
             return 1;
         }
 
-        try
+        return await CommandExecutor.RunAsync("write-part", async () =>
         {
             using var manager = new EdlManager(globalOptions);
 
@@ -97,31 +96,11 @@ internal sealed class WritePartitionCommand
                 Logging.Log($"Warning: Input data ({originalFileLength} bytes) is smaller than partition size ({partitionSizeInBytes} bytes). Remaining space will be untouched.", LogLevel.Warning);
             }
 
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {actualLun}";
+            var targetDescription = manager.GetTargetDescription(actualLun);
             Logging.Log($"Writing partition '{partitionName}' ({paddedBytes} bytes) to {targetDescription} starting at LBA {partition.FirstLBA}...");
 
-            long bytesWrittenReported = 0;
             var writeStopwatch = Stopwatch.StartNew();
-
-            void ProgressAction(long current, long total)
-            {
-                bytesWrittenReported = current;
-                var percentage = total == 0 ? 100 : current * 100.0 / total;
-                var elapsed = writeStopwatch.Elapsed;
-                var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
-                var speedStr = "N/A";
-                if (elapsed.TotalSeconds > 0.1)
-                {
-                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                        $"{speed:F0} B/s";
-                }
-                Console.Write($"\rWriting: {percentage:F1}% ({current / (1024.0 * 1024.0):F2} / {total / (1024.0 * 1024.0):F2} MiB) [{speedStr}]      ");
-            }
+            var progress = new ProgressReporter(writeStopwatch, "Writing");
 
             await using var fileStream = inputFile.OpenRead();
             await manager.WriteSectorsFromStreamAsync(
@@ -131,51 +110,18 @@ internal sealed class WritePartitionCommand
                 fileStream.Length,
                 padToSector: true,
                 inputFile.Name,
-                ProgressAction);
+                progress.Report);
 
             writeStopwatch.Stop();
             Console.WriteLine();
 
-            if (bytesWrittenReported == 0 && paddedBytes > 0)
-            {
-                bytesWrittenReported = (long)Math.Min(paddedBytes, long.MaxValue);
-            }
-
+            var bytesWrittenReported = progress.BytesReported == 0 && paddedBytes > 0
+                ? (long)Math.Min(paddedBytes, long.MaxValue)
+                : progress.BytesReported;
             Logging.Log($"Successfully wrote {bytesWrittenReported / (1024.0 * 1024.0):F2} MiB to partition '{partitionName}' in {writeStopwatch.Elapsed.TotalSeconds:F2}s.");
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error (e.g., reading input file): {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (PlatformNotSupportedException ex)
-        {
-            Logging.Log($"Platform Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'write-part': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'write-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
 
-        return 0;
+            return 0;
+        });
     }
 
 }

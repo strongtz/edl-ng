@@ -26,19 +26,14 @@ internal sealed class PrintGptCommand
     {
         Logging.Log("Executing 'printgpt' command...", LogLevel.Trace);
 
-        try
+        return await CommandExecutor.RunAsync("printgpt", async () =>
         {
             using var manager = new EdlManager(globalOptions);
-            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
-            var effectiveLun = isDirectMode ? 0u : lun;
+            var effectiveLun = manager.IsDirectMode ? 0u : lun;
 
             var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
             var sectorSize = geometry.SectorSize;
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {effectiveLun}";
+            var targetDescription = manager.GetTargetDescription(effectiveLun);
 
             Logging.Log($"Using sector size: {sectorSize} bytes for {targetDescription}.", LogLevel.Debug);
 
@@ -51,30 +46,8 @@ internal sealed class PrintGptCommand
                 return 1;
             }
 
-            var deviceDescription = targetDescription;
-            return ProcessGptData(gptData, sectorSize, deviceDescription);
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (PlatformNotSupportedException ex)
-        {
-            Logging.Log($"Platform Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'printgpt': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
+            return ProcessGptData(gptData, sectorSize, targetDescription);
+        });
     }
 
     private static int ProcessGptData(byte[] gptData, uint sectorSize, string deviceDescription)

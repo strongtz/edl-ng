@@ -29,7 +29,6 @@ internal sealed class RawProgramCommand
     private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions, string[] xmlFilePatterns)
     {
         Logging.Log("Executing 'rawprogram' command...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
         List<FileInfo> resolvedXmlFiles = [];
         var currentDirectory = Environment.CurrentDirectory;
@@ -148,13 +147,11 @@ internal sealed class RawProgramCommand
             return 1;
         }
 
-        try
+        return await CommandExecutor.RunAsync("rawprogram", async () =>
         {
             using var manager = new EdlManager(globalOptions);
 
-            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
-
-            if (isDirectMode)
+            if (manager.IsDirectMode)
             {
                 var modeLabel = manager.IsHostDeviceMode ? "host device (Linux MTD/image)" : "Radxa WoS platform";
                 Logging.Log($"Operating in direct-access mode: {modeLabel}", LogLevel.Info);
@@ -217,41 +214,9 @@ internal sealed class RawProgramCommand
 
                 Logging.Log($"--- Finished processing LUN {lunKey} ---\n", LogLevel.Debug);
             }
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log($"Argument Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'rawprogram': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'rawprogram' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.");
-        }
-
-        Logging.Log("'rawprogram' command finished successfully.");
-        return 0;
+            Logging.Log("'rawprogram' command finished successfully.");
+            return 0;
+        });
     }
 
     private static async Task<int> ProcessProgramElementsAsync(
@@ -278,7 +243,6 @@ internal sealed class RawProgramCommand
         maxFilenameDisplayLength += 2;
 
         var programIndex = 0;
-        var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
         foreach (var progElement in programElements)
         {
             programIndex++;
@@ -315,7 +279,7 @@ internal sealed class RawProgramCommand
                 continue;
             }
 
-            var effectiveLun = isDirectMode ? 0u : targetLun;
+            var effectiveLun = manager.IsDirectMode ? 0u : targetLun;
             var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
             var sectorSize = geometry.SectorSize;
 
@@ -370,7 +334,7 @@ internal sealed class RawProgramCommand
             var paddedBytes = AlignmentHelper.AlignTo((ulong)dataLength, sectorSize);
             var totalSectors = paddedBytes / sectorSize;
 
-            var targetDescription = isDirectMode
+            var targetDescription = manager.IsDirectMode
                 ? (manager.IsHostDeviceMode ? "host device" : "Radxa WoS platform")
                 : $"LUN {targetLun}";
             Logging.Log($"Programming '{filename}' (Label: {label}) to {targetDescription}, StartSector {resolvedStartSector}, SectorSize {sectorSize}. Total to stream: {paddedBytes} bytes.", LogLevel.Debug);
@@ -384,13 +348,7 @@ internal sealed class RawProgramCommand
                 var percentage = total == 0 ? 100 : current * 100.0 / total;
                 var elapsed = writeStopwatch.Elapsed;
                 var speed = elapsed.TotalSeconds > 0 ? current / elapsed.TotalSeconds : 0;
-                var speedStr = "N/A";
-                if (elapsed.TotalSeconds > 0.1)
-                {
-                    speedStr = speed > 1024 * 1024 ? $"{speed / (1024 * 1024):F2} MiB/s" :
-                        speed > 1024 ? $"{speed / 1024:F2} KiB/s" :
-                        $"{speed:F0} B/s";
-                }
+                var speedStr = elapsed.TotalSeconds > 0.1 ? ProgressReporter.FormatSpeed(speed) : "N/A";
 
                 var fileDisplayString = $"Writing {label} ({filename}): ";
                 var paddedFileDisplay = fileDisplayString.PadRight(maxFilenameDisplayLength);
@@ -455,7 +413,6 @@ internal sealed class RawProgramCommand
         Logging.Log($"Found {patchElements.Count} <patch> elements in {patchFile.Name}.", LogLevel.Debug);
 
         var patchIndex = 0;
-        var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
         foreach (var patchElement in patchElements)
         {
             patchIndex++;
@@ -464,7 +421,7 @@ internal sealed class RawProgramCommand
             {
                 Logging.Log($"Applying patch {patchIndex}/{patchElements.Count}", LogLevel.Debug);
 
-                if (isDirectMode)
+                if (manager.IsDirectMode)
                 {
                     var startSector = patchElement.Attribute("start_sector")?.Value;
                     var byteOffsetStr = patchElement.Attribute("byte_offset")?.Value;

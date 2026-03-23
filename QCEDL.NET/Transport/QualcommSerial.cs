@@ -112,12 +112,9 @@ public class QualcommSerial : IDisposable
                     LibraryLogger.Debug($"Searching LibUsb for VID=0x{vid:X4}, PID=0x{pid:X4}");
                     var finder = new UsbDeviceFinder { Vid = vid, Pid = pid };
 
-                    _libUsbDevice = LibUsbContext?.Find(finder) as UsbDevice;
-                    if (_libUsbDevice == null)
-                    {
-                        throw new TodoException(
+                    _libUsbDevice = LibUsbContext?.Find(finder) as UsbDevice
+                        ?? throw new TodoException(
                             $"LibUsbDotNet: Device with VID=0x{vid:X4}, PID=0x{pid:X4} not found.");
-                    }
 
                     _libUsbDevice.Open();
 
@@ -252,12 +249,9 @@ public class QualcommSerial : IDisposable
                         // You can also set SerialNumber here if needed:
                         // SerialNumber = "YourSerialNumber"
                     };
-                    _libUsbDevice = LibUsbContext?.Find(finder) as UsbDevice;
-                    if (_libUsbDevice == null)
-                    {
-                        throw new TodoException(
+                    _libUsbDevice = LibUsbContext?.Find(finder) as UsbDevice
+                        ?? throw new TodoException(
                             $"LibUsbDotNet: Device with VID=0x{vid:X4}, PID=0x{pid:X4} not found.");
-                    }
 
                     _libUsbDevice.Open();
 

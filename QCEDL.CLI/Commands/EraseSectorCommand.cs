@@ -40,7 +40,6 @@ internal sealed class EraseSectorCommand
         uint lun)
     {
         Logging.Log($"Executing 'erase-sector' command: LUN {lun}, Start LBA {startSectorUlong}, Sectors {sectorsToEraseUlong}...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
         if (sectorsToEraseUlong == 0)
         {
@@ -48,18 +47,12 @@ internal sealed class EraseSectorCommand
             return 1;
         }
 
-        try
+        return await CommandExecutor.RunAsync("erase-sector", async () =>
         {
             using var manager = new EdlManager(globalOptions);
-            var isDirectMode = manager.IsHostDeviceMode || manager.IsRadxaWosMode;
-
-            var effectiveLun = isDirectMode ? 0u : lun;
+            var effectiveLun = manager.IsDirectMode ? 0u : lun;
             var geometry = await manager.GetStorageGeometryAsync(effectiveLun);
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {effectiveLun}";
+            var targetDescription = manager.GetTargetDescription(effectiveLun);
             Logging.Log($"Using sector size: {geometry.SectorSize} bytes for {targetDescription}.", LogLevel.Debug);
 
             Logging.Log($"Attempting to erase {sectorsToEraseUlong} sectors starting at LBA {startSectorUlong} on {targetDescription}...");
@@ -69,22 +62,8 @@ internal sealed class EraseSectorCommand
 
             eraseStopwatch.Stop();
             Logging.Log($"Successfully erased {sectorsToEraseUlong} sectors in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.");
-        }
-        catch (FileNotFoundException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
-        catch (ArgumentException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
-        catch (InvalidOperationException ex) { Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error); return 1; }
-        catch (IOException ex) { Logging.Log($"IO Error: {ex.Message}", LogLevel.Error); return 1; }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'erase-sector': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'erase-sector' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
-        return 0;
+
+            return 0;
+        });
     }
 }

@@ -34,9 +34,8 @@ internal sealed class ErasePartitionCommand
         uint? specifiedLun)
     {
         Logging.Log($"Executing 'erase-part' command: Partition '{partitionName}'...", LogLevel.Trace);
-        var commandStopwatch = Stopwatch.StartNew();
 
-        try
+        return await CommandExecutor.RunAsync("erase-part", async () =>
         {
             using var manager = new EdlManager(globalOptions);
 
@@ -56,11 +55,7 @@ internal sealed class ErasePartitionCommand
             }
 
             var geometry = await manager.GetStorageGeometryAsync(actualLun);
-            var targetDescription = manager.IsHostDeviceMode
-                ? "host device"
-                : manager.IsRadxaWosMode
-                    ? "Radxa WoS platform"
-                    : $"LUN {actualLun}";
+            var targetDescription = manager.GetTargetDescription(actualLun);
             Logging.Log($"Erasing partition '{partitionName}' ({targetDescription}, LBA {partition.FirstLBA}-{partition.LastLBA}, {sectorCount} sectors)...", LogLevel.Info);
 
             var eraseStopwatch = Stopwatch.StartNew();
@@ -68,22 +63,8 @@ internal sealed class ErasePartitionCommand
             eraseStopwatch.Stop();
 
             Logging.Log($"Successfully erased partition '{partitionName}' in {eraseStopwatch.Elapsed.TotalSeconds:F2}s.");
-        }
-        catch (FileNotFoundException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
-        catch (ArgumentException ex) { Logging.Log(ex.Message, LogLevel.Error); return 1; }
-        catch (InvalidOperationException ex) { Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error); return 1; }
-        catch (IOException ex) { Logging.Log($"IO Error: {ex.Message}", LogLevel.Error); return 1; }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'erase-part': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        finally
-        {
-            commandStopwatch.Stop();
-            Logging.Log($"'erase-part' command finished in {commandStopwatch.Elapsed.TotalSeconds:F2}s.", LogLevel.Debug);
-        }
-        return 0;
+
+            return 0;
+        });
     }
 }

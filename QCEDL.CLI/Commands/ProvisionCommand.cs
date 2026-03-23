@@ -34,7 +34,7 @@ internal sealed class ProvisionCommand
             Logging.Log($"Warning: --memory is set to '{globalOptions.MemoryType}'. UFS provisioning command implies UFS. Using UFS for this operation.", LogLevel.Warning);
         }
 
-        try
+        return await CommandExecutor.RunAsync("provision", async () =>
         {
             using var manager = new EdlManager(globalOptions);
             await manager.EnsureFirehoseModeAsync();
@@ -103,33 +103,8 @@ internal sealed class ProvisionCommand
             }
 
             Logging.Log($"UFS provisioning completed. All {successCount}/{ufsElements.Count} commands sent and ACKed successfully.");
-        }
-        catch (FileNotFoundException ex)
-        {
-            Logging.Log(ex.Message, LogLevel.Error);
-            return 1;
-        }
-        catch (ArgumentException ex)
-        {
-            Logging.Log($"Argument Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logging.Log($"Operation Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (IOException ex)
-        {
-            Logging.Log($"IO Error: {ex.Message}", LogLevel.Error);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Logging.Log($"An unexpected error occurred in 'provision': {ex.Message}", LogLevel.Error);
-            Logging.Log(ex.ToString(), LogLevel.Debug);
-            return 1;
-        }
-        return 0;
+
+            return 0;
+        });
     }
 }
