@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:core="clr-namespace:Qualcomm.EmergencyDownload.Core;assembly=QCEDL.NET"
+             x:Class="QCEDL.GUI.Views.ConnectionView"
+             x:DataType="vm:ConnectionViewModel">
+    <StackPanel Spacing="20" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Conn_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Conn_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Conn_Body}" />
+        </StackPanel>
+
+        <Border Classes="card elevated">
+            <StackPanel Spacing="20">
+                <StackPanel Spacing="6">
+                    <TextBlock Classes="h3" Text="{l:Localize Conn_DevicesCardTitle}" />
+                    <TextBlock Classes="body" Text="{l:Localize Conn_DevicesCardCaption}" />
+                </StackPanel>
+
+                <!-- ═══ Step 1 · Discover ═══ -->
+                <StackPanel Spacing="12" IsVisible="{Binding IsDeviceListVisible}">
+                    <TextBlock Classes="overline" Text="{l:Localize Conn_StepDiscover}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Classes="small" Content="{l:Localize Conn_ScanDevicesButton}" Command="{Binding ScanDevicesCommand}" />
+                        <Button Classes="ghost small" Content="{l:Localize Conn_ClearDeviceSelection}" Command="{Binding ClearDeviceSelectionCommand}" />
+                    </StackPanel>
+
+                    <!-- Workspace: nested parchment surface hosting the candidate list
+                         and the empty state. Gives the ListBox a distinct "well" inside
+                         the Ivory card, matching the DESIGN.md content-island pattern. -->
+                    <Border Background="{DynamicResource BrushParchment}"
+                            BorderBrush="{DynamicResource BrushBorderWarm}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource RadiusComfortable}"
+                            Padding="6"
+                            MinHeight="120">
+                        <Panel>
+                            <ListBox ItemsSource="{Binding Candidates}"
+                                     SelectedItem="{Binding SelectedCandidate, Mode=TwoWay}"
+                                     MaxHeight="220"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     IsVisible="{Binding HasCandidates}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="core:DeviceCandidate">
+                                        <StackPanel Spacing="2" Margin="4,6">
+                                            <TextBlock Classes="body" Text="{Binding DisplayName}"
+                                                       Foreground="{DynamicResource BrushTextPrimary}" />
+                                            <TextBlock Classes="caption" Text="{Binding Details}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel IsVisible="{Binding HasNoCandidates}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="4"
+                                        Margin="0,24">
+                                <TextBlock Classes="caption" HorizontalAlignment="Center"
+                                           Text="{l:Localize Conn_DevicesEmpty}" />
+                            </StackPanel>
+                        </Panel>
+                    </Border>
+
+                    <TextBlock Classes="caption" Text="{Binding DevicesStatusText}" />
+                </StackPanel>
+
+                <!-- ═══ Step 2 · Session ═══ -->
+                <StackPanel Spacing="14">
+                    <TextBlock Classes="overline" Text="{l:Localize Conn_StepSession}" />
+
+                    <!-- Definition-list style readout: label column + value column -->
+                    <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="16">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Classes="label" Text="{l:Localize Conn_ModeLabel}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Classes="body" Text="{Binding ModeText}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Classes="label" Text="{l:Localize Conn_StatusFieldLabel}" VerticalAlignment="Top" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="body" Text="{Binding StatusText}" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Button Classes="primary" Content="{l:Localize Conn_ProbeButton}" Command="{Binding ProbeCommand}" />
+                        <ProgressBar IsVisible="{Binding IsBusy}" IsIndeterminate="True" Width="120" Height="4" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Programmer, USB & transport backend -->
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Conn_ProgrammerCardTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Conn_ProgrammerCardCaption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Conn_Loader}" VerticalAlignment="Center" />
+                    <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Grid.Column="0" Text="{Binding LoaderPath}" PlaceholderText="{l:Localize Conn_LoaderPlaceholder}" />
+                        <Button Grid.Column="1" Content="{l:Localize Conn_Browse}" Command="{Binding BrowseLoaderCommand}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="body" Text="{l:Localize Conn_Backend}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Backends}" SelectedItem="{Binding Backend}" MinWidth="200" HorizontalAlignment="Left" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="body" Text="{l:Localize Conn_VidHex}" VerticalAlignment="Center" IsVisible="{Binding IsUsbBackend}" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding VidHex}" PlaceholderText="{l:Localize Conn_VidPlaceholder}" IsVisible="{Binding IsUsbBackend}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Classes="body" Text="{l:Localize Conn_PidHex}" VerticalAlignment="Center" IsVisible="{Binding IsUsbBackend}" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding PidHex}" PlaceholderText="{l:Localize Conn_PidPlaceholder}" IsVisible="{Binding IsUsbBackend}" />
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Classes="body" Text="{l:Localize Conn_SerialDevice}" VerticalAlignment="Center" IsVisible="{Binding IsSerialBackend}" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SerialDevicePath}" PlaceholderText="{l:Localize Conn_SerialPlaceholder}" IsVisible="{Binding IsSerialBackend}" />
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Classes="body" Text="{l:Localize Conn_Memory}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding MemoryTypes}" SelectedItem="{Binding MemoryType}" MinWidth="200" HorizontalAlignment="Left" />
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Classes="body" Text="{l:Localize Conn_Slot}" VerticalAlignment="Center" />
+                    <NumericUpDown Grid.Row="6" Grid.Column="1" Value="{Binding Slot}" Minimum="0" Maximum="7" Increment="1" FormatString="0" MaxWidth="140" HorizontalAlignment="Left" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Conn_DirectCardTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Conn_DirectCardCaption}" />
+                <CheckBox IsChecked="{Binding DirectEnabled}" Content="{l:Localize Conn_DirectEnabled}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="14" IsEnabled="{Binding DirectEnabled}">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Conn_HostDevice}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HostDevTarget}" PlaceholderText="{l:Localize Conn_HostDevicePlaceholder}" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="body" Text="{l:Localize Conn_ImageSize}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ImgSize}" PlaceholderText="{l:Localize Conn_ImageSizePlaceholder}" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="body" Text="{l:Localize Conn_RadxaWos}" VerticalAlignment="Center" IsVisible="{Binding IsWindows}" />
+                    <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding RadxaWos}" Content="{l:Localize Conn_RadxaCheckbox}" IsVisible="{Binding IsWindows}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

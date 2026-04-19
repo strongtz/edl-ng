@@ -1,14 +1,16 @@
 using System.CommandLine;
 using System.CommandLine.Binding;
-using QCEDL.CLI.Helpers;
 using QCEDL.NET.Logging;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
-using LogLevel = QCEDL.CLI.Helpers.LogLevel;
+using LogLevel = Qualcomm.EmergencyDownload.Helpers.LogLevel;
 
 namespace QCEDL.CLI.Core;
 
 /// <summary>
-/// Binds global command line options to properties.
+/// Binds global command line options to an <see cref="EdlOptions"/> POCO that is
+/// consumable from both the CLI and the GUI.
 /// </summary>
 internal sealed class GlobalOptionsBinder(
     Option<FileInfo> loaderOption,
@@ -21,20 +23,9 @@ internal sealed class GlobalOptionsBinder(
     Option<string?> hostDevAsTargetOption,
     Option<string?> imgSizeOption,
     Option<bool> radxaWosOption)
-    : BinderBase<GlobalOptionsBinder>
+    : BinderBase<EdlOptions>
 {
-    public string? LoaderPath { get; set; }
-    public int? Vid { get; set; }
-    public int? Pid { get; set; }
-    public StorageType? MemoryType { get; set; }
-    public LogLevel LogLevel { get; set; }
-    public ulong? MaxPayloadSize { get; set; }
-    public uint Slot { get; set; }
-    public string? HostDevAsTarget { get; set; }
-    public string? ImgSize { get; set; }
-    public bool RadxaWosPlatform { get; set; }
-
-    protected override GlobalOptionsBinder GetBoundValue(BindingContext bindingContext)
+    protected override EdlOptions GetBoundValue(BindingContext bindingContext)
     {
         var cliLogLevel = bindingContext.ParseResult.GetValueForOption(logLevelOption);
         Logging.CurrentLogLevel = cliLogLevel;
@@ -45,7 +36,7 @@ internal sealed class GlobalOptionsBinder(
             Logging.Log(message, mappedCliLevel);
         };
 
-        return new(loaderOption, vidOption, pidOption, memoryOption, logLevelOption, maxPayloadOption, slotOption, hostDevAsTargetOption, imgSizeOption, radxaWosOption)
+        return new EdlOptions
         {
             LoaderPath = bindingContext.ParseResult.GetValueForOption(loaderOption)?.FullName,
             Vid = bindingContext.ParseResult.GetValueForOption(vidOption),
@@ -56,7 +47,7 @@ internal sealed class GlobalOptionsBinder(
             Slot = bindingContext.ParseResult.GetValueForOption(slotOption),
             HostDevAsTarget = bindingContext.ParseResult.GetValueForOption(hostDevAsTargetOption),
             ImgSize = bindingContext.ParseResult.GetValueForOption(imgSizeOption),
-            RadxaWosPlatform = bindingContext.ParseResult.GetValueForOption(radxaWosOption)
+            RadxaWosPlatform = bindingContext.ParseResult.GetValueForOption(radxaWosOption),
         };
     }
 }

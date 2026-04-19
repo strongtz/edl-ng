@@ -1,6 +1,8 @@
 using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 
 namespace QCEDL.CLI.Commands;
 
@@ -18,7 +20,7 @@ internal sealed class UploadLoaderCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions)
+    private static async Task<int> ExecuteAsync(EdlOptions globalOptions)
     {
         Logging.Log("Executing 'upload-loader' command...", LogLevel.Trace);
 

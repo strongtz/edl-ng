@@ -251,6 +251,20 @@ public class QualcommSahara(QualcommSerial serial)
                     LibraryLogger.Debug($"Received {commandId} from device. Waiting for potential next stage...");
                     continue;
                 }
+                else if ((uint)commandId == 0x6D783F3Cu) // "<?xm" in little-endian — Firehose XML hello
+                {
+                    // The uploaded programmer has started and is already speaking Firehose.
+                    // On fast re-enumeration paths (common on macOS IOKit) the XML reaches our
+                    // read endpoint before the Sahara read times out, so we'd otherwise fail
+                    // here racily. Treat it as "loader is up" and bail out of the Sahara loop.
+                    if (imagesTransferredCount > 0)
+                    {
+                        LibraryLogger.Debug("Firehose XML received on Sahara endpoint — programmer is up, exiting Sahara loop.");
+                        return true;
+                    }
+                    LibraryLogger.Error("Firehose XML received before any image was transferred — device was already in Firehose mode.");
+                    return false;
+                }
                 else
                 {
                     LibraryLogger.Error($"Unexpected Sahara command received: 0x{(uint)commandId:X8}");

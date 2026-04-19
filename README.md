@@ -2,11 +2,14 @@
 
 **A modern, user-friendly tool for interacting with Qualcomm devices in Emergency Download (EDL) mode.**
 
-Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols, enabling device flashing, partition management, and low-level device interaction.
+Built with .NET 9, `edl-ng` ships two front-ends — a `System.CommandLine` CLI (`edl-ng`) and an Avalonia 12 desktop GUI (`qcedl-gui`) — on top of a shared protocol library that speaks Sahara (PBL) and Firehose (APSS) over USB to flash, read, and manage Qualcomm-based devices.
 
 ## Features
 
-* **Cross-Platform:** Designed to run on Windows, Linux, and macOS with a single executable.
+* **Cross-Platform:** Runs on Windows, Linux, and macOS with a single self-contained executable per front-end.
+* **Two Front-Ends:**
+  * `edl-ng` — scriptable CLI for every supported operation.
+  * `qcedl-gui` — Avalonia desktop app with Connection, Partitions, Sectors, RawProgram, Advanced (provision / upload-loader / reset), Logs, and Settings views. Localized in English, Simplified Chinese, Traditional Chinese, and Japanese, with System / Light / Dark theme and live log streaming.
 * **Sahara Protocol Support:**
   * Upload Firehose programmers (`.elf` files).
   * Device information retrieval (Serial Number, HWID, RKH).
@@ -20,11 +23,17 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
   * **Sector Operations:**
     * Read raw sectors to a file.
     * Write file to raw sectors.
+  * **Rawprogram Flows:** Execute `rawprogramN.xml` + `patchN.xml`, or dump all partitions of a LUN and generate rawprogram XML.
+  * **UFS Provisioning:** Apply a provisioning XML.
   * **Device Control:** Reset or power off the device.
   * Get detailed storage information (sector size, LUN count).
 * **Flexible Device Detection:**
-  * Specify USB VID/PID.
+  * Specify USB VID/PID; pin a specific libusb device by bus/addr when multiple EDL devices are plugged in.
   * Uses COM ports on Windows or LibUsbDotNet (for all platforms, especially Linux/macOS).
+  * GUI auto-prompts a device picker when more than one candidate matches.
+* **Direct-Mode Backends (skip USB / Sahara / Firehose):**
+  * `--hostdev-as-target <path>` — read/write a SPI NOR node or a raw image file directly.
+  * `--radxa-wos-platform` — Windows-only Radxa WoS SPI NOR backend.
 * **Configurable:**
   * Specify memory type (UFS, eMMC/SD, NVMe, SPINOR etc.).
   * Set maximum payload size for Firehose.
@@ -36,6 +45,18 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
 
 - [Releases](https://github.com/strongtz/edl-ng/releases)
 - [Arch Linux CN repo](https://www.archlinuxcn.org/archlinux-cn-repo-and-mirror/) [Maintainer = @Cryolitia]
+
+### GUI (`qcedl-gui`)
+
+Launch the GUI and use the left-side nav to step through Connection → Partitions / Sectors / RawProgram / Advanced. Destructive actions (write, erase, provision, rawprogram flash) require typed confirmation. Settings (language, theme, log level, last-used loader / VID / PID / memory / backend) persist across launches.
+
+#### Platform notes
+
+- **Linux** — the GUI opens the device without `sudo` once the shipped udev rule is active. Nix consumers get it via `services.udev.packages`; manual installs: see [docs/linux-udev.md](docs/linux-udev.md).
+- **macOS** — defaults to the LibUsb backend, which opens the EDL interface through IOKit without elevation. If you override to the serial backend (`/dev/tty.usbserial-*`), you'll need to run the app as root.
+- **Windows** — no elevation required; devices are opened through the regular COM / WinUSB APIs.
+
+### CLI (`edl-ng`)
 
 The general command structure is:
 `edl-ng [global-options] <command> [command-options-and-arguments]`
@@ -135,13 +156,17 @@ Devices with vendor customized DevPrg may not be supported as well.
 
 1. Clone the repository.
 2. Ensure you have the .NET 9 SDK installed.
-3. Navigate to the solution directory (`/`) and run:
+3. From the solution root, build everything:
 
     ```bash
     dotnet build
     ```
 
-4. The executable `edl-ng` will be located in `QCEDL.CLI/bin/<Configuration>/net9.0/<Platform>/`. For example: `QCEDL.CLI/bin/Debug/net9.0/win-x64/edl-ng`.
+4. Output binaries:
+    * CLI: `QCEDL.CLI/bin/<Configuration>/net9.0/<Platform>/edl-ng`
+    * GUI: `QCEDL.GUI/bin/<Configuration>/net9.0/<rid>/qcedl-gui`
+
+   Run the GUI directly from source with `dotnet run --project QCEDL.GUI/QCEDL.GUI.csproj`. For a self-contained CLI build, use `dotnet publish QCEDL.CLI/QCEDL.CLI.csproj -c Release -r <rid> --self-contained true` (rids: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`).
 
 ## License
 

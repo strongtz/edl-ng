@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Qualcomm.EmergencyDownload.Helpers;
 
 namespace QCEDL.CLI.Helpers;
 

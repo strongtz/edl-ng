@@ -7,209 +7,407 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  DOTNET_VERSION: '9.0.x'
+
 jobs:
-  build-and-package:
+  build-cli:
+    name: CLI (${{ matrix.os_short }}-${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ windows-latest, ubuntu-latest, macos-latest ]
-        arch: [ x64, arm64 ]
-        config: [ Release ]
-
+        include:
+          - { os: windows-latest, os_short: windows, rid_prefix: win,   arch: x64 }
+          - { os: windows-latest, os_short: windows, rid_prefix: win,   arch: arm64 }
+          - { os: ubuntu-latest,  os_short: linux,   rid_prefix: linux, arch: x64 }
+          - { os: ubuntu-latest,  os_short: linux,   rid_prefix: linux, arch: arm64 }
+          - { os: macos-latest,   os_short: macos,   rid_prefix: osx,   arch: x64 }
+          - { os: macos-latest,   os_short: macos,   rid_prefix: osx,   arch: arm64 }
     runs-on: ${{ matrix.os }}
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup .NET 9
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Determine Runtime ID and OS Short Name
-        id: vars
+      - name: Determine version
+        id: version
         shell: bash
         run: |
-          os_short_name=""
-          rid_os_prefix=""
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            os_short_name="windows"
-            rid_os_prefix="win"
-          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            os_short_name="linux"
-            rid_os_prefix="linux"
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            os_short_name="macos"
-            rid_os_prefix="osx"
-          else
-            echo "::error ::Unsupported OS: ${{ matrix.os }}"
+          VERSION=$(grep -oE '<EdlNgVersion>[^<]+</EdlNgVersion>' Directory.Build.props | head -1 | sed -E 's|</?EdlNgVersion>||g')
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not parse <Version> from Directory.Build.props"
             exit 1
           fi
-          echo "os_short_name=$os_short_name" >> $GITHUB_OUTPUT
-          echo "rid_os_prefix=$rid_os_prefix" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
 
-      - name: Install ARM64 cross-compilation tools (Ubuntu)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+      - name: Install ARM64 cross tools (Linux arm64)
+        if: matrix.os_short == 'linux' && matrix.arch == 'arm64'
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y clang llvm zlib1g-dev \
-                                 gcc-aarch64-linux-gnu \
-                                 g++-aarch64-linux-gnu \
-                                 binutils-aarch64-linux-gnu \
-                                 libc6-dev-arm64-cross
-        shell: bash
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu libc6-dev-arm64-cross
 
-      - name: Install dotnet packaging tools
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          dotnet tool install --global dotnet-deb
-          dotnet tool install --global dotnet-rpm
-        shell: bash
-
-      - name: Build and Publish
-        id: build-and-publish
+      - name: Publish CLI
+        id: publish
         shell: bash
         run: |
-          RID="${{ steps.vars.outputs.rid_os_prefix }}-${{ matrix.arch }}"
-          OUTPUT_DIR_NAME="publish_output" # Just the directory name
-          PROJECT_FILE="QCEDL.CLI/QCEDL.CLI.csproj"
-          
-          PDB_EXCLUDE_FLAGS="-p:DebugType=None -p:DebugSymbols=false"
-          
-          echo "Building for RID: $RID, Config: ${{ matrix.config }}, AOT: $PUBLISH_AOT_FLAG"
-          dotnet publish "$PROJECT_FILE" \
-            --configuration "${{ matrix.config }}" \
+          set -euo pipefail
+          RID="${{ matrix.rid_prefix }}-${{ matrix.arch }}"
+          OUT="cli_publish"
+          dotnet publish QCEDL.CLI/QCEDL.CLI.csproj \
+            --configuration Release \
             --runtime "$RID" \
             --self-contained true \
-            $PDB_EXCLUDE_FLAGS \
-            -o "$OUTPUT_DIR_NAME"
-          
-          echo "Publish output directory is: $OUTPUT_DIR_NAME"
-          ls -R "$OUTPUT_DIR_NAME"
-          
-          echo "artifact_name_base=edl-ng-${{ steps.vars.outputs.os_short_name }}-${{ matrix.arch }}${ARTIFACT_NAME_SUFFIX}" >> $GITHUB_OUTPUT
-          echo "output_dir_path=$OUTPUT_DIR_NAME" >> $GITHUB_OUTPUT
+            -p:DebugType=None -p:DebugSymbols=false \
+            -o "$OUT"
+          cp LICENSE "$OUT/LICENSE"
+          cp README.md "$OUT/README.md"
+          rm -f "$OUT"/*.xml
+          if [ "${{ matrix.os_short }}" = "macos" ]; then
+            find "$OUT" -name '*.dSYM' -type d -exec rm -rf {} + 2>/dev/null || true
+          fi
+          echo "rid=$RID"                                              >> "$GITHUB_OUTPUT"
+          echo "out=$OUT"                                              >> "$GITHUB_OUTPUT"
+          echo "base=edl-ng-${{ matrix.os_short }}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
 
-      - name: Copy LICENSE and README to output directory
-        shell: bash
-        run: |
-          cp LICENSE ${{ steps.build-and-publish.outputs.output_dir_path }}/LICENSE
-          echo "Copied LICENSE to ${{ steps.build-and-publish.outputs.output_dir_path }}"
-          cp README.md ${{ steps.build-and-publish.outputs.output_dir_path }}/README.md
-          echo "Copied README.md to ${{ steps.build-and-publish.outputs.output_dir_path }}"
-
-      - name: Remove XML document
-        shell: bash
-        run: |
-          rm ${{ steps.build-and-publish.outputs.output_dir_path }}/*.xml
-          echo "XML document removed"
-
-      - name: Package Artifact (Windows)
-        if: runner.os == 'Windows'
-        env:
-          ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-          OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
+      - name: Zip CLI (Windows)
+        if: matrix.os_short == 'windows'
         shell: pwsh
         run: |
-          $ArtifactName = "${env:ARTIFACT_BASE_NAME}.zip"
-          $OutputDir = "${env:OUTPUT_PUBLISH_DIR_PATH}"
-          Write-Host "Windows Packaging: ArtifactName = $ArtifactName"
-          Write-Host "Windows Packaging: OutputDir = $OutputDir"
-          if (-Not (Test-Path $OutputDir)) {
-              Write-Error "Output directory $OutputDir does not exist!"
-              exit 1
-          }
-          Get-ChildItem -Path $OutputDir # List contents for debugging
-          echo "output_dir=$OutputDir" >> $env:GITHUB_OUTPUT
-        id: package_win
+          $zip = "${{ steps.publish.outputs.base }}.zip"
+          Compress-Archive -Path "${{ steps.publish.outputs.out }}\*" -DestinationPath $zip
 
-      - name: Package Artifact (Linux/macOS)
-        if: runner.os == 'Linux' || runner.os == 'macOS'
-        env:
-          ARTIFACT_BASE_NAME: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-          OUTPUT_PUBLISH_DIR_PATH: ${{ steps.build-and-publish.outputs.output_dir_path }}
-          MATRIX_OS: ${{ matrix.os }}
+      - name: Zip CLI (Unix)
+        if: matrix.os_short != 'windows'
         shell: bash
         run: |
-          ARTIFACT_NAME="${ARTIFACT_BASE_NAME}.zip"
-          OUTPUT_DIR="${OUTPUT_PUBLISH_DIR_PATH}"
-          echo "Unix Packaging: ARTIFACT_NAME = $ARTIFACT_NAME"
-          echo "Unix Packaging: OUTPUT_DIR = $OUTPUT_DIR"
-          echo "Unix Packaging: OS = $MATRIX_OS"
-          
-          if [ ! -d "$OUTPUT_DIR" ]; then
-              echo "::error::Output directory $OUTPUT_DIR does not exist!"
-              exit 1
-          fi
-          
-          if [[ "$MATRIX_OS" == "macos-latest" ]]; then
-            echo "Removing .dSYM directories for macOS Release build..."
-            find "$OUTPUT_DIR" -name "*.dSYM" -type d -exec rm -rf {} +
-          fi
-          
-          ls -R "$OUTPUT_DIR"
-          echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
-        id: package_unix
+          ZIP="${{ steps.publish.outputs.base }}.zip"
+          ( cd "${{ steps.publish.outputs.out }}" && zip -r "$GITHUB_WORKSPACE/$ZIP" . )
 
-      - name: Generate DEB and RPM packages (Linux only)
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          RID: ${{ steps.vars.outputs.rid_os_prefix }}-${{ matrix.arch }}
-        shell: bash
-        run: |
-          echo "Generating Linux packages for runtime: $RID"
-          cd QCEDL.CLI
-
-          dotnet deb install
-          dotnet rpm install
-
-          dotnet deb --runtime $RID --configuration ${{ matrix.config }} -v
-          dotnet rpm --runtime $RID --configuration ${{ matrix.config }} -v
-
-          mkdir -p ../artifacts
-          find . -name "*.deb" -exec mv {} ../artifacts/ \;
-          find . -name "*.rpm" -exec mv {} ../artifacts/ \;
-        id: generate_packages
-
-      - name: Upload Individual Artifact
+      - name: Upload CLI zip
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.build-and-publish.outputs.artifact_name_base }}
-          path: ${{ runner.os == 'Windows' && steps.package_win.outputs.output_dir || steps.package_unix.outputs.output_dir }}
+          name: ${{ steps.publish.outputs.base }}-zip
+          path: ${{ steps.publish.outputs.base }}.zip
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload DEB and RPM Packages
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install deb/rpm build tools
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm
+
+      - name: Build CLI deb
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/deb/build-cli-deb.sh
+          DEB_ARCH=$( [ "${{ matrix.arch }}" = "arm64" ] && echo "arm64" || echo "amd64" )
+          mkdir -p "$GITHUB_WORKSPACE/linux_cli_pkgs"
+          packaging/deb/build-cli-deb.sh \
+            "${{ steps.publish.outputs.out }}" \
+            "$DEB_ARCH" \
+            "${{ steps.version.outputs.version }}" \
+            "$GITHUB_WORKSPACE/linux_cli_pkgs/edl-ng_${{ steps.version.outputs.version }}_${DEB_ARCH}.deb" \
+            "$GITHUB_WORKSPACE"
+
+      - name: Build CLI rpm
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/rpm/build-rpm.sh
+          RPM_ARCH=$( [ "${{ matrix.arch }}" = "arm64" ] && echo "aarch64" || echo "x86_64" )
+          packaging/rpm/build-rpm.sh \
+            edl-ng \
+            "${{ steps.publish.outputs.out }}" \
+            "$RPM_ARCH" \
+            "${{ steps.version.outputs.version }}" \
+            "$GITHUB_WORKSPACE/linux_cli_pkgs" \
+            "$GITHUB_WORKSPACE"
+
+      - name: Build CLI pacman package
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="$GITHUB_WORKSPACE/pac_stage_cli"
+          mkdir -p "$STAGE/publish"
+          cp packaging/arch/cli/PKGBUILD "$STAGE/"
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" "$STAGE/PKGBUILD"
+          cp LICENSE "$STAGE/LICENSE"
+          cp -r resources/udev "$STAGE/udev"
+          cp -a "${{ steps.publish.outputs.out }}/." "$STAGE/publish/"
+          CARCH=$( [ "${{ matrix.arch }}" = "arm64" ] && echo "aarch64" || echo "x86_64" )
+          docker run --rm -v "$STAGE:/pkg" -w /pkg -e CARCH="$CARCH" \
+            archlinux:latest bash -euc '
+              pacman -Syu --noconfirm --needed base-devel libusb >/dev/null
+              useradd -m builder
+              chown -R builder /pkg
+              sudo -u builder env CARCH='"$CARCH"' makepkg --holdver --skipinteg --nodeps -f
+            '
+          mkdir -p "$GITHUB_WORKSPACE/linux_cli_pkgs"
+          find "$STAGE" -maxdepth 1 -name '*.pkg.tar.zst' -exec mv {} "$GITHUB_WORKSPACE/linux_cli_pkgs/" \;
+
+      - name: Upload Linux CLI packages
+        if: matrix.os_short == 'linux'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.build-and-publish.outputs.artifact_name_base }}-deb-rpm
-          path: |
-            artifacts/*.deb
-            artifacts/*.rpm
+          name: edl-ng-linux-${{ matrix.arch }}-linuxpkgs
+          path: linux_cli_pkgs/*
           if-no-files-found: error
           retention-days: 7
 
-  package-dist:
-    name: Create edl-ng-dist Package
-    needs: build-and-package # Depends on all matrix builds finishing
-    runs-on: ubuntu-latest # Use a single OS for packaging
-    # Only run this job for pushes to the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
+  build-gui:
+    name: GUI (${{ matrix.os_short }}-${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, os_short: windows, rid_prefix: win,   arch: x64 }
+          - { os: windows-latest, os_short: windows, rid_prefix: win,   arch: arm64 }
+          - { os: ubuntu-latest,  os_short: linux,   rid_prefix: linux, arch: x64 }
+          - { os: ubuntu-latest,  os_short: linux,   rid_prefix: linux, arch: arm64 }
+          - { os: macos-latest,   os_short: macos,   rid_prefix: osx,   arch: x64 }
+          - { os: macos-latest,   os_short: macos,   rid_prefix: osx,   arch: arm64 }
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout repository (for LICENSE)
-        uses: actions/checkout@v4
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
         with:
-          path: all-build-artifacts # Downloads all artifacts into this directory, each in its own sub-directory
-        id: organize
-      - name: Upload edl-ng-dist package
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -oE '<EdlNgVersion>[^<]+</EdlNgVersion>' Directory.Build.props | head -1 | sed -E 's|</?EdlNgVersion>||g')
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not parse <Version> from Directory.Build.props"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      - name: Publish GUI
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          RID="${{ matrix.rid_prefix }}-${{ matrix.arch }}"
+          OUT="gui_publish"
+          dotnet publish QCEDL.GUI/QCEDL.GUI.csproj \
+            --configuration Release \
+            --runtime "$RID" \
+            --self-contained true \
+            -p:PublishAot=false \
+            -p:PublishSingleFile=false \
+            -p:PublishTrimmed=false \
+            -p:DebugType=None -p:DebugSymbols=false \
+            -o "$OUT"
+          rm -f "$OUT"/*.xml "$OUT"/*.pdb
+          if [ -f LICENSE ]; then cp LICENSE "$OUT/LICENSE"; fi
+          if [ -f README.md ]; then cp README.md "$OUT/README.md"; fi
+          find "$OUT" -name '*.dSYM' -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "rid=$RID"                                                  >> "$GITHUB_OUTPUT"
+          echo "out=$OUT"                                                  >> "$GITHUB_OUTPUT"
+          echo "base=qcedl-gui-${{ matrix.os_short }}-${{ matrix.arch }}"  >> "$GITHUB_OUTPUT"
+
+      # -------- Windows: zip --------
+      - name: Zip GUI (Windows)
+        if: matrix.os_short == 'windows'
+        shell: pwsh
+        run: |
+          $zip = "${{ steps.publish.outputs.base }}.zip"
+          Compress-Archive -Path "${{ steps.publish.outputs.out }}\*" -DestinationPath $zip
+
+      - name: Upload GUI zip (Windows)
+        if: matrix.os_short == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: edl-ng-dist
-          path: all-build-artifacts
+          name: ${{ steps.publish.outputs.base }}-zip
+          path: ${{ steps.publish.outputs.base }}.zip
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
+
+      # -------- macOS: .app + codesign + .dmg + notarize --------
+      - name: Assemble .app
+        if: matrix.os_short == 'macos'
+        shell: bash
+        run: |
+          chmod +x packaging/macos/build-app.sh packaging/macos/build-dmg.sh
+          ICON=""
+          if [ -f QCEDL.GUI/macOS/AppIcon.icns ]; then
+            ICON=QCEDL.GUI/macOS/AppIcon.icns
+          fi
+          ./packaging/macos/build-app.sh "${{ steps.publish.outputs.out }}" qcedl-gui.app \
+            QCEDL.GUI/macOS/Info.plist "${{ steps.version.outputs.version }}" "$ICON"
+
+      - name: Import Developer ID cert
+        if: matrix.os_short == 'macos' && github.event_name != 'pull_request'
+        env:
+          APPLE_DEVELOPER_ID_CERT_P12: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -hex 16)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$APPLE_DEVELOPER_ID_CERT_P12" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" -T /usr/bin/codesign
+          # Prepend our keychain to the search list so codesign can find the identity.
+          OTHERS=$(security list-keychains -d user | tr -d '"' | xargs)
+          security list-keychains -d user -s "$KEYCHAIN" $OTHERS
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::Imported cert but no Developer ID Application identity was found"
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Codesign .app
+        if: matrix.os_short == 'macos' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          IDENTITY="${SIGN_IDENTITY:--}"
+          if [ "$IDENTITY" = "-" ]; then
+            echo "::warning::No Developer ID cert available; falling back to ad-hoc signing."
+          else
+            echo "Using signing identity: $IDENTITY"
+          fi
+          # Sign inner Mach-O binaries (dylibs) without entitlements, inside-out.
+          find qcedl-gui.app/Contents/MacOS -type f -name '*.dylib' -print0 | \
+            xargs -0 -I{} codesign --force --options runtime --timestamp --sign "$IDENTITY" "{}"
+          # Sign main executable + outer bundle with entitlements.
+          codesign --force --options runtime --timestamp \
+            --entitlements QCEDL.GUI/macOS/entitlements.plist \
+            --sign "$IDENTITY" qcedl-gui.app/Contents/MacOS/qcedl-gui
+          codesign --force --options runtime --timestamp \
+            --entitlements QCEDL.GUI/macOS/entitlements.plist \
+            --sign "$IDENTITY" qcedl-gui.app
+          codesign --verify --deep --strict --verbose=2 qcedl-gui.app
+
+      - name: Build .dmg
+        if: matrix.os_short == 'macos'
+        shell: bash
+        run: |
+          DMG="${{ steps.publish.outputs.base }}.dmg"
+          ./packaging/macos/build-dmg.sh qcedl-gui.app "$DMG" qcedl-gui 512m
+
+      - name: Notarize .dmg
+        if: matrix.os_short == 'macos' && github.event_name != 'pull_request'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG="${{ steps.publish.outputs.base }}.dmg"
+          KEY_FILE="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          echo "$APPLE_API_KEY_P8" | base64 -d > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          xcrun notarytool submit "$DMG" \
+            --key "$KEY_FILE" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$DMG"
+          rm -f "$KEY_FILE"
+
+      - name: Upload GUI .dmg (macOS)
+        if: matrix.os_short == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.publish.outputs.base }}-dmg
+          path: ${{ steps.publish.outputs.base }}.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+      # -------- Linux: deb + rpm + pacman --------
+      - name: Install deb/rpm build tools
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm
+
+      - name: Build GUI deb
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/deb/build-gui-deb.sh
+          DEB_ARCH=$( [ "${{ matrix.arch }}" = "arm64" ] && echo "arm64" || echo "amd64" )
+          mkdir -p "$GITHUB_WORKSPACE/linux_gui_pkgs"
+          packaging/deb/build-gui-deb.sh \
+            "${{ steps.publish.outputs.out }}" \
+            "$DEB_ARCH" \
+            "${{ steps.version.outputs.version }}" \
+            "$GITHUB_WORKSPACE/linux_gui_pkgs/qcedl-gui_${{ steps.version.outputs.version }}_${DEB_ARCH}.deb" \
+            "$GITHUB_WORKSPACE"
+
+      - name: Build GUI rpm
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/rpm/build-rpm.sh
+          RPM_ARCH=$( [ "${{ matrix.arch }}" = "arm64" ] && echo "aarch64" || echo "x86_64" )
+          packaging/rpm/build-rpm.sh \
+            qcedl-gui \
+            "${{ steps.publish.outputs.out }}" \
+            "$RPM_ARCH" \
+            "${{ steps.version.outputs.version }}" \
+            "$GITHUB_WORKSPACE/linux_gui_pkgs" \
+            "$GITHUB_WORKSPACE"
+
+      - name: Build GUI pacman package
+        if: matrix.os_short == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="$GITHUB_WORKSPACE/pac_stage_gui"
+          mkdir -p "$STAGE/publish"
+          cp packaging/arch/gui/PKGBUILD "$STAGE/"
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" "$STAGE/PKGBUILD"
+          cp packaging/arch/gui/qcedl-gui.desktop "$STAGE/"
+          mkdir -p "$STAGE/icons"
+          cp resources/icons/edl-ng-*.png "$STAGE/icons/" 2>/dev/null || true
+          cp LICENSE "$STAGE/LICENSE"
+          cp -r resources/udev "$STAGE/udev"
+          cp -a "${{ steps.publish.outputs.out }}/." "$STAGE/publish/"
+          CARCH=$( [ "${{ matrix.arch }}" = "arm64" ] && echo "aarch64" || echo "x86_64" )
+          docker run --rm -v "$STAGE:/pkg" -w /pkg -e CARCH="$CARCH" \
+            archlinux:latest bash -euc '
+              pacman -Syu --noconfirm --needed base-devel libusb >/dev/null
+              useradd -m builder
+              chown -R builder /pkg
+              sudo -u builder env CARCH='"$CARCH"' makepkg --holdver --skipinteg --nodeps -f
+            '
+          mkdir -p "$GITHUB_WORKSPACE/linux_gui_pkgs"
+          find "$STAGE" -maxdepth 1 -name '*.pkg.tar.zst' -exec mv {} "$GITHUB_WORKSPACE/linux_gui_pkgs/" \;
+
+      - name: Upload Linux GUI packages
+        if: matrix.os_short == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qcedl-gui-linux-${{ matrix.arch }}-linuxpkgs
+          path: linux_gui_pkgs/*
+          if-no-files-found: error
+          retention-days: 7

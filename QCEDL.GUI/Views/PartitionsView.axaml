@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:svc="clr-namespace:QCEDL.GUI.Services"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="QCEDL.GUI.Views.PartitionsView"
+             x:DataType="vm:PartitionsViewModel">
+    <StackPanel Spacing="20" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Parts_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Parts_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Parts_Body}" />
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="body" Text="{l:Localize Parts_LunLabel}" VerticalAlignment="Center" />
+                    <TextBox Text="{Binding LunFilter}" PlaceholderText="{l:Localize Parts_LunPlaceholder}" Width="100" />
+                    <Button Classes="primary" Content="{l:Localize Parts_ScanButton}" Command="{Binding ScanCommand}" IsEnabled="{Binding CanInteract}" />
+                    <ProgressBar IsVisible="{Binding IsBusy}" IsIndeterminate="True" Width="140" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <DockPanel LastChildFill="True">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="60,60,*,140,140,140" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Classes="label" Text="{l:Localize Parts_HeaderLun}" />
+                    <TextBlock Grid.Column="1" Classes="label" Text="{l:Localize Parts_HeaderIndex}" />
+                    <TextBlock Grid.Column="2" Classes="label" Text="{l:Localize Parts_HeaderName}" />
+                    <TextBlock Grid.Column="3" Classes="label" Text="{l:Localize Parts_HeaderFirstLba}" />
+                    <TextBlock Grid.Column="4" Classes="label" Text="{l:Localize Parts_HeaderLastLba}" />
+                    <TextBlock Grid.Column="5" Classes="label" Text="{l:Localize Parts_HeaderSize}" />
+                </Grid>
+                <Separator DockPanel.Dock="Top" />
+                <ListBox ItemsSource="{Binding Partitions}"
+                         SelectedItem="{Binding SelectedRow}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         MaxHeight="360">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="svc:PartitionRow">
+                            <Grid ColumnDefinitions="60,60,*,140,140,140" Margin="0,2">
+                                <TextBlock Grid.Column="0" Classes="mono" Text="{Binding Lun}" />
+                                <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Index}" />
+                                <TextBlock Grid.Column="2" Text="{Binding Name}" />
+                                <TextBlock Grid.Column="3" Classes="mono" Text="{Binding FirstLba}" />
+                                <TextBlock Grid.Column="4" Classes="mono" Text="{Binding LastLba}" />
+                                <TextBlock Grid.Column="5" Text="{Binding SizeText}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Parts_Ops_Title}" />
+                <TextBlock Classes="caption" Text="{l:Localize Parts_Ops_Caption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Parts_Ops_PartitionLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding OpPartitionName}" PlaceholderText="{l:Localize Parts_Ops_PartitionPlaceholder}" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="body" Text="{l:Localize Parts_Ops_LunLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OpLun}" PlaceholderText="{l:Localize Parts_LunPlaceholder}" Width="140" HorizontalAlignment="Left" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="primary" Content="{l:Localize Parts_Ops_ReadButton}" Command="{Binding ReadPartitionCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Content="{l:Localize Parts_Ops_WriteButton}" Command="{Binding WritePartitionCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Classes="danger" Content="{l:Localize Parts_Ops_EraseButton}" Command="{Binding ErasePartitionCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+                <StackPanel Spacing="6" IsVisible="{Binding IsOpRunning}">
+                    <ProgressBar Value="{Binding ProgressPercent, Mode=OneWay}" Minimum="0" Maximum="100" />
+                    <TextBlock Classes="mono" FontSize="13" Foreground="{DynamicResource BrushTextTertiary}" Text="{Binding ProgressText}" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding OpStatus}" IsVisible="{Binding OpStatus, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

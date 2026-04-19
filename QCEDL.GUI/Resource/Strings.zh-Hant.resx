@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="App_Title" xml:space="preserve"><value>edl-ng — Qualcomm EDL</value></data>
+  <data name="App_Brand" xml:space="preserve"><value>edl-ng</value></data>
+  <data name="App_Subtitle" xml:space="preserve"><value>高通緊急下載模式</value></data>
+
+  <data name="Nav_Overview" xml:space="preserve"><value>概覽</value></data>
+  <data name="Nav_Connection" xml:space="preserve"><value>連線</value></data>
+  <data name="Nav_Partitions" xml:space="preserve"><value>分割區</value></data>
+  <data name="Nav_Sectors" xml:space="preserve"><value>磁區</value></data>
+  <data name="Nav_RawProgram" xml:space="preserve"><value>RawProgram(燒錄清單)</value></data>
+  <data name="Nav_Advanced" xml:space="preserve"><value>進階</value></data>
+  <data name="Nav_Logs" xml:space="preserve"><value>記錄</value></data>
+  <data name="Nav_Settings" xml:space="preserve"><value>設定</value></data>
+
+  <data name="Placeholder_ComingSoon" xml:space="preserve"><value>敬請期待</value></data>
+  <data name="Placeholder_Sectors_Title" xml:space="preserve"><value>磁區</value></data>
+  <data name="Placeholder_Sectors_Description" xml:space="preserve"><value>讀取 / 寫入 / 抹除 LBA 範圍。詳見 gui-todos.md 第二階段。</value></data>
+  <data name="Placeholder_RawProgram_Title" xml:space="preserve"><value>RawProgram(燒錄清單)</value></data>
+  <data name="Placeholder_RawProgram_Description" xml:space="preserve"><value>執行 rawprogramN.xml + patchN.xml 燒錄流程,或將某個 LUN 匯出為 rawprogram 檔案。詳見 gui-todos.md 第三階段。</value></data>
+  <data name="Placeholder_Advanced_Title" xml:space="preserve"><value>進階</value></data>
+  <data name="Placeholder_Advanced_Description" xml:space="preserve"><value>provision、upload-loader、reset。詳見 gui-todos.md 第三階段。</value></data>
+
+  <data name="Overview_Label" xml:space="preserve"><value>概覽</value></data>
+  <data name="Overview_Display" xml:space="preserve"><value>以從容的方式與裝置對話。</value></data>
+  <data name="Overview_TagLine" xml:space="preserve"><value>為 Qualcomm EDL 工具鏈打造的沉靜前端。</value></data>
+  <data name="Overview_ConnectionHeader" xml:space="preserve"><value>連線</value></data>
+  <data name="Overview_ConnectionCaption" xml:space="preserve"><value>前往「連線」頁設定目標並建立工作階段。破壞性動作(寫入 / 抹除 / 重設)一律會先要求確認。</value></data>
+  <data name="Overview_PartitionsTitle" xml:space="preserve"><value>分割區</value></data>
+  <data name="Overview_PartitionsBody" xml:space="preserve"><value>檢視 GPT、讀寫具名分割區,並匯出 rawprogram 清單。</value></data>
+  <data name="Overview_RawProgramTitle" xml:space="preserve"><value>RawProgram(燒錄清單)</value></data>
+  <data name="Overview_RawProgramBody" xml:space="preserve"><value>執行 rawprogramN.xml + patchN.xml 燒錄流程,或將目前裝置傾印為一組 rawprogram 檔案。</value></data>
+  <data name="Overview_ConnectedFormat" xml:space="preserve"><value>已連線 — {0}</value></data>
+
+  <data name="Conn_Label" xml:space="preserve"><value>連線</value></data>
+  <data name="Conn_Heading" xml:space="preserve"><value>目標與工作階段</value></data>
+  <data name="Conn_Body" xml:space="preserve"><value>選擇連接裝置的方式:透過 USB 使用 Sahara/Firehose,或使用直接主機裝置後端。此介面與 CLI 全域選項一致。</value></data>
+  <data name="Conn_ProgrammerCardTitle" xml:space="preserve"><value>Programmer 與傳輸</value></data>
+  <data name="Conn_ProgrammerCardCaption" xml:space="preserve"><value>選擇 libusb(WinUSB / LibUsbDotNet)或序列埠驅動程式。自動模式下 Windows 使用 libusb,Linux/macOS 使用序列埠。</value></data>
+  <data name="Conn_Loader" xml:space="preserve"><value>Loader(.elf / .xml)</value></data>
+  <data name="Conn_LoaderPlaceholder" xml:space="preserve"><value>Firehose programmer 或 qsahara_device_programmer.xml 路徑</value></data>
+  <data name="Conn_LoaderPickTitle" xml:space="preserve"><value>選擇 Firehose 載入器(.elf / .melf / .xml)</value></data>
+  <data name="Conn_Browse" xml:space="preserve"><value>瀏覽…</value></data>
+  <data name="Conn_Backend" xml:space="preserve"><value>後端</value></data>
+  <data name="Conn_VidHex" xml:space="preserve"><value>USB VID(十六進位)</value></data>
+  <data name="Conn_VidPlaceholder" xml:space="preserve"><value>05C6</value></data>
+  <data name="Conn_PidHex" xml:space="preserve"><value>USB PID(十六進位)</value></data>
+  <data name="Conn_PidPlaceholder" xml:space="preserve"><value>9008</value></data>
+  <data name="Conn_SerialDevice" xml:space="preserve"><value>序列裝置</value></data>
+  <data name="Conn_SerialPlaceholder" xml:space="preserve"><value>/dev/ttyUSB0、/dev/tty.usbserial-… 或在 Windows/Linux 上自動偵測</value></data>
+  <data name="Conn_Memory" xml:space="preserve"><value>儲存類型</value></data>
+  <data name="Conn_Slot" xml:space="preserve"><value>插槽</value></data>
+  <data name="Conn_DirectCardTitle" xml:space="preserve"><value>直接模式</value></data>
+  <data name="Conn_DirectCardCaption" xml:space="preserve"><value>燒錄主機區塊裝置或檔案映像時,完全繞過 USB / Firehose。</value></data>
+  <data name="Conn_DirectEnabled" xml:space="preserve"><value>啟用直連模式</value></data>
+  <data name="Conn_HostDevice" xml:space="preserve"><value>主機裝置</value></data>
+  <data name="Conn_HostDevicePlaceholder" xml:space="preserve"><value>/dev/mtd0 或 /path/to/file.img</value></data>
+  <data name="Conn_ImageSize" xml:space="preserve"><value>映像大小</value></data>
+  <data name="Conn_ImageSizePlaceholder" xml:space="preserve"><value>32M / 1G / 512K(僅在建立檔案時使用)</value></data>
+  <data name="Conn_RadxaWos" xml:space="preserve"><value>Radxa WoS</value></data>
+  <data name="Conn_RadxaCheckbox" xml:space="preserve"><value>使用 Radxa Windows-on-Snapdragon SPI NOR 後端(僅限 Windows)</value></data>
+  <data name="Conn_StatusTitle" xml:space="preserve"><value>狀態</value></data>
+  <data name="Conn_ModeLabel" xml:space="preserve"><value>模式</value></data>
+  <data name="Conn_StatusFieldLabel" xml:space="preserve"><value>狀態</value></data>
+  <data name="Conn_StepDiscover" xml:space="preserve"><value>步驟 01 · 搜尋</value></data>
+  <data name="Conn_StepSession" xml:space="preserve"><value>步驟 02 · 工作階段</value></data>
+  <data name="Conn_ConnectButton" xml:space="preserve"><value>連線</value></data>
+  <data name="Conn_ProbeButton" xml:space="preserve"><value>探測模式</value></data>
+  <data name="Conn_DisconnectButton" xml:space="preserve"><value>中斷連線</value></data>
+  <data name="Conn_StatusNotConnected" xml:space="preserve"><value>尚未連線。</value></data>
+  <data name="Conn_ModeUnknown" xml:space="preserve"><value>未知</value></data>
+  <data name="Conn_ModeDirect" xml:space="preserve"><value>直接模式</value></data>
+  <data name="Conn_ConnectFailedFormat" xml:space="preserve"><value>連線失敗:{0}</value></data>
+  <data name="Conn_ProbeFailedFormat" xml:space="preserve"><value>探測失敗:{0}</value></data>
+  <data name="Conn_LogProbing" xml:space="preserve"><value>正在探測裝置模式……</value></data>
+  <data name="Conn_StatusDetectedFormat" xml:space="preserve"><value>已偵測到:{0}</value></data>
+  <data name="Conn_LogDirectSession" xml:space="preserve"><value>直接模式工作階段(主機裝置 / Radxa WoS)。無需 USB 交握。</value></data>
+  <data name="Conn_StatusDirectReady" xml:space="preserve"><value>直接模式就緒。</value></data>
+  <data name="Conn_LogElevationLinuxHint" xml:space="preserve"><value>開啟 EDL 裝置被拒絕。請安裝隨 edl-ng 附帶的 udev 規則(參見 docs/linux-udev.md)，之後無需 sudo 即可存取。</value></data>
+  <data name="Conn_LogConnecting" xml:space="preserve"><value>正在連接裝置(Sahara → Firehose)……</value></data>
+  <data name="Conn_StatusFirehoseConnected" xml:space="preserve"><value>已於 Firehose 模式連線。</value></data>
+  <data name="Conn_StatusDisconnected" xml:space="preserve"><value>已中斷連線。</value></data>
+  <data name="Conn_LogSessionClosed" xml:space="preserve"><value>工作階段已關閉。</value></data>
+
+  <data name="Conn_DevicesCardTitle" xml:space="preserve"><value>裝置與工作階段</value></data>
+  <data name="Conn_DevicesCardCaption" xml:space="preserve"><value>先掃描可用的 EDL 裝置,在清單中確認後連線。連接多台而未指定時,Connect 時會提示手動挑選。</value></data>
+  <data name="Conn_ScanDevicesButton" xml:space="preserve"><value>掃描裝置</value></data>
+  <data name="Conn_ClearDeviceSelection" xml:space="preserve"><value>清除選擇</value></data>
+  <data name="Conn_DevicesEmpty" xml:space="preserve"><value>尚未掃描。按「掃描裝置」開始列舉。</value></data>
+  <data name="Conn_DevicesNoneFound" xml:space="preserve"><value>目前傳輸後端未找到 EDL 裝置。</value></data>
+  <data name="Conn_DevicesFoundFormat" xml:space="preserve"><value>找到 {0} 台候選裝置。</value></data>
+  <data name="Conn_DeviceSelectedFormat" xml:space="preserve"><value>已選擇裝置:{0}</value></data>
+  <data name="Conn_LogMultipleFoundPrompt" xml:space="preserve"><value>偵測到多台裝置——已請使用者手動選擇。</value></data>
+  <data name="Conn_LogSelectionCancelled" xml:space="preserve"><value>已取消裝置選擇。</value></data>
+
+  <data name="DeviceChooser_Title" xml:space="preserve"><value>選擇裝置</value></data>
+  <data name="DeviceChooser_Prompt" xml:space="preserve"><value>目前傳輸後端下找到多台 EDL 裝置,請選擇要使用的一台。</value></data>
+  <data name="DeviceChooser_Confirm" xml:space="preserve"><value>使用此裝置</value></data>
+  <data name="DeviceChooser_Cancel" xml:space="preserve"><value>取消</value></data>
+
+  <data name="Parts_Label" xml:space="preserve"><value>分割區</value></data>
+  <data name="Parts_Heading" xml:space="preserve"><value>GPT 檢視器</value></data>
+  <data name="Parts_Body" xml:space="preserve"><value>掃描裝置回報的每一個 LUN(或指定某一個),並讀取 GUID 分割表。</value></data>
+  <data name="Parts_LunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Parts_LunPlaceholder" xml:space="preserve"><value>all</value></data>
+  <data name="Parts_ScanButton" xml:space="preserve"><value>掃描</value></data>
+  <data name="Parts_HeaderLun" xml:space="preserve"><value>LUN</value></data>
+  <data name="Parts_HeaderIndex" xml:space="preserve"><value>#</value></data>
+  <data name="Parts_HeaderName" xml:space="preserve"><value>名稱</value></data>
+  <data name="Parts_HeaderFirstLba" xml:space="preserve"><value>起始 LBA</value></data>
+  <data name="Parts_HeaderLastLba" xml:space="preserve"><value>結束 LBA</value></data>
+  <data name="Parts_HeaderSize" xml:space="preserve"><value>大小</value></data>
+  <data name="Parts_StatusNotScanned" xml:space="preserve"><value>尚未掃描。</value></data>
+  <data name="Parts_ErrorFormat" xml:space="preserve"><value>錯誤:{0}</value></data>
+  <data name="Parts_LogScanFailedFormat" xml:space="preserve"><value>GPT 掃描失敗:{0}</value></data>
+  <data name="Parts_LogNoGptFormat" xml:space="preserve"><value>LUN {0}:找不到 GPT。</value></data>
+  <data name="Parts_LogScanErrorFormat" xml:space="preserve"><value>LUN {0} 掃描錯誤:{1}</value></data>
+  <data name="Parts_StatusFoundFormat" xml:space="preserve"><value>找到 {0} 個分割區。</value></data>
+
+  <data name="Logs_Label" xml:space="preserve"><value>記錄</value></data>
+  <data name="Logs_Heading" xml:space="preserve"><value>即時輸出</value></data>
+  <data name="Logs_Body" xml:space="preserve"><value>協定層發出的所有內容,來自共用記錄器。從終端機啟動 GUI 時,相同的串流也會寫入標準輸出。</value></data>
+
+  <data name="Settings_Label" xml:space="preserve"><value>設定</value></data>
+  <data name="Settings_Heading" xml:space="preserve"><value>偏好設定</value></data>
+  <data name="Settings_Body" xml:space="preserve"><value>設定 GUI。變更將立即生效。</value></data>
+  <data name="Settings_LanguageCardTitle" xml:space="preserve"><value>語言</value></data>
+  <data name="Settings_LanguageCardCaption" xml:space="preserve"><value>選擇顯示語言。你的選擇會在工作階段之間保留。</value></data>
+  <data name="Settings_LanguageLabel" xml:space="preserve"><value>語言</value></data>
+  <data name="Settings_LoggingCardTitle" xml:space="preserve"><value>日誌</value></data>
+  <data name="Settings_LoggingCardCaption" xml:space="preserve"><value>控制協定層的輸出詳細度。Trace 最詳細,Error 最安靜。</value></data>
+  <data name="Settings_LogLevelLabel" xml:space="preserve"><value>日誌級別</value></data>
+  <data name="Settings_ThemeCardTitle" xml:space="preserve"><value>外觀</value></data>
+  <data name="Settings_ThemeCardCaption" xml:space="preserve"><value>選擇淺色或深色主題,或跟隨作業系統。變更會立即生效。</value></data>
+  <data name="Settings_ThemeLabel" xml:space="preserve"><value>主題</value></data>
+  <data name="Settings_Theme_System" xml:space="preserve"><value>跟隨系統</value></data>
+  <data name="Settings_Theme_Light" xml:space="preserve"><value>淺色</value></data>
+  <data name="Settings_Theme_Dark" xml:space="preserve"><value>深色</value></data>
+
+  <data name="Progress_Format" xml:space="preserve"><value>{0:F1} / {1:F1} MiB ({2:F0}%)</value></data>
+  <data name="Confirm_DefaultOk" xml:space="preserve"><value>繼續</value></data>
+  <data name="Confirm_DefaultCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="Confirm_TypeToConfirmFormat" xml:space="preserve"><value>請輸入「{0}」以確認。</value></data>
+
+  <data name="Parts_Ops_Title" xml:space="preserve"><value>分割區操作</value></data>
+  <data name="Parts_Ops_Caption" xml:space="preserve"><value>讀取、寫入或清除具名分割區。點選上方一列可自動填入欄位。</value></data>
+  <data name="Parts_Ops_PartitionLabel" xml:space="preserve"><value>分割區</value></data>
+  <data name="Parts_Ops_PartitionPlaceholder" xml:space="preserve"><value>例如 boot、userdata</value></data>
+  <data name="Parts_Ops_LunLabel" xml:space="preserve"><value>LUN(可選)</value></data>
+  <data name="Parts_Ops_ReadButton" xml:space="preserve"><value>讀取…</value></data>
+  <data name="Parts_Ops_WriteButton" xml:space="preserve"><value>寫入…</value></data>
+  <data name="Parts_Ops_EraseButton" xml:space="preserve"><value>清除…</value></data>
+  <data name="Parts_Ops_SavePickerTitle" xml:space="preserve"><value>將分割區映像儲存到…</value></data>
+  <data name="Parts_Ops_OpenPickerTitle" xml:space="preserve"><value>選擇要寫入的映像</value></data>
+  <data name="Parts_Ops_ConfirmWriteTitle" xml:space="preserve"><value>寫入分割區</value></data>
+  <data name="Parts_Ops_ConfirmWriteMessageFormat" xml:space="preserve"><value>即將把「{1}」({2} 位元組)寫入分割區「{0}」。將覆寫既有內容。</value></data>
+  <data name="Parts_Ops_ConfirmEraseTitle" xml:space="preserve"><value>清除分割區</value></data>
+  <data name="Parts_Ops_ConfirmEraseMessageFormat" xml:space="preserve"><value>這將清除分割區「{0}」的所有磁區。資料無法復原。</value></data>
+  <data name="Parts_Ops_PartitionNotFoundFormat" xml:space="preserve"><value>在任何已掃描的 LUN 上都找不到分割區「{0}」。</value></data>
+  <data name="Parts_Ops_StatusReadingFormat" xml:space="preserve"><value>正在讀取「{0}」…</value></data>
+  <data name="Parts_Ops_StatusWritingFormat" xml:space="preserve"><value>正在寫入「{0}」…</value></data>
+  <data name="Parts_Ops_StatusErasingFormat" xml:space="preserve"><value>正在清除「{0}」…</value></data>
+  <data name="Parts_Ops_StatusDoneFormat" xml:space="preserve"><value>完成 —「{0}」耗時 {1:F2} 秒。</value></data>
+  <data name="Parts_Ops_StatusFailedFormat" xml:space="preserve"><value>失敗 — {0}</value></data>
+
+  <data name="Sectors_Label" xml:space="preserve"><value>磁區</value></data>
+  <data name="Sectors_Heading" xml:space="preserve"><value>磁區範圍</value></data>
+  <data name="Sectors_Body" xml:space="preserve"><value>在指定 LUN 上讀取、寫入或清除一段連續的 LBA。寫入與清除需要輸入確認字串。</value></data>
+  <data name="Sectors_LunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Sectors_StartLabel" xml:space="preserve"><value>起始 LBA</value></data>
+  <data name="Sectors_CountLabel" xml:space="preserve"><value>磁區數</value></data>
+  <data name="Sectors_ReadButton" xml:space="preserve"><value>讀取</value></data>
+  <data name="Sectors_ReadLunButton" xml:space="preserve"><value>讀取整個 LUN</value></data>
+  <data name="Sectors_WriteButton" xml:space="preserve"><value>寫入</value></data>
+  <data name="Sectors_WriteLunButton" xml:space="preserve"><value>寫入整個 LUN</value></data>
+  <data name="Sectors_EraseButton" xml:space="preserve"><value>清除</value></data>
+  <data name="Sectors_ConfirmWriteLunTitle" xml:space="preserve"><value>寫入整個 LUN</value></data>
+  <data name="Sectors_ConfirmWriteLunMessageFormat" xml:space="preserve"><value>即將把「{0}」({1} 位元組)從 LBA 0 起寫入 LUN {2}。LUN 容量為 {3} 位元組,整個映像將覆寫既有資料。</value></data>
+  <data name="Sectors_WriteLunTooLargeFormat" xml:space="preserve"><value>輸入檔案({0} 位元組)超過 LUN 容量({1} 位元組)。</value></data>
+  <data name="Sectors_SaveTitle" xml:space="preserve"><value>將磁區資料儲存到…</value></data>
+  <data name="Sectors_OpenTitle" xml:space="preserve"><value>選擇資料檔</value></data>
+  <data name="Sectors_ConfirmWriteTitle" xml:space="preserve"><value>寫入磁區</value></data>
+  <data name="Sectors_ConfirmWriteMessageFormat" xml:space="preserve"><value>即將把「{0}」({1} 位元組)寫入 LUN {2},起始 LBA {3}。既有磁區將被覆寫。</value></data>
+  <data name="Sectors_ConfirmEraseTitle" xml:space="preserve"><value>清除磁區</value></data>
+  <data name="Sectors_ConfirmEraseMessageFormat" xml:space="preserve"><value>即將清除 LUN {0} 上從 LBA {1} 起的 {2} 個磁區。資料無法復原。</value></data>
+  <data name="Sectors_StatusReadingFormat" xml:space="preserve"><value>正在讀取 LUN {0} @ LBA {1}({2} 個磁區)…</value></data>
+  <data name="Sectors_StatusWritingFormat" xml:space="preserve"><value>正在寫入 LUN {0} @ LBA {1}…</value></data>
+  <data name="Sectors_StatusErasingFormat" xml:space="preserve"><value>正在清除 LUN {0} @ LBA {1}({2} 個磁區)…</value></data>
+  <data name="Sectors_StatusDoneFormat" xml:space="preserve"><value>完成 — 處理了 {0} 個磁區,耗時 {1:F2} 秒。</value></data>
+  <data name="Sectors_ErrorFormat" xml:space="preserve"><value>錯誤:{0}</value></data>
+
+  <data name="Raw_Label" xml:space="preserve"><value>RAWPROGRAM</value></data>
+  <data name="Raw_Heading" xml:space="preserve"><value>清單刷寫</value></data>
+  <data name="Raw_Body" xml:space="preserve"><value>對已連線裝置執行一組 rawprogramN.xml + patchN.xml,或把目前裝置匯出為 rawprogram 清單,以便日後重新燒錄。具破壞性的流程需要輸入確認。</value></data>
+  <data name="Raw_ExecTitle" xml:space="preserve"><value>執行 rawprogram + patch</value></data>
+  <data name="Raw_ExecCaption" xml:space="preserve"><value>選擇 rawprogramN.xml / patchN.xml 檔(支援萬用字元)。相同 LUN 編號的檔案會自動配對。</value></data>
+  <data name="Raw_AddFiles" xml:space="preserve"><value>新增 XML…</value></data>
+  <data name="Raw_ClearFiles" xml:space="preserve"><value>清空</value></data>
+  <data name="Raw_RemoveFile" xml:space="preserve"><value>移除</value></data>
+  <data name="Raw_NoFilesPlaceholder" xml:space="preserve"><value>尚未新增 XML 檔案。點擊「新增檔案…」選擇 rawprogram/patch XML。</value></data>
+  <data name="Raw_PickXmlTitle" xml:space="preserve"><value>選擇 rawprogram / patch XML 檔</value></data>
+  <data name="Raw_ExecButton" xml:space="preserve"><value>刷寫…</value></data>
+  <data name="Raw_ExecNoFiles" xml:space="preserve"><value>尚未選擇 XML 檔。</value></data>
+  <data name="Raw_ExecNoRawFiles" xml:space="preserve"><value>所選檔案中沒有 rawprogramN.xml。</value></data>
+  <data name="Raw_ConfirmExecTitle" xml:space="preserve"><value>刷寫 rawprogram 清單</value></data>
+  <data name="Raw_ConfirmExecMessageFormat" xml:space="preserve"><value>即將刷寫下列清單:{0}。現有分割區將被覆蓋。</value></data>
+  <data name="Raw_ExecRunning" xml:space="preserve"><value>正在刷寫 rawprogram 清單…</value></data>
+  <data name="Raw_ExecDoneFormat" xml:space="preserve"><value>完成 — rawprogram 耗時 {0:F2} 秒。</value></data>
+  <data name="Raw_ErrorFormat" xml:space="preserve"><value>錯誤:{0}</value></data>
+
+  <data name="Raw_DumpTitle" xml:space="preserve"><value>匯出 rawprogram</value></data>
+  <data name="Raw_DumpCaption" xml:space="preserve"><value>將指定 LUN 上的每個分割區匯出到一個資料夾,同時產生 rawprogram{lun}.xml 與 patch{lun}.xml。</value></data>
+  <data name="Raw_DumpLunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Raw_DumpDirLabel" xml:space="preserve"><value>輸出資料夾</value></data>
+  <data name="Raw_DumpDirPlaceholder" xml:space="preserve"><value>/path/to/backup 或 C:\backup</value></data>
+  <data name="Raw_DumpSkipLabel" xml:space="preserve"><value>略過分割區</value></data>
+  <data name="Raw_DumpSkipPlaceholder" xml:space="preserve"><value>以逗號分隔,例如 userdata,super</value></data>
+  <data name="Raw_DumpXmlOnlyLabel" xml:space="preserve"><value>僅產生 XML</value></data>
+  <data name="Raw_DumpXmlOnlyHint" xml:space="preserve"><value>僅產生 rawprogram{lun}.xml + patch{lun}.xml,不匯出映像</value></data>
+  <data name="Raw_DumpButton" xml:space="preserve"><value>匯出</value></data>
+  <data name="Raw_DumpNoDir" xml:space="preserve"><value>請先選擇輸出資料夾。</value></data>
+  <data name="Raw_DumpRunning" xml:space="preserve"><value>正在匯出分割區…</value></data>
+  <data name="Raw_DumpDoneFormat" xml:space="preserve"><value>完成 — 匯出耗時 {0:F2} 秒。</value></data>
+  <data name="Raw_PickDirTitle" xml:space="preserve"><value>選擇輸出資料夾</value></data>
+
+  <data name="Adv_Label" xml:space="preserve"><value>進階</value></data>
+  <data name="Adv_Heading" xml:space="preserve"><value>裝置生命週期</value></data>
+  <data name="Adv_Body" xml:space="preserve"><value>UFS 佈建、獨立上傳載入器以及電源指令。這些都是低階操作,通常每台裝置只需要執行一次。</value></data>
+  <data name="Adv_ProvisionTitle" xml:space="preserve"><value>UFS 佈建</value></data>
+  <data name="Adv_ProvisionCaption" xml:space="preserve"><value>執行 UFS 佈建 XML。不可逆,會重新劃分裝置 LUN。</value></data>
+  <data name="Adv_ProvisionFileLabel" xml:space="preserve"><value>XML 檔</value></data>
+  <data name="Adv_ProvisionFilePlaceholder" xml:space="preserve"><value>provision.xml</value></data>
+  <data name="Adv_ProvisionButton" xml:space="preserve"><value>佈建…</value></data>
+  <data name="Adv_ProvisionPickTitle" xml:space="preserve"><value>選擇 UFS 佈建 XML</value></data>
+  <data name="Adv_ProvisionNoFile" xml:space="preserve"><value>請先選擇佈建 XML。</value></data>
+  <data name="Adv_ConfirmProvisionTitle" xml:space="preserve"><value>執行 UFS 佈建</value></data>
+  <data name="Adv_ConfirmProvisionMessageFormat" xml:space="preserve"><value>即將使用「{0}」對 UFS 裝置進行佈建,操作不可逆,會重新劃分 LUN。</value></data>
+  <data name="Adv_ProvisionRunning" xml:space="preserve"><value>正在進行 UFS 佈建…</value></data>
+  <data name="Adv_ProvisionDoneFormat" xml:space="preserve"><value>完成 — 佈建耗時 {0:F2} 秒。</value></data>
+
+  <data name="Adv_UploadTitle" xml:space="preserve"><value>上傳載入器(僅 Sahara)</value></data>
+  <data name="Adv_UploadCaption" xml:space="preserve"><value>進行 Sahara 交握並上傳已設定的 Firehose 程式碼,不進入任何 Firehose 操作。需要先在「連線」中設定載入器路徑。</value></data>
+  <data name="Adv_UploadButton" xml:space="preserve"><value>上傳載入器</value></data>
+  <data name="Adv_UploadNoLoader" xml:space="preserve"><value>請先在「連線」中設定載入器路徑。</value></data>
+  <data name="Adv_UploadWrongModeFormat" xml:space="preserve"><value>裝置不在 Sahara 模式(目前為 {0}),無法上傳載入器。</value></data>
+  <data name="Adv_UploadRunning" xml:space="preserve"><value>正在上傳載入器…</value></data>
+  <data name="Adv_UploadDoneFormat" xml:space="preserve"><value>完成 — 載入器上傳耗時 {0:F2} 秒。</value></data>
+
+  <data name="Adv_ResetTitle" xml:space="preserve"><value>重開 / 電源</value></data>
+  <data name="Adv_ResetCaption" xml:space="preserve"><value>發送 Firehose 電源指令(重開、關機、回到 EDL),在所選延遲後執行。</value></data>
+  <data name="Adv_ResetModeLabel" xml:space="preserve"><value>模式</value></data>
+  <data name="Adv_ResetDelayLabel" xml:space="preserve"><value>延遲(秒)</value></data>
+  <data name="Adv_ResetButton" xml:space="preserve"><value>發送…</value></data>
+  <data name="Adv_ConfirmResetTitle" xml:space="preserve"><value>發送電源指令</value></data>
+  <data name="Adv_ConfirmResetMessageFormat" xml:space="preserve"><value>即將發送「{0}」指令,延遲 {1} 秒。裝置將離開 Firehose 模式。</value></data>
+  <data name="Adv_ResetRunning" xml:space="preserve"><value>正在發送電源指令…</value></data>
+  <data name="Adv_ResetDoneFormat" xml:space="preserve"><value>完成 — 電源指令耗時 {0:F2} 秒。</value></data>
+  <data name="Adv_ResetFailedFormat" xml:space="preserve"><value>電源指令「{0}」被裝置拒絕(NAK)。</value></data>
+  <data name="Adv_ResetBadDelayFormat" xml:space="preserve"><value>延遲值無效:「{0}」,必須是非負整數。</value></data>
+
+  <data name="Adv_ErrorFormat" xml:space="preserve"><value>錯誤:{0}</value></data>
+
+  <data name="Menu_View" xml:space="preserve"><value>檢視</value></data>
+  <data name="Menu_Device" xml:space="preserve"><value>裝置</value></data>
+  <data name="Menu_Device_Provision" xml:space="preserve"><value>UFS 預配…</value></data>
+  <data name="Menu_Device_UploadLoader" xml:space="preserve"><value>上傳 Loader</value></data>
+  <data name="Menu_Device_Reset" xml:space="preserve"><value>重設 / 電源…</value></data>
+  <data name="Menu_Help" xml:space="preserve"><value>說明</value></data>
+  <data name="Menu_Help_Documentation" xml:space="preserve"><value>文件</value></data>
+  <data name="Menu_Help_About" xml:space="preserve"><value>關於 edl-ng</value></data>
+  <data name="Menu_About_Title" xml:space="preserve"><value>關於 edl-ng</value></data>
+  <data name="Menu_About_Message" xml:space="preserve"><value>edl-ng —— 跨平台的高通緊急下載(EDL)工具鏈,透過 USB 與 Sahara / Firehose 協定通訊。</value></data>
+  <data name="Menu_About_LinkText" xml:space="preserve"><value>github.com/strongtz/edl-ng</value></data>
+  <data name="About_LicenseLabel" xml:space="preserve"><value>授權</value></data>
+  <data name="About_LicenseText" xml:space="preserve"><value>edl-ng 以 MIT 授權釋出。
+Copyright © 2025 Xilin Wu 及貢獻者。</value></data>
+  <data name="About_DependenciesLabel" xml:space="preserve"><value>相依套件</value></data>
+  <data name="About_DependenciesCaption" xml:space="preserve"><value>本版本包含下列第三方元件。點擊名稱可前往對應的專案頁。</value></data>
+  <data name="About_ViewLicense" xml:space="preserve"><value>檢視完整授權…</value></data>
+  <data name="License_NotFoundFormat" xml:space="preserve"><value>本版本未隨附 '{0}' 的授權文字。</value></data>
+  <data name="Menu_About_Ok" xml:space="preserve"><value>關閉</value></data>
+</root>

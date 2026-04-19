@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+    edl-ng application icon.
+
+    Canonical source. Rasterize via `resources/icons/generate.sh`, which
+    renders this SVG at the sizes needed for Windows (.ico), macOS (.icns),
+    Linux (hicolor PNGs), and the Avalonia window icon.
+
+    Colors match QCEDL.GUI/Themes/Tokens.axaml:
+        Terracotta  #C96442
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+    <rect x="0" y="0" width="1024" height="1024" rx="200" ry="200" fill="#C96442"/>
+    <text x="512" y="470"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          fill="#FFFFFF"
+          font-family="Helvetica, 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif"
+          font-weight="700"
+          font-size="420"
+          letter-spacing="8">EDL</text>
+    <text x="512" y="800"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          fill="#FFFFFF"
+          font-family="Helvetica, 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif"
+          font-weight="400"
+          font-size="160"
+          letter-spacing="4">·ng·</text>
+</svg>

@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <InternalsVisibleTo Include="edl-ng" />
+    <InternalsVisibleTo Include="qcedl-gui" />
+  </ItemGroup>
+  <ItemGroup>
 	<PackageReference Include="LibUsbDotNet" Version="3.0.167-alpha" />
 	<PackageReference Include="System.IO.Ports" Version="9.0.4" />
+	<PackageReference Include="Vanara.PInvoke.Kernel32" Version="4.2.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference

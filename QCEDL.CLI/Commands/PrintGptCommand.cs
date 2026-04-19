@@ -2,6 +2,8 @@ using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
 using QCEDL.NET.PartitionTable;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 
 namespace QCEDL.CLI.Commands;
 
@@ -21,7 +23,7 @@ internal sealed class PrintGptCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions, uint? lun)
+    private static async Task<int> ExecuteAsync(EdlOptions globalOptions, uint? lun)
     {
         Logging.Log("Executing 'printgpt' command...", LogLevel.Trace);
 

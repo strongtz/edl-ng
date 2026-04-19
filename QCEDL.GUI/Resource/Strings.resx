@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="App_Title" xml:space="preserve"><value>edl-ng — Qualcomm EDL</value></data>
+  <data name="App_Brand" xml:space="preserve"><value>edl-ng</value></data>
+  <data name="App_Subtitle" xml:space="preserve"><value>Qualcomm Emergency Download</value></data>
+
+  <data name="Nav_Overview" xml:space="preserve"><value>Overview</value></data>
+  <data name="Nav_Connection" xml:space="preserve"><value>Connection</value></data>
+  <data name="Nav_Partitions" xml:space="preserve"><value>Partitions</value></data>
+  <data name="Nav_Sectors" xml:space="preserve"><value>Sectors</value></data>
+  <data name="Nav_RawProgram" xml:space="preserve"><value>RawProgram</value></data>
+  <data name="Nav_Advanced" xml:space="preserve"><value>Advanced</value></data>
+  <data name="Nav_Logs" xml:space="preserve"><value>Logs</value></data>
+  <data name="Nav_Settings" xml:space="preserve"><value>Settings</value></data>
+
+  <data name="Placeholder_ComingSoon" xml:space="preserve"><value>COMING SOON</value></data>
+  <data name="Placeholder_Sectors_Title" xml:space="preserve"><value>Sectors</value></data>
+  <data name="Placeholder_Sectors_Description" xml:space="preserve"><value>Read / write / erase ranges of LBAs. Tracked in gui-todos.md Phase 2.</value></data>
+  <data name="Placeholder_RawProgram_Title" xml:space="preserve"><value>RawProgram</value></data>
+  <data name="Placeholder_RawProgram_Description" xml:space="preserve"><value>Execute rawprogramN.xml + patchN.xml, or dump a LUN to rawprogram files. Tracked in gui-todos.md Phase 3.</value></data>
+  <data name="Placeholder_Advanced_Title" xml:space="preserve"><value>Advanced</value></data>
+  <data name="Placeholder_Advanced_Description" xml:space="preserve"><value>provision, upload-loader, reset. Tracked in gui-todos.md Phase 3.</value></data>
+
+  <data name="Overview_Label" xml:space="preserve"><value>OVERVIEW</value></data>
+  <data name="Overview_Display" xml:space="preserve"><value>A careful way to talk to devices.</value></data>
+  <data name="Overview_TagLine" xml:space="preserve"><value>A calm, literary front-end for the Qualcomm EDL toolchain.</value></data>
+  <data name="Overview_ConnectionHeader" xml:space="preserve"><value>Connection</value></data>
+  <data name="Overview_ConnectionCaption" xml:space="preserve"><value>Head to Connection to configure the target and establish a session. Destructive actions (write / erase / reset) will always ask for confirmation first.</value></data>
+  <data name="Overview_PartitionsTitle" xml:space="preserve"><value>Partitions</value></data>
+  <data name="Overview_PartitionsBody" xml:space="preserve"><value>Inspect the GPT, read or write named partitions, and export a rawprogram manifest.</value></data>
+  <data name="Overview_RawProgramTitle" xml:space="preserve"><value>RawProgram</value></data>
+  <data name="Overview_RawProgramBody" xml:space="preserve"><value>Run rawprogramN.xml + patchN.xml flashing flows, or dump the current device to a rawprogram set.</value></data>
+  <data name="Overview_ConnectedFormat" xml:space="preserve"><value>Connected — {0}</value></data>
+
+  <data name="Conn_Label" xml:space="preserve"><value>CONNECTION</value></data>
+  <data name="Conn_Heading" xml:space="preserve"><value>Target &amp; Session</value></data>
+  <data name="Conn_Body" xml:space="preserve"><value>Choose how to reach the device: USB via Sahara/Firehose, or a direct host-device backend. The GUI mirrors the CLI global options.</value></data>
+  <data name="Conn_ProgrammerCardTitle" xml:space="preserve"><value>Programmer &amp; Transport</value></data>
+  <data name="Conn_ProgrammerCardCaption" xml:space="preserve"><value>Choose libusb (WinUSB / LibUsbDotNet) or the serial driver. Auto picks libusb on Windows and serial on Linux/macOS.</value></data>
+  <data name="Conn_Loader" xml:space="preserve"><value>Loader (.elf / .xml)</value></data>
+  <data name="Conn_LoaderPlaceholder" xml:space="preserve"><value>Path to Firehose programmer or qsahara_device_programmer.xml</value></data>
+  <data name="Conn_LoaderPickTitle" xml:space="preserve"><value>Select Firehose loader (.elf / .melf / .xml)</value></data>
+  <data name="Conn_Browse" xml:space="preserve"><value>Browse…</value></data>
+  <data name="Conn_Backend" xml:space="preserve"><value>Backend</value></data>
+  <data name="Conn_VidHex" xml:space="preserve"><value>USB VID (hex)</value></data>
+  <data name="Conn_VidPlaceholder" xml:space="preserve"><value>05C6</value></data>
+  <data name="Conn_PidHex" xml:space="preserve"><value>USB PID (hex)</value></data>
+  <data name="Conn_PidPlaceholder" xml:space="preserve"><value>9008</value></data>
+  <data name="Conn_SerialDevice" xml:space="preserve"><value>Serial device</value></data>
+  <data name="Conn_SerialPlaceholder" xml:space="preserve"><value>/dev/ttyUSB0, /dev/tty.usbserial-…, or auto-detect on Windows/Linux</value></data>
+  <data name="Conn_Memory" xml:space="preserve"><value>Memory</value></data>
+  <data name="Conn_Slot" xml:space="preserve"><value>Slot</value></data>
+  <data name="Conn_DirectCardTitle" xml:space="preserve"><value>Direct modes</value></data>
+  <data name="Conn_DirectCardCaption" xml:space="preserve"><value>Bypass USB/Firehose entirely when flashing a host block device or file-backed image.</value></data>
+  <data name="Conn_DirectEnabled" xml:space="preserve"><value>Enable direct mode</value></data>
+  <data name="Conn_HostDevice" xml:space="preserve"><value>Host device</value></data>
+  <data name="Conn_HostDevicePlaceholder" xml:space="preserve"><value>/dev/mtd0 or /path/to/file.img</value></data>
+  <data name="Conn_ImageSize" xml:space="preserve"><value>Image size</value></data>
+  <data name="Conn_ImageSizePlaceholder" xml:space="preserve"><value>32M / 1G / 512K (only when creating a file)</value></data>
+  <data name="Conn_RadxaWos" xml:space="preserve"><value>Radxa WoS</value></data>
+  <data name="Conn_RadxaCheckbox" xml:space="preserve"><value>Use Radxa Windows-on-Snapdragon SPI NOR backend (Windows only)</value></data>
+  <data name="Conn_StatusTitle" xml:space="preserve"><value>Status</value></data>
+  <data name="Conn_ModeLabel" xml:space="preserve"><value>Mode</value></data>
+  <data name="Conn_StatusFieldLabel" xml:space="preserve"><value>Status</value></data>
+  <data name="Conn_StepDiscover" xml:space="preserve"><value>STEP 01 · DISCOVER</value></data>
+  <data name="Conn_StepSession" xml:space="preserve"><value>STEP 02 · SESSION</value></data>
+  <data name="Conn_ConnectButton" xml:space="preserve"><value>Connect</value></data>
+  <data name="Conn_ProbeButton" xml:space="preserve"><value>Probe mode</value></data>
+  <data name="Conn_DisconnectButton" xml:space="preserve"><value>Disconnect</value></data>
+  <data name="Conn_StatusNotConnected" xml:space="preserve"><value>Not connected.</value></data>
+  <data name="Conn_ModeUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="Conn_ModeDirect" xml:space="preserve"><value>Direct</value></data>
+  <data name="Conn_ConnectFailedFormat" xml:space="preserve"><value>Connect failed: {0}</value></data>
+  <data name="Conn_ProbeFailedFormat" xml:space="preserve"><value>Probe failed: {0}</value></data>
+  <data name="Conn_LogProbing" xml:space="preserve"><value>Probing device mode...</value></data>
+  <data name="Conn_StatusDetectedFormat" xml:space="preserve"><value>Detected: {0}</value></data>
+  <data name="Conn_LogDirectSession" xml:space="preserve"><value>Direct-mode session (host device / Radxa WoS). No USB handshake required.</value></data>
+  <data name="Conn_StatusDirectReady" xml:space="preserve"><value>Direct mode ready.</value></data>
+  <data name="Conn_LogElevationLinuxHint" xml:space="preserve"><value>Permission denied opening the EDL device. Install the shipped udev rule (see docs/linux-udev.md) so the device is accessible without sudo.</value></data>
+  <data name="Conn_LogConnecting" xml:space="preserve"><value>Connecting to device (Sahara → Firehose)...</value></data>
+  <data name="Conn_StatusFirehoseConnected" xml:space="preserve"><value>Connected in Firehose mode.</value></data>
+  <data name="Conn_StatusDisconnected" xml:space="preserve"><value>Disconnected.</value></data>
+  <data name="Conn_LogSessionClosed" xml:space="preserve"><value>Session closed.</value></data>
+
+  <data name="Conn_DevicesCardTitle" xml:space="preserve"><value>Device &amp; Session</value></data>
+  <data name="Conn_DevicesCardCaption" xml:space="preserve"><value>Scan for matching EDL devices, review the list, then connect. When more than one is attached and none is selected, you will be prompted to pick during Connect.</value></data>
+  <data name="Conn_ScanDevicesButton" xml:space="preserve"><value>Scan devices</value></data>
+  <data name="Conn_ClearDeviceSelection" xml:space="preserve"><value>Clear selection</value></data>
+  <data name="Conn_DevicesEmpty" xml:space="preserve"><value>No candidates yet. Click Scan to enumerate.</value></data>
+  <data name="Conn_DevicesNoneFound" xml:space="preserve"><value>No EDL devices found on the selected backend.</value></data>
+  <data name="Conn_DevicesFoundFormat" xml:space="preserve"><value>Found {0} candidate device(s).</value></data>
+  <data name="Conn_DeviceSelectedFormat" xml:space="preserve"><value>Selected device: {0}</value></data>
+  <data name="Conn_LogMultipleFoundPrompt" xml:space="preserve"><value>Multiple devices found — prompting the user to pick one.</value></data>
+  <data name="Conn_LogSelectionCancelled" xml:space="preserve"><value>Device selection cancelled.</value></data>
+
+  <data name="DeviceChooser_Title" xml:space="preserve"><value>Pick a device</value></data>
+  <data name="DeviceChooser_Prompt" xml:space="preserve"><value>More than one EDL device matches your transport backend. Pick the one to use.</value></data>
+  <data name="DeviceChooser_Confirm" xml:space="preserve"><value>Use this device</value></data>
+  <data name="DeviceChooser_Cancel" xml:space="preserve"><value>Cancel</value></data>
+
+  <data name="Parts_Label" xml:space="preserve"><value>PARTITIONS</value></data>
+  <data name="Parts_Heading" xml:space="preserve"><value>GPT Inspector</value></data>
+  <data name="Parts_Body" xml:space="preserve"><value>Scan every LUN the device reports (or a specific one) and read the GUID Partition Table.</value></data>
+  <data name="Parts_LunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Parts_LunPlaceholder" xml:space="preserve"><value>all</value></data>
+  <data name="Parts_ScanButton" xml:space="preserve"><value>Scan</value></data>
+  <data name="Parts_HeaderLun" xml:space="preserve"><value>LUN</value></data>
+  <data name="Parts_HeaderIndex" xml:space="preserve"><value>#</value></data>
+  <data name="Parts_HeaderName" xml:space="preserve"><value>NAME</value></data>
+  <data name="Parts_HeaderFirstLba" xml:space="preserve"><value>FIRST LBA</value></data>
+  <data name="Parts_HeaderLastLba" xml:space="preserve"><value>LAST LBA</value></data>
+  <data name="Parts_HeaderSize" xml:space="preserve"><value>SIZE</value></data>
+  <data name="Parts_StatusNotScanned" xml:space="preserve"><value>Not scanned.</value></data>
+  <data name="Parts_ErrorFormat" xml:space="preserve"><value>Error: {0}</value></data>
+  <data name="Parts_LogScanFailedFormat" xml:space="preserve"><value>GPT scan failed: {0}</value></data>
+  <data name="Parts_LogNoGptFormat" xml:space="preserve"><value>LUN {0}: no GPT found.</value></data>
+  <data name="Parts_LogScanErrorFormat" xml:space="preserve"><value>LUN {0} scan error: {1}</value></data>
+  <data name="Parts_StatusFoundFormat" xml:space="preserve"><value>Found {0} partition(s).</value></data>
+
+  <data name="Logs_Label" xml:space="preserve"><value>LOGS</value></data>
+  <data name="Logs_Heading" xml:space="preserve"><value>Live output</value></data>
+  <data name="Logs_Body" xml:space="preserve"><value>Everything the protocol layer emits, mirrored from the shared logger. The same stream also goes to stdout when the GUI is launched from a terminal.</value></data>
+
+  <data name="Settings_Label" xml:space="preserve"><value>SETTINGS</value></data>
+  <data name="Settings_Heading" xml:space="preserve"><value>Preferences</value></data>
+  <data name="Settings_Body" xml:space="preserve"><value>Configure the GUI. Changes apply immediately.</value></data>
+  <data name="Settings_LanguageCardTitle" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings_LanguageCardCaption" xml:space="preserve"><value>Choose the display language. Your choice is saved between sessions.</value></data>
+  <data name="Settings_LanguageLabel" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings_LoggingCardTitle" xml:space="preserve"><value>Logging</value></data>
+  <data name="Settings_LoggingCardCaption" xml:space="preserve"><value>Control how much the protocol layer reports. Trace is noisiest; Error is quietest.</value></data>
+  <data name="Settings_LogLevelLabel" xml:space="preserve"><value>Log level</value></data>
+  <data name="Settings_ThemeCardTitle" xml:space="preserve"><value>Appearance</value></data>
+  <data name="Settings_ThemeCardCaption" xml:space="preserve"><value>Pick a light or dark theme, or follow the operating system. Changes apply immediately.</value></data>
+  <data name="Settings_ThemeLabel" xml:space="preserve"><value>Theme</value></data>
+  <data name="Settings_Theme_System" xml:space="preserve"><value>System</value></data>
+  <data name="Settings_Theme_Light" xml:space="preserve"><value>Light</value></data>
+  <data name="Settings_Theme_Dark" xml:space="preserve"><value>Dark</value></data>
+
+  <data name="Progress_Format" xml:space="preserve"><value>{0:F1} / {1:F1} MiB ({2:F0}%)</value></data>
+  <data name="Confirm_DefaultOk" xml:space="preserve"><value>Continue</value></data>
+  <data name="Confirm_DefaultCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Confirm_TypeToConfirmFormat" xml:space="preserve"><value>Type “{0}” to confirm.</value></data>
+
+  <data name="Parts_Ops_Title" xml:space="preserve"><value>Partition operations</value></data>
+  <data name="Parts_Ops_Caption" xml:space="preserve"><value>Read, write, or erase a named partition. Select a row above to prefill the fields.</value></data>
+  <data name="Parts_Ops_PartitionLabel" xml:space="preserve"><value>Partition</value></data>
+  <data name="Parts_Ops_PartitionPlaceholder" xml:space="preserve"><value>e.g. boot, userdata</value></data>
+  <data name="Parts_Ops_LunLabel" xml:space="preserve"><value>LUN (optional)</value></data>
+  <data name="Parts_Ops_ReadButton" xml:space="preserve"><value>Read…</value></data>
+  <data name="Parts_Ops_WriteButton" xml:space="preserve"><value>Write…</value></data>
+  <data name="Parts_Ops_EraseButton" xml:space="preserve"><value>Erase…</value></data>
+  <data name="Parts_Ops_SavePickerTitle" xml:space="preserve"><value>Save partition image to…</value></data>
+  <data name="Parts_Ops_OpenPickerTitle" xml:space="preserve"><value>Pick image to flash</value></data>
+  <data name="Parts_Ops_ConfirmWriteTitle" xml:space="preserve"><value>Write partition</value></data>
+  <data name="Parts_Ops_ConfirmWriteMessageFormat" xml:space="preserve"><value>About to write “{1}” ({2} bytes) to partition “{0}”. This overwrites the existing contents.</value></data>
+  <data name="Parts_Ops_ConfirmEraseTitle" xml:space="preserve"><value>Erase partition</value></data>
+  <data name="Parts_Ops_ConfirmEraseMessageFormat" xml:space="preserve"><value>This will erase every sector of partition “{0}”. Data cannot be recovered.</value></data>
+  <data name="Parts_Ops_PartitionNotFoundFormat" xml:space="preserve"><value>Partition “{0}” not found on any scanned LUN.</value></data>
+  <data name="Parts_Ops_StatusReadingFormat" xml:space="preserve"><value>Reading “{0}”…</value></data>
+  <data name="Parts_Ops_StatusWritingFormat" xml:space="preserve"><value>Writing “{0}”…</value></data>
+  <data name="Parts_Ops_StatusErasingFormat" xml:space="preserve"><value>Erasing “{0}”…</value></data>
+  <data name="Parts_Ops_StatusDoneFormat" xml:space="preserve"><value>Done — “{0}” in {1:F2}s.</value></data>
+  <data name="Parts_Ops_StatusFailedFormat" xml:space="preserve"><value>Failed — {0}</value></data>
+
+  <data name="Sectors_Label" xml:space="preserve"><value>SECTORS</value></data>
+  <data name="Sectors_Heading" xml:space="preserve"><value>Sector ranges</value></data>
+  <data name="Sectors_Body" xml:space="preserve"><value>Read, write, or erase a contiguous run of LBAs on a given LUN. Writes and erases require a typed confirmation.</value></data>
+  <data name="Sectors_LunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Sectors_StartLabel" xml:space="preserve"><value>Start LBA</value></data>
+  <data name="Sectors_CountLabel" xml:space="preserve"><value>Sector count</value></data>
+  <data name="Sectors_ReadButton" xml:space="preserve"><value>Read</value></data>
+  <data name="Sectors_ReadLunButton" xml:space="preserve"><value>Read whole LUN</value></data>
+  <data name="Sectors_WriteButton" xml:space="preserve"><value>Write</value></data>
+  <data name="Sectors_WriteLunButton" xml:space="preserve"><value>Write whole LUN</value></data>
+  <data name="Sectors_EraseButton" xml:space="preserve"><value>Erase</value></data>
+  <data name="Sectors_ConfirmWriteLunTitle" xml:space="preserve"><value>Write whole LUN</value></data>
+  <data name="Sectors_ConfirmWriteLunMessageFormat" xml:space="preserve"><value>About to write “{0}” ({1} bytes) to LUN {2} starting at LBA 0. LUN capacity is {3} bytes. The entire image will overwrite existing data.</value></data>
+  <data name="Sectors_WriteLunTooLargeFormat" xml:space="preserve"><value>Input file ({0} bytes) is larger than LUN capacity ({1} bytes).</value></data>
+  <data name="Sectors_SaveTitle" xml:space="preserve"><value>Save sector data to…</value></data>
+  <data name="Sectors_OpenTitle" xml:space="preserve"><value>Pick data file</value></data>
+  <data name="Sectors_ConfirmWriteTitle" xml:space="preserve"><value>Write sectors</value></data>
+  <data name="Sectors_ConfirmWriteMessageFormat" xml:space="preserve"><value>About to write “{0}” ({1} bytes) to LUN {2} starting at LBA {3}. Existing sectors will be overwritten.</value></data>
+  <data name="Sectors_ConfirmEraseTitle" xml:space="preserve"><value>Erase sectors</value></data>
+  <data name="Sectors_ConfirmEraseMessageFormat" xml:space="preserve"><value>About to erase {2} sector(s) on LUN {0} starting at LBA {1}. Data cannot be recovered.</value></data>
+  <data name="Sectors_StatusReadingFormat" xml:space="preserve"><value>Reading LUN {0} @ LBA {1} ({2} sectors)…</value></data>
+  <data name="Sectors_StatusWritingFormat" xml:space="preserve"><value>Writing LUN {0} @ LBA {1}…</value></data>
+  <data name="Sectors_StatusErasingFormat" xml:space="preserve"><value>Erasing LUN {0} @ LBA {1} ({2} sectors)…</value></data>
+  <data name="Sectors_StatusDoneFormat" xml:space="preserve"><value>Done — {0} sector(s) in {1:F2}s.</value></data>
+  <data name="Sectors_ErrorFormat" xml:space="preserve"><value>Error: {0}</value></data>
+
+  <data name="Raw_Label" xml:space="preserve"><value>RAWPROGRAM</value></data>
+  <data name="Raw_Heading" xml:space="preserve"><value>Manifest flashing</value></data>
+  <data name="Raw_Body" xml:space="preserve"><value>Run a rawprogramN.xml + patchN.xml set against the connected device, or dump the device to a rawprogram manifest for later re-flashing. Destructive flows require a typed confirmation.</value></data>
+  <data name="Raw_ExecTitle" xml:space="preserve"><value>Execute rawprogram + patch</value></data>
+  <data name="Raw_ExecCaption" xml:space="preserve"><value>Pick rawprogramN.xml / patchN.xml files (globs allowed). Files with matching LUN numbers are paired automatically.</value></data>
+  <data name="Raw_AddFiles" xml:space="preserve"><value>Add XML…</value></data>
+  <data name="Raw_ClearFiles" xml:space="preserve"><value>Clear</value></data>
+  <data name="Raw_RemoveFile" xml:space="preserve"><value>remove</value></data>
+  <data name="Raw_NoFilesPlaceholder" xml:space="preserve"><value>No XML files added yet. Click “Add files…” to select one or more rawprogram/patch XMLs.</value></data>
+  <data name="Raw_PickXmlTitle" xml:space="preserve"><value>Pick rawprogram / patch XML files</value></data>
+  <data name="Raw_ExecButton" xml:space="preserve"><value>Flash…</value></data>
+  <data name="Raw_ExecNoFiles" xml:space="preserve"><value>No XML files selected.</value></data>
+  <data name="Raw_ExecNoRawFiles" xml:space="preserve"><value>No rawprogramN.xml found in the selection.</value></data>
+  <data name="Raw_ConfirmExecTitle" xml:space="preserve"><value>Flash rawprogram manifest</value></data>
+  <data name="Raw_ConfirmExecMessageFormat" xml:space="preserve"><value>About to flash the following manifests: {0}. Existing partitions will be overwritten.</value></data>
+  <data name="Raw_ExecRunning" xml:space="preserve"><value>Flashing rawprogram manifest…</value></data>
+  <data name="Raw_ExecDoneFormat" xml:space="preserve"><value>Done — rawprogram finished in {0:F2}s.</value></data>
+  <data name="Raw_ErrorFormat" xml:space="preserve"><value>Error: {0}</value></data>
+
+  <data name="Raw_DumpTitle" xml:space="preserve"><value>Dump rawprogram</value></data>
+  <data name="Raw_DumpCaption" xml:space="preserve"><value>Dump every partition on a LUN into a folder and emit rawprogram{lun}.xml + patch{lun}.xml alongside the images.</value></data>
+  <data name="Raw_DumpLunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Raw_DumpDirLabel" xml:space="preserve"><value>Output folder</value></data>
+  <data name="Raw_DumpDirPlaceholder" xml:space="preserve"><value>/path/to/backup or C:\backup</value></data>
+  <data name="Raw_DumpSkipLabel" xml:space="preserve"><value>Skip partitions</value></data>
+  <data name="Raw_DumpSkipPlaceholder" xml:space="preserve"><value>comma-separated, e.g. userdata,super</value></data>
+  <data name="Raw_DumpXmlOnlyLabel" xml:space="preserve"><value>XML only</value></data>
+  <data name="Raw_DumpXmlOnlyHint" xml:space="preserve"><value>Generate only rawprogram{lun}.xml + patch{lun}.xml, skip image dump</value></data>
+  <data name="Raw_DumpButton" xml:space="preserve"><value>Dump</value></data>
+  <data name="Raw_DumpNoDir" xml:space="preserve"><value>Pick an output folder first.</value></data>
+  <data name="Raw_DumpRunning" xml:space="preserve"><value>Dumping partitions…</value></data>
+  <data name="Raw_DumpDoneFormat" xml:space="preserve"><value>Done — dump finished in {0:F2}s.</value></data>
+  <data name="Raw_PickDirTitle" xml:space="preserve"><value>Choose output folder</value></data>
+
+  <data name="Adv_Label" xml:space="preserve"><value>ADVANCED</value></data>
+  <data name="Adv_Heading" xml:space="preserve"><value>Device lifecycle</value></data>
+  <data name="Adv_Body" xml:space="preserve"><value>UFS provisioning, standalone loader upload, and power commands. These actions are low-level and usually done once per device.</value></data>
+  <data name="Adv_ProvisionTitle" xml:space="preserve"><value>UFS provision</value></data>
+  <data name="Adv_ProvisionCaption" xml:space="preserve"><value>Run a UFS provisioning XML. Irreversible; this reshapes the device's LUNs.</value></data>
+  <data name="Adv_ProvisionFileLabel" xml:space="preserve"><value>XML file</value></data>
+  <data name="Adv_ProvisionFilePlaceholder" xml:space="preserve"><value>provision.xml</value></data>
+  <data name="Adv_ProvisionButton" xml:space="preserve"><value>Provision…</value></data>
+  <data name="Adv_ProvisionPickTitle" xml:space="preserve"><value>Pick UFS provisioning XML</value></data>
+  <data name="Adv_ProvisionNoFile" xml:space="preserve"><value>Pick a provisioning XML first.</value></data>
+  <data name="Adv_ConfirmProvisionTitle" xml:space="preserve"><value>Run UFS provisioning</value></data>
+  <data name="Adv_ConfirmProvisionMessageFormat" xml:space="preserve"><value>About to provision the UFS device using “{0}”. This is irreversible and reshapes the device's LUNs.</value></data>
+  <data name="Adv_ProvisionRunning" xml:space="preserve"><value>Running UFS provisioning…</value></data>
+  <data name="Adv_ProvisionDoneFormat" xml:space="preserve"><value>Done — provisioning finished in {0:F2}s.</value></data>
+
+  <data name="Adv_UploadTitle" xml:space="preserve"><value>Upload loader (Sahara only)</value></data>
+  <data name="Adv_UploadCaption" xml:space="preserve"><value>Do a Sahara handshake and upload the configured Firehose programmer, without proceeding to any Firehose operation. Requires a loader path configured in Connection.</value></data>
+  <data name="Adv_UploadButton" xml:space="preserve"><value>Upload loader</value></data>
+  <data name="Adv_UploadNoLoader" xml:space="preserve"><value>Configure a loader path in Connection first.</value></data>
+  <data name="Adv_UploadWrongModeFormat" xml:space="preserve"><value>Device is not in Sahara mode (got {0}). Cannot upload loader.</value></data>
+  <data name="Adv_UploadRunning" xml:space="preserve"><value>Uploading loader…</value></data>
+  <data name="Adv_UploadDoneFormat" xml:space="preserve"><value>Done — loader uploaded in {0:F2}s.</value></data>
+
+  <data name="Adv_ResetTitle" xml:space="preserve"><value>Reset / power</value></data>
+  <data name="Adv_ResetCaption" xml:space="preserve"><value>Issue a Firehose power command (reset, power off, back to EDL). Runs after the chosen delay.</value></data>
+  <data name="Adv_ResetModeLabel" xml:space="preserve"><value>Mode</value></data>
+  <data name="Adv_ResetDelayLabel" xml:space="preserve"><value>Delay (s)</value></data>
+  <data name="Adv_ResetButton" xml:space="preserve"><value>Send…</value></data>
+  <data name="Adv_ConfirmResetTitle" xml:space="preserve"><value>Send power command</value></data>
+  <data name="Adv_ConfirmResetMessageFormat" xml:space="preserve"><value>About to send “{0}” with a {1}s delay. The device will leave Firehose mode.</value></data>
+  <data name="Adv_ResetRunning" xml:space="preserve"><value>Sending power command…</value></data>
+  <data name="Adv_ResetDoneFormat" xml:space="preserve"><value>Done — power command sent in {0:F2}s.</value></data>
+  <data name="Adv_ResetFailedFormat" xml:space="preserve"><value>Power command “{0}” was NAKed by the device.</value></data>
+  <data name="Adv_ResetBadDelayFormat" xml:space="preserve"><value>Invalid delay: '{0}'. Expected a non-negative integer.</value></data>
+
+  <data name="Adv_ErrorFormat" xml:space="preserve"><value>Error: {0}</value></data>
+
+  <data name="Menu_View" xml:space="preserve"><value>View</value></data>
+  <data name="Menu_Device" xml:space="preserve"><value>Device</value></data>
+  <data name="Menu_Device_Provision" xml:space="preserve"><value>UFS Provision…</value></data>
+  <data name="Menu_Device_UploadLoader" xml:space="preserve"><value>Upload Loader</value></data>
+  <data name="Menu_Device_Reset" xml:space="preserve"><value>Reset / Power…</value></data>
+  <data name="Menu_Help" xml:space="preserve"><value>Help</value></data>
+  <data name="Menu_Help_Documentation" xml:space="preserve"><value>Documentation</value></data>
+  <data name="Menu_Help_About" xml:space="preserve"><value>About edl-ng</value></data>
+  <data name="Menu_About_Title" xml:space="preserve"><value>About edl-ng</value></data>
+  <data name="Menu_About_Message" xml:space="preserve"><value>edl-ng — a cross-platform toolchain for Qualcomm Emergency Download mode, speaking Sahara and Firehose over USB.</value></data>
+  <data name="Menu_About_LinkText" xml:space="preserve"><value>github.com/strongtz/edl-ng</value></data>
+  <data name="About_LicenseLabel" xml:space="preserve"><value>LICENSE</value></data>
+  <data name="About_LicenseText" xml:space="preserve"><value>edl-ng is released under the MIT License.
+Copyright © 2025 Xilin Wu and contributors.</value></data>
+  <data name="About_DependenciesLabel" xml:space="preserve"><value>DEPENDENCIES</value></data>
+  <data name="About_DependenciesCaption" xml:space="preserve"><value>This build ships the following third-party components. Click a name to open its project page.</value></data>
+  <data name="About_ViewLicense" xml:space="preserve"><value>View full license…</value></data>
+  <data name="License_NotFoundFormat" xml:space="preserve"><value>License text for '{0}' is not bundled with this build.</value></data>
+  <data name="Menu_About_Ok" xml:space="preserve"><value>Close</value></data>
+</root>

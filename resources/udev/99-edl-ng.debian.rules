@@ -1,0 +1,20 @@
+# Qualcomm Emergency Download (EDL) — udev rules for edl-ng (Debian/Ubuntu variant)
+# Shipped by the .deb package. Activate by reloading udev after install:
+#   sudo udevadm control --reload
+#   sudo udevadm trigger
+#
+# Grants read/write access to:
+#   - whatever seat is locally logged in (via TAG+="uaccess" — handled by systemd-logind)
+#   - members of the "plugdev" group (Debian/Ubuntu's conventional device-access group)
+# Add your user to plugdev for headless/SSH access:
+#   sudo usermod -aG plugdev $USER && newgrp plugdev
+
+# USB: EDL (Emergency Download) and SDM8xx/SDM6xx boot (Qualcomm HS-USB QDLoader)
+SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="9008", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="900e", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+
+# USB-serial and CDC-ACM endpoints exposed by the same devices
+KERNEL=="ttyUSB[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+KERNEL=="ttyUSB[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="900e", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+KERNEL=="ttyACM[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+KERNEL=="ttyACM[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="900e", TAG+="uaccess", MODE="0660", GROUP="plugdev"

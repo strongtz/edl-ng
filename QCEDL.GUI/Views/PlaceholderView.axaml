@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             x:Class="QCEDL.GUI.Views.PlaceholderView"
+             x:DataType="vm:PlaceholderViewModel">
+    <StackPanel Spacing="16" MaxWidth="1040">
+        <TextBlock Classes="label" Text="{l:Localize Placeholder_ComingSoon}" />
+        <TextBlock Classes="h1" Text="{Binding Title}" />
+        <Border Classes="card">
+            <TextBlock Classes="body" TextWrapping="Wrap" Text="{Binding Description}" />
+        </Border>
+    </StackPanel>
+</UserControl>

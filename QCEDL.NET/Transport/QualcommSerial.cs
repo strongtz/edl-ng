@@ -55,6 +55,14 @@ public class QualcommSerial : IDisposable
 
     public CommunicationMode ActiveCommunicationMode { get; private set; } = CommunicationMode.None;
 
+    /// <summary>
+    /// USB iSerial read from the already-opened libusb handle. Populated after
+    /// <c>_libUsbDevice.Open()</c> succeeds so callers can latch onto the same logical
+    /// device across re-enumeration (Sahara → Firehose) without a transient pre-open
+    /// that would otherwise perturb the device state on macOS IOKit.
+    /// </summary>
+    public string? UsbSerialNumber { get; private set; }
+
     // Static constructor for LibUsb context
     static QualcommSerial()
     {
@@ -110,13 +118,13 @@ public class QualcommSerial : IDisposable
                     }
 
                     LibraryLogger.Debug($"Searching LibUsb for VID=0x{vid:X4}, PID=0x{pid:X4}");
-                    var finder = new UsbDeviceFinder { Vid = vid, Pid = pid };
-
-                    _libUsbDevice = LibUsbContext?.Find(finder) as UsbDevice
+                    var (bus, addr) = ExtractBusAddrFromDevicePath(deviceIdOrPath);
+                    _libUsbDevice = FindLibUsbDevice(vid, pid, bus, addr)
                         ?? throw new TodoException(
-                            $"LibUsbDotNet: Device with VID=0x{vid:X4}, PID=0x{pid:X4} not found.");
+                            $"LibUsbDotNet: Device with VID=0x{vid:X4}, PID=0x{pid:X4}{(bus.HasValue && addr.HasValue ? $", bus={bus}, addr={addr}" : string.Empty)} not found.");
 
                     _libUsbDevice.Open();
+                    TryCaptureUsbSerial();
 
                     // seems to be unnecessary
                     // _libUsbDevice.SetConfiguration(1);
@@ -242,16 +250,10 @@ public class QualcommSerial : IDisposable
                     }
 
                     LibraryLogger.Debug($"Searching LibUsb for VID=0x{vid:X4}, PID=0x{pid:X4}");
-                    var finder = new UsbDeviceFinder
-                    {
-                        Vid = vid,
-                        Pid = pid
-                        // You can also set SerialNumber here if needed:
-                        // SerialNumber = "YourSerialNumber"
-                    };
-                    _libUsbDevice = LibUsbContext?.Find(finder) as UsbDevice
+                    var (bus, addr) = ExtractBusAddrFromDevicePath(deviceIdOrPath);
+                    _libUsbDevice = FindLibUsbDevice(vid, pid, bus, addr)
                         ?? throw new TodoException(
-                            $"LibUsbDotNet: Device with VID=0x{vid:X4}, PID=0x{pid:X4} not found.");
+                            $"LibUsbDotNet: Device with VID=0x{vid:X4}, PID=0x{pid:X4}{(bus.HasValue && addr.HasValue ? $", bus={bus}, addr={addr}" : string.Empty)} not found.");
 
                     _libUsbDevice.Open();
 
@@ -317,9 +319,87 @@ public class QualcommSerial : IDisposable
         return (vid, pid);
     }
 
+    /// <summary>
+    /// Reads the iSerial string from the already-open <see cref="_libUsbDevice"/> handle.
+    /// Safe on macOS because the device is already open — no transient open/close that
+    /// would perturb the device state mid-Sahara. Silently no-ops if the descriptor is
+    /// missing or the read throws.
+    /// </summary>
+    private void TryCaptureUsbSerial()
+    {
+        try
+        {
+            var sn = _libUsbDevice?.Info?.SerialNumber;
+            UsbSerialNumber = string.IsNullOrWhiteSpace(sn) ? null : sn;
+        }
+        catch (Exception ex)
+        {
+            LibraryLogger.Debug($"LibUsbDotNet: iSerial read from open handle failed: {ex.Message}");
+            UsbSerialNumber = null;
+        }
+    }
+
+    private static (byte? bus, byte? addr) ExtractBusAddrFromDevicePath(string devicePath)
+    {
+        byte? bus = null;
+        byte? addr = null;
+        try
+        {
+            var matchBus = Regex.Match(devicePath, @"BUS_([0-9]+)", RegexOptions.IgnoreCase);
+            var matchAddr = Regex.Match(devicePath, @"ADDR_([0-9]+)", RegexOptions.IgnoreCase);
+            if (matchBus.Success && byte.TryParse(matchBus.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b))
+            {
+                bus = b;
+            }
+            if (matchAddr.Success && byte.TryParse(matchAddr.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var a))
+            {
+                addr = a;
+            }
+        }
+        catch
+        {
+            /* Ignore parsing errors */
+        }
+        return (bus, addr);
+    }
+
+    /// <summary>
+    /// Finds a libusb device by VID/PID, optionally filtering to a specific bus + address.
+    /// When both <paramref name="bus"/> and <paramref name="addr"/> are provided, <c>List()</c>
+    /// is enumerated so the filter can apply (<see cref="UsbDeviceFinder"/> does not support
+    /// bus/addr). Otherwise returns the first matching device (current behaviour).
+    /// </summary>
+    internal static UsbDevice? FindLibUsbDevice(int vid, int pid, byte? bus, byte? addr)
+    {
+        if (LibUsbContext == null)
+        {
+            return null;
+        }
+
+        if (bus.HasValue && addr.HasValue)
+        {
+            foreach (var candidate in LibUsbContext.List())
+            {
+                if (candidate is UsbDevice dev &&
+                    dev.VendorId == vid &&
+                    dev.ProductId == pid &&
+                    dev.BusNumber == bus.Value &&
+                    dev.Address == addr.Value)
+                {
+                    return dev;
+                }
+            }
+            return null;
+        }
+
+        return LibUsbContext.Find(new UsbDeviceFinder { Vid = vid, Pid = pid }) as UsbDevice;
+    }
+
     // Method for sending large raw data (e.g., for Firehose program) with internal chunking for SerialPort
     public void SendLargeRawData(byte[] largeData)
     {
+        ObjectDisposedException.ThrowIf(_disposed, typeof(QualcommSerial));
+
         if (_port != null)
         {
             var bytesWritten = 0;
@@ -446,6 +526,7 @@ public class QualcommSerial : IDisposable
     public byte[] GetResponse(byte[]? responsePattern, int length = 0x2000)
     {
         ObjectDisposedException.ThrowIf(_disposed, typeof(QualcommSerial));
+
         var responseBuffer = new byte[length > 0 ? length : 0x2000];
         length = 0;
 

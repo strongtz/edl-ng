@@ -11,5 +11,9 @@
       <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
       <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
       <GenerateDocumentationFile>true</GenerateDocumentationFile>
+      <!-- Single source of truth for the shipping version, consumed by CLI/GUI/Helper csproj
+           and extracted by .github/workflows/build.yml for package naming. -->
+      <EdlNgVersion>1.5.0</EdlNgVersion>
+      <Version>$(EdlNgVersion)</Version>
   </PropertyGroup>
 </Project>

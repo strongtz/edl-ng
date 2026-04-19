@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="QCEDL.GUI.Views.SectorsView"
+             x:DataType="vm:SectorsViewModel">
+    <StackPanel Spacing="20" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Sectors_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Sectors_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Sectors_Body}" />
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Sectors_LunLabel}" VerticalAlignment="Center" />
+                    <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding Lun}" Minimum="0" Maximum="31" Increment="1" FormatString="0" Width="220" HorizontalAlignment="Left" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="body" Text="{l:Localize Sectors_StartLabel}" VerticalAlignment="Center" />
+                    <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding StartLba}" Minimum="0" Increment="1" FormatString="0" Width="220" HorizontalAlignment="Left" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="body" Text="{l:Localize Sectors_CountLabel}" VerticalAlignment="Center" />
+                    <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding SectorCount}" Minimum="1" Increment="1" FormatString="0" Width="220" HorizontalAlignment="Left" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="primary" Content="{l:Localize Sectors_ReadButton}" Command="{Binding ReadSectorsCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Content="{l:Localize Sectors_ReadLunButton}" Command="{Binding ReadLunCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Content="{l:Localize Sectors_WriteButton}" Command="{Binding WriteSectorsCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Classes="danger" Content="{l:Localize Sectors_WriteLunButton}" Command="{Binding WriteLunCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Classes="danger" Content="{l:Localize Sectors_EraseButton}" Command="{Binding EraseSectorsCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+
+                <StackPanel Spacing="6" IsVisible="{Binding IsBusy}">
+                    <ProgressBar Value="{Binding ProgressPercent, Mode=OneWay}" Minimum="0" Maximum="100" />
+                    <TextBlock Classes="mono" FontSize="13" Foreground="{DynamicResource BrushTextTertiary}" Text="{Binding ProgressText}" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

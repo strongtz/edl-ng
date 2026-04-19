@@ -1,0 +1,200 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Claude-inspired design tokens. Source of truth: DESIGN.md §2–§6.
+        Always reference via {DynamicResource ...} in views and ControlThemes.
+
+        Sections:
+          1. Raw color palette (§2) — variant-invariant inputs
+          2. Semantic brushes — wrapped in ThemeDictionaries (Light / Dark) so
+             Avalonia re-resolves DynamicResource lookups when the user toggles
+             the theme. Accent brushes (Terracotta, Coral, Error, Focus) stay
+             outside the theme dictionaries — they render identically in both.
+          3. Typography (§3)
+          4. Radii (§5)
+          5. Spacing (§5)
+          6. Shadows (§6)
+
+        No FluentTheme-specific keys live here anymore — all control appearance
+        is driven by Controls.axaml, which reads the semantic brushes below.
+    -->
+    <Styles.Resources>
+        <ResourceDictionary>
+
+            <!-- ═══ 1. Raw palette (variant-invariant) ═══════════════════════ -->
+            <!-- Accents -->
+            <Color x:Key="ColorTerracotta">#C96442</Color>
+            <Color x:Key="ColorCoral">#D97757</Color>
+            <Color x:Key="ColorErrorCrimson">#B53333</Color>
+            <Color x:Key="ColorErrorCrimsonLight">#CE4949</Color>
+            <Color x:Key="ColorErrorCrimsonBright">#DD5959</Color>
+            <Color x:Key="ColorFocusBlue">#3898EC</Color>
+
+            <!-- Light palette -->
+            <Color x:Key="ColorParchment">#F5F4ED</Color>
+            <Color x:Key="ColorIvory">#FAF9F5</Color>
+            <Color x:Key="ColorPureWhite">#FFFFFF</Color>
+            <Color x:Key="ColorWarmSand">#E8E6DC</Color>
+            <Color x:Key="ColorDarkSurface">#30302E</Color>
+            <Color x:Key="ColorDeepDark">#141413</Color>
+
+            <Color x:Key="ColorNearBlack">#141413</Color>
+            <Color x:Key="ColorCharcoalWarm">#4D4C48</Color>
+            <Color x:Key="ColorOliveGray">#5E5D59</Color>
+            <Color x:Key="ColorStoneGray">#87867F</Color>
+            <Color x:Key="ColorDarkWarm">#3D3D3A</Color>
+            <Color x:Key="ColorWarmSilver">#B0AEA5</Color>
+
+            <Color x:Key="ColorBorderCream">#F0EEE6</Color>
+            <Color x:Key="ColorBorderWarm">#E8E6DC</Color>
+            <Color x:Key="ColorBorderDark">#30302E</Color>
+            <Color x:Key="ColorRingWarm">#D1CFC5</Color>
+            <Color x:Key="ColorRingDeep">#C2C0B6</Color>
+
+            <!-- Dark palette (new — mirrors light, adjusted for dark surfaces) -->
+            <Color x:Key="ColorBgDark">#1F1E1D</Color>
+            <Color x:Key="ColorSurfaceDarkLow">#2A2A28</Color>
+            <Color x:Key="ColorSurfaceDarkMid">#35342F</Color>
+            <Color x:Key="ColorSurfaceDarkHigh">#45443F</Color>
+            <Color x:Key="ColorSurfaceDarkHover">#3A3A37</Color>
+            <Color x:Key="ColorBorderDarkSubtle">#3D3D3A</Color>
+            <Color x:Key="ColorBorderDarkMid">#4D4C48</Color>
+            <Color x:Key="ColorBorderDarkStrong">#6B6A64</Color>
+            <Color x:Key="ColorRingDarkWarm">#5E5D59</Color>
+            <Color x:Key="ColorRingDarkDeep">#87867F</Color>
+
+            <Color x:Key="ColorShadowWhisper">#0D000000</Color>
+            <Color x:Key="ColorShadowWhisperSoft">#0A000000</Color>
+            <Color x:Key="ColorShadowWhisperDark">#33000000</Color>
+            <Color x:Key="ColorShadowWhisperDarkSoft">#26000000</Color>
+
+            <!-- Translucent selection backdrop for text-highlight, list-items. -->
+            <Color x:Key="ColorSelectionHaze">#3DC96442</Color>
+            <Color x:Key="ColorSelectionHazeDark">#66C96442</Color>
+
+            <!-- ═══ 2a. Accent brushes (theme-invariant) ═════════════════════ -->
+            <SolidColorBrush x:Key="BrushTerracotta" Color="{StaticResource ColorTerracotta}" />
+            <SolidColorBrush x:Key="BrushCoral" Color="{StaticResource ColorCoral}" />
+            <SolidColorBrush x:Key="BrushError" Color="{StaticResource ColorErrorCrimson}" />
+            <SolidColorBrush x:Key="BrushFocus" Color="{StaticResource ColorFocusBlue}" />
+
+            <!-- These two are always "light text on dark bg", regardless of theme. -->
+            <SolidColorBrush x:Key="BrushTextInverse" Color="{StaticResource ColorIvory}" />
+            <SolidColorBrush x:Key="BrushTextOnDark" Color="{StaticResource ColorWarmSilver}" />
+
+            <!-- ═══ 2b. Theme-varying semantic brushes ═══════════════════════ -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <!-- Surfaces -->
+                    <SolidColorBrush x:Key="BrushParchment" Color="{StaticResource ColorParchment}" />
+                    <SolidColorBrush x:Key="BrushIvory" Color="{StaticResource ColorIvory}" />
+                    <SolidColorBrush x:Key="BrushPureWhite" Color="{StaticResource ColorPureWhite}" />
+                    <SolidColorBrush x:Key="BrushWarmSand" Color="{StaticResource ColorWarmSand}" />
+                    <SolidColorBrush x:Key="BrushDarkSurface" Color="{StaticResource ColorDarkSurface}" />
+                    <SolidColorBrush x:Key="BrushDeepDark" Color="{StaticResource ColorDeepDark}" />
+
+                    <!-- Text -->
+                    <SolidColorBrush x:Key="BrushTextPrimary" Color="{StaticResource ColorNearBlack}" />
+                    <SolidColorBrush x:Key="BrushTextCharcoal" Color="{StaticResource ColorCharcoalWarm}" />
+                    <SolidColorBrush x:Key="BrushTextSecondary" Color="{StaticResource ColorOliveGray}" />
+                    <SolidColorBrush x:Key="BrushTextTertiary" Color="{StaticResource ColorStoneGray}" />
+                    <SolidColorBrush x:Key="BrushTextDark" Color="{StaticResource ColorDarkWarm}" />
+
+                    <!-- Borders / rings -->
+                    <SolidColorBrush x:Key="BrushBorderLight" Color="{StaticResource ColorBorderCream}" />
+                    <SolidColorBrush x:Key="BrushBorderWarm" Color="{StaticResource ColorBorderWarm}" />
+                    <SolidColorBrush x:Key="BrushBorderDark" Color="{StaticResource ColorBorderDark}" />
+                    <SolidColorBrush x:Key="BrushRingWarm" Color="{StaticResource ColorRingWarm}" />
+                    <SolidColorBrush x:Key="BrushRingDeep" Color="{StaticResource ColorRingDeep}" />
+
+                    <!-- Surface interaction overlays -->
+                    <SolidColorBrush x:Key="BrushSurfaceHover" Color="{StaticResource ColorBorderCream}" />
+                    <SolidColorBrush x:Key="BrushSurfacePressed" Color="{StaticResource ColorWarmSand}" />
+                    <SolidColorBrush x:Key="BrushSelectionHaze" Color="{StaticResource ColorSelectionHaze}" />
+
+                    <!-- Danger hover (extracted from Styles.axaml hex literal). -->
+                    <SolidColorBrush x:Key="BrushDangerHover" Color="{StaticResource ColorErrorCrimsonLight}" />
+
+                    <!-- Shadows -->
+                    <BoxShadows x:Key="ShadowWhisper">0 4 24 0 #0D000000</BoxShadows>
+                    <BoxShadows x:Key="ShadowWhisperSoft">0 2 12 0 #0A000000</BoxShadows>
+                    <BoxShadows x:Key="ShadowPopup">0 8 32 0 #1A000000</BoxShadows>
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <!-- Surfaces — inverted hierarchy: bg is deepest, cards lift above. -->
+                    <SolidColorBrush x:Key="BrushParchment" Color="{StaticResource ColorBgDark}" />
+                    <SolidColorBrush x:Key="BrushIvory" Color="{StaticResource ColorSurfaceDarkLow}" />
+                    <SolidColorBrush x:Key="BrushPureWhite" Color="{StaticResource ColorSurfaceDarkMid}" />
+                    <SolidColorBrush x:Key="BrushWarmSand" Color="{StaticResource ColorSurfaceDarkHigh}" />
+                    <!-- DarkSurface / DeepDark still render dark, but lifted so button.dark
+                         and card.dark remain visually distinct above the dark window bg. -->
+                    <SolidColorBrush x:Key="BrushDarkSurface" Color="{StaticResource ColorSurfaceDarkHigh}" />
+                    <SolidColorBrush x:Key="BrushDeepDark" Color="{StaticResource ColorSurfaceDarkMid}" />
+
+                    <!-- Text -->
+                    <SolidColorBrush x:Key="BrushTextPrimary" Color="{StaticResource ColorIvory}" />
+                    <SolidColorBrush x:Key="BrushTextCharcoal" Color="{StaticResource ColorWarmSand}" />
+                    <SolidColorBrush x:Key="BrushTextSecondary" Color="{StaticResource ColorWarmSilver}" />
+                    <SolidColorBrush x:Key="BrushTextTertiary" Color="{StaticResource ColorStoneGray}" />
+                    <SolidColorBrush x:Key="BrushTextDark" Color="{StaticResource ColorIvory}" />
+
+                    <!-- Borders / rings — lighter than surfaces for visibility. -->
+                    <SolidColorBrush x:Key="BrushBorderLight" Color="{StaticResource ColorBorderDarkSubtle}" />
+                    <SolidColorBrush x:Key="BrushBorderWarm" Color="{StaticResource ColorBorderDarkMid}" />
+                    <SolidColorBrush x:Key="BrushBorderDark" Color="{StaticResource ColorBorderDarkStrong}" />
+                    <SolidColorBrush x:Key="BrushRingWarm" Color="{StaticResource ColorRingDarkWarm}" />
+                    <SolidColorBrush x:Key="BrushRingDeep" Color="{StaticResource ColorRingDarkDeep}" />
+
+                    <!-- Surface interaction overlays -->
+                    <SolidColorBrush x:Key="BrushSurfaceHover" Color="{StaticResource ColorSurfaceDarkHover}" />
+                    <SolidColorBrush x:Key="BrushSurfacePressed" Color="{StaticResource ColorSurfaceDarkHigh}" />
+                    <SolidColorBrush x:Key="BrushSelectionHaze" Color="{StaticResource ColorSelectionHazeDark}" />
+
+                    <SolidColorBrush x:Key="BrushDangerHover" Color="{StaticResource ColorErrorCrimsonBright}" />
+
+                    <!-- Shadows — deeper alpha reads on dark surfaces. -->
+                    <BoxShadows x:Key="ShadowWhisper">0 4 24 0 #33000000</BoxShadows>
+                    <BoxShadows x:Key="ShadowWhisperSoft">0 2 12 0 #26000000</BoxShadows>
+                    <BoxShadows x:Key="ShadowPopup">0 8 32 0 #4D000000</BoxShadows>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- ═══ 3. Typography (DESIGN.md §3 hierarchy table) ══════════════ -->
+            <!--
+                Serif / Sans / Mono fallback chains. Latin fonts come first (DESIGN.md §3),
+                then CJK (zh-Hans, zh-Hant, ja) families covering macOS, Windows, and Linux so
+                localized UI keeps the warm editorial voice instead of rendering tofu.
+            -->
+            <FontFamily x:Key="FontSerif">Georgia, Times New Roman, Songti SC, Songti TC, Hiragino Mincho ProN, Yu Mincho, YuMincho, Source Han Serif SC, Source Han Serif TC, Source Han Serif JP, Noto Serif CJK SC, Noto Serif CJK TC, Noto Serif CJK JP, Noto Serif SC, Noto Serif TC, Noto Serif JP, serif</FontFamily>
+            <FontFamily x:Key="FontSans">Inter, Helvetica Neue, Arial, PingFang SC, PingFang TC, Hiragino Sans, Hiragino Kaku Gothic ProN, Microsoft YaHei UI, Microsoft YaHei, Microsoft JhengHei UI, Microsoft JhengHei, Yu Gothic UI, Yu Gothic, Meiryo, Source Han Sans SC, Source Han Sans TC, Source Han Sans JP, Noto Sans CJK SC, Noto Sans CJK TC, Noto Sans CJK JP, Noto Sans SC, Noto Sans TC, Noto Sans JP, sans-serif</FontFamily>
+            <FontFamily x:Key="FontMono">JetBrains Mono, Menlo, Consolas, Sarasa Mono SC, Sarasa Mono TC, Sarasa Mono J, PingFang SC, PingFang TC, Hiragino Sans, Microsoft YaHei UI, Microsoft JhengHei UI, Yu Gothic UI, Noto Sans Mono CJK SC, Noto Sans Mono CJK TC, Noto Sans Mono CJK JP, monospace</FontFamily>
+
+            <!-- ═══ 4. Radii (§5) ═════════════════════════════════════════════ -->
+            <CornerRadius x:Key="RadiusSharp">4</CornerRadius>
+            <CornerRadius x:Key="RadiusSubtle">6</CornerRadius>
+            <CornerRadius x:Key="RadiusComfortable">8</CornerRadius>
+            <CornerRadius x:Key="RadiusGenerous">12</CornerRadius>
+            <CornerRadius x:Key="RadiusVeryRounded">16</CornerRadius>
+            <CornerRadius x:Key="RadiusHighly">24</CornerRadius>
+            <CornerRadius x:Key="RadiusHero">32</CornerRadius>
+
+            <x:Double x:Key="RadiusComfortableValue">8</x:Double>
+            <x:Double x:Key="RadiusGenerousValue">12</x:Double>
+
+            <!-- ═══ 5. Spacing (§5) ═══════════════════════════════════════════ -->
+            <x:Double x:Key="Space3">3</x:Double>
+            <x:Double x:Key="Space4">4</x:Double>
+            <x:Double x:Key="Space6">6</x:Double>
+            <x:Double x:Key="Space8">8</x:Double>
+            <x:Double x:Key="Space10">10</x:Double>
+            <x:Double x:Key="Space12">12</x:Double>
+            <x:Double x:Key="Space16">16</x:Double>
+            <x:Double x:Key="Space20">20</x:Double>
+            <x:Double x:Key="Space24">24</x:Double>
+            <x:Double x:Key="Space30">30</x:Double>
+            <x:Double x:Key="Space32">32</x:Double>
+
+        </ResourceDictionary>
+    </Styles.Resources>
+</Styles>
