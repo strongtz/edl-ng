@@ -248,6 +248,12 @@ public class QualcommSahara(QualcommSerial serial)
                 }
                 else if (commandId is QualcommSaharaCommand.Done or QualcommSaharaCommand.DoneResponse)
                 {
+                    if (imagesTransferredCount >= _imageMappings.Count)
+                    {
+                        LibraryLogger.Debug($"Received {commandId} from device. All {imagesTransferredCount} image(s) transferred, Sahara transfer complete.");
+                        return true;
+                    }
+
                     LibraryLogger.Debug($"Received {commandId} from device. Waiting for potential next stage...");
                     continue;
                 }
