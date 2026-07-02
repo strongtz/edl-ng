@@ -33,8 +33,9 @@ internal sealed class RawProgramCommand
         List<FileInfo> resolvedXmlFiles = [];
         var currentDirectory = Environment.CurrentDirectory;
 
-        foreach (var pattern in xmlFilePatterns)
+        foreach (var rawPattern in xmlFilePatterns)
         {
+            var pattern = PathHelper.ExpandTilde(rawPattern);
             var dirName = Path.GetDirectoryName(pattern);
             var fileNamePattern = Path.GetFileName(pattern);
 
