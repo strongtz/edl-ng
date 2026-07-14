@@ -26,15 +26,15 @@ using Qualcomm.EmergencyDownload.Transport;
 
 namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 
-public class QualcommFirehose(QualcommSerial serial)
+public class QualcommFirehose(IQualcommTransport transport)
 {
-    public QualcommSerial Serial { get; } = serial;
+    public IQualcommTransport Transport { get; } = transport;
 
     public byte[] GetFirehoseXmlResponseBuffer(bool waitTilFooter = false)
     {
         if (!waitTilFooter)
         {
-            return Serial.GetResponse(null);
+            return Transport.GetResponse(null);
         }
 
         // Optimized for WaitTilFooter = true
@@ -45,7 +45,7 @@ public class QualcommFirehose(QualcommSerial serial)
         var safetyReadLimit = 8192; // Max 8KB for an XML ACK, to prevent infinite loop
         while (bufferList.Count < safetyReadLimit)
         {
-            var chunk = Serial.GetResponse(null, length: readChunkSize);
+            var chunk = Transport.GetResponse(null, length: readChunkSize);
             if (chunk == null || chunk.Length == 0)
             {
                 // Timeout or no data from device

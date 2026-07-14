@@ -33,11 +33,13 @@ using QCEDL.NET.Todo;
 
 namespace QCEDL.NET.USB;
 
+public readonly record struct UsbDeviceInfo(string? PathName, string BusName, int DevInst, string? PortName);
+
 public class UsbExtensions
 {
-    public static (string? PathName, string BusName, int DevInst)[] GetDeviceInfos(Guid id)
+    public static UsbDeviceInfo[] GetDeviceInfos(Guid id)
     {
-        List<(string? PathName, string BusName, int DevInst)> deviceInfos = [];
+        List<UsbDeviceInfo> deviceInfos = [];
         var deviceInfoSet = nint.Zero;
         try
         {
@@ -136,7 +138,8 @@ public class UsbExtensions
                     nint pDevicePathName = new(detailDataBuffer.ToInt64() + 4);
                     var pathName = Marshal.PtrToStringUni(pDevicePathName);
                     var busName = GetBusName(pathName, deviceInfoSet, da);
-                    deviceInfos.Add((pathName, busName, da.DevInst));
+                    var portName = GetPortName(deviceInfoSet, da);
+                    deviceInfos.Add(new(pathName, busName, da.DevInst, portName));
                 }
                 finally
                 {
@@ -180,6 +183,39 @@ public class UsbExtensions
         }
 
         return busName;
+    }
+
+    private static unsafe string? GetPortName(nint deviceInfoSet, SpDevinfoData deviceInfoData)
+    {
+        var key = SetupDiOpenDevRegKey(deviceInfoSet, ref deviceInfoData, DicsFlagGlobal, 0, DiregDev,
+            KeyQueryValue);
+        if (key == InvalidHandleValue)
+        {
+            return null;
+        }
+
+        try
+        {
+            var value = new char[32];
+            uint type = 0;
+            var size = (uint)(value.Length * sizeof(char));
+            fixed (char* valuePointer = value)
+            {
+                var status = RegQueryValueEx(key, "PortName", nint.Zero, ref type, valuePointer,
+                    ref size);
+                if (status != 0 || type != RegSz)
+                {
+                    return null;
+                }
+
+                var length = Array.IndexOf(value, '\0');
+                return new(value, 0, length < 0 ? value.Length : length);
+            }
+        }
+        finally
+        {
+            _ = RegCloseKey(key);
+        }
     }
 
     // Heathcliff74
@@ -248,6 +284,10 @@ public class UsbExtensions
     private const nint InvalidHandleValue = -1;
     private const int ErrorNoMoreItems = 259;
     private const int ErrorInsufficientBuffer = 122;
+    private const uint DicsFlagGlobal = 1;
+    private const uint DiregDev = 1;
+    private const uint KeyQueryValue = 0x20019;
+    private const uint RegSz = 1;
 
 #pragma warning disable CS0649 // Field 'field' is never assigned to, and will always have its default value 'value'
     private struct SpDeviceInterfaceData
@@ -326,4 +366,15 @@ public class UsbExtensions
         ref int requiredSize,
         uint flags
     );
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern nint SetupDiOpenDevRegKey(nint deviceInfoSet, ref SpDevinfoData deviceInfoData,
+        uint scope, uint hwProfile, uint keyType, uint desiredAccess);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern unsafe int RegQueryValueEx(nint key, string valueName, nint reserved, ref uint type,
+        char* data, ref uint dataSize);
+
+    [DllImport("advapi32.dll")]
+    private static extern int RegCloseKey(nint key);
 }

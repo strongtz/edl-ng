@@ -24,7 +24,8 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
   * Get detailed storage information (sector size, LUN count).
 * **Flexible Device Detection:**
   * Specify USB VID/PID.
-  * Uses COM ports on Windows or LibUsbDotNet (for all platforms, especially Linux/macOS).
+  * Uses the native Windows QDLoader COM interface or LibUsbDotNet.
+  * Linux and macOS use libusb exclusively; serial-port devices are not supported on those platforms.
 * **Configurable:**
   * Specify memory type (UFS, eMMC/SD, NVMe, SPINOR etc.).
   * Set maximum payload size for Firehose.
@@ -128,7 +129,7 @@ Devices with vendor customized DevPrg may not be supported as well.
 * **.NET 9 SDK** (no need to install .NET runtime if using pre-built binaries).
 * **Qualcomm USB Drivers:**
   * **Windows:** Both Qualcomm® USB Driver (QUD) and WinUSB driver (Zadig) are supported.
-  * **Linux/macOS:** `libusb` is used. You may also need to configure udev rules on Linux to allow user access to the device.
+  * **Linux/macOS:** Only `libusb` is supported. You may also need to configure udev rules on Linux to allow user access to the device.
 * **Firehose Programmer:** An appropriate `.elf` programmer file for your specific device (e.g., `prog_firehose_*.elf` or `xbl_s_devprg_ns.melf`).
 
 ## Building

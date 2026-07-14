@@ -22,7 +22,7 @@ public static class QualcommFirehoseCommands
                 skipStorageInit)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var gotResponse = false;
 
@@ -81,7 +81,7 @@ public static class QualcommFirehoseCommands
             }
 
             // Call GetResponse with the specific amount we want for this chunk
-            var chunk = firehose.Serial.GetResponse(null, length: currentReadLength);
+            var chunk = firehose.Transport.GetResponse(null, length: currentReadLength);
 
             if (chunk == null || chunk.Length == 0)
             {
@@ -115,7 +115,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetReadPacket(storageType, luNi, slot, sectorSize, firstSector, lastSector)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var rawMode = false;
         var gotResponse = false;
@@ -267,7 +267,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetReadPacket(storageType, luNi, slot, sectorSize, firstSector, lastSector)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var rawMode = false;
         var gotResponse = false;
@@ -412,14 +412,7 @@ public static class QualcommFirehoseCommands
         long bytesReadSoFar = 0;
         int readChunkSize;
 
-        if (firehose.Serial.ActiveCommunicationMode == CommunicationMode.SerialPort)
-        {
-            readChunkSize = 1024 * 32; // 32KB
-        }
-        else
-        {
-            readChunkSize = 1024 * 1024; // 1MB
-        }
+        readChunkSize = 1024 * 1024; // QUD and libusb both support requests up to 1 MiB.
 
         var sw = Stopwatch.StartNew();
 
@@ -431,9 +424,9 @@ public static class QualcommFirehoseCommands
             byte[] actualChunkRead;
             try
             {
-                // QualcommSerial.GetResponse reads what's available up to Length or times out.
+                // GetResponse reads what's available up to Length or times out.
                 // It doesn't guarantee filling the buffer if less data arrives before timeout.
-                actualChunkRead = firehose.Serial.GetResponse(null, length: currentChunkToRequest);
+                actualChunkRead = firehose.Transport.GetResponse(null, length: currentChunkToRequest);
             }
             catch (TimeoutException)
             {
@@ -517,7 +510,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetProgramPacket(storageType, luNi, slot, sectorSize, startSector,
                 numSectorsToWrite, filenameForXml)
         ]);
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(programCommandXml));
         var rawModeEnabled = false;
         var initialResponseReceived = false;
         // LOOP 1: Wait for rawmode="true" ACK
@@ -591,17 +584,17 @@ public static class QualcommFirehoseCommands
             if (storageType == StorageType.Spinor)
             {
                 // For SPINOR, we just use a long enough timeout
-                LibraryLogger.Debug("Setting Firehose serial timeout to 300 s for SPINOR.");
-                firehose.Serial.SetTimeOut(300000);
+                LibraryLogger.Debug("Setting Firehose transport timeout to 300 s for SPINOR.");
+                firehose.Transport.TimeoutMilliseconds = 300000;
             }
             else
             {
                 // For other storage types, we can use the default timeout
-                LibraryLogger.Trace($"Using default Firehose serial timeout for {storageType}.");
-                firehose.Serial.SetTimeOut(10000);
+                LibraryLogger.Trace($"Using default Firehose transport timeout for {storageType}.");
+                firehose.Transport.TimeoutMilliseconds = 10000;
             }
 
-            firehose.Serial.SendLargeRawData(dataToWrite);
+            firehose.Transport.SendLargeRawData(dataToWrite);
         }
         catch (Exception ex)
         {
@@ -610,7 +603,7 @@ public static class QualcommFirehoseCommands
         }
 
         LibraryLogger.Debug("Raw data sent.");
-        firehose.Serial.SendZeroLengthPacket();
+        firehose.Transport.SendZeroLengthPacket();
 
         // LOOP 2: Wait for final ACK/NAK after data transfer
         var finalAckReceived = false;
@@ -705,7 +698,7 @@ public static class QualcommFirehoseCommands
                 numSectorsForXml, filenameForXml)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(programCommandXml));
 
         var rawModeEnabled = false;
         var initialResponseReceived = false;
@@ -787,11 +780,11 @@ public static class QualcommFirehoseCommands
         {
             if (storageType == StorageType.Spinor)
             {
-                firehose.Serial.SetTimeOut(300000); // 5 minutes for SPINOR
+                firehose.Transport.TimeoutMilliseconds = 300000; // 5 minutes for SPINOR
             }
             else
             {
-                firehose.Serial.SetTimeOut(30000); // 30 seconds for other types
+                firehose.Transport.TimeoutMilliseconds = 30000; // 30 seconds for other types
             }
 
             while (totalBytesSent < totalBytesToStreamIncludingPadding)
@@ -830,7 +823,7 @@ public static class QualcommFirehoseCommands
                     Buffer.BlockCopy(chunkBuffer, 0, chunkToSend, 0, bytesActuallyReadFromStream);
                 }
 
-                firehose.Serial.SendLargeRawData(chunkToSend);
+                firehose.Transport.SendLargeRawData(chunkToSend);
 
                 totalBytesSent += chunkToSend.Length;
                 progressCallback?.Invoke(totalBytesSent, totalBytesToStreamIncludingPadding);
@@ -862,7 +855,7 @@ public static class QualcommFirehoseCommands
             return false;
         }
 
-        firehose.Serial.SendZeroLengthPacket();
+        firehose.Transport.SendZeroLengthPacket();
 
         // LOOP 2: Wait for final ACK/NAK after data transfer
         var finalAckReceived = false;
@@ -942,7 +935,7 @@ public static class QualcommFirehoseCommands
                 numSectorsToErase)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
 
         var finalAckOrNakReceived = false;
         var logReceived = false;
@@ -950,7 +943,7 @@ public static class QualcommFirehoseCommands
         var attempts = 0;
 
         // Erasing SPINOR can take a while
-        firehose.Serial.SetTimeOut(10000);
+        firehose.Transport.TimeoutMilliseconds = 10000;
         const int maxAttempts = 100;
 
         while (!finalAckOrNakReceived && attempts < maxAttempts)
@@ -1039,7 +1032,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetPowerPacket(powerValue, delayInSeconds)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var gotResponse = false;
 
@@ -1065,9 +1058,8 @@ public static class QualcommFirehoseCommands
         }
 
         // Workaround for problem
-        // SerialPort is sometimes not disposed correctly when the device is already removed.
-        // So explicitly dispose here
-        firehose.Serial.Close();
+        // Explicitly dispose after the device is removed by the power command.
+        firehose.Transport.Dispose();
 
         return true;
     }
@@ -1082,7 +1074,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetStorageInfoPacket(storageType, physicalPartitionNumber, slot)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var gotResponse = false;
 
@@ -1153,7 +1145,7 @@ public static class QualcommFirehoseCommands
     public static bool SendRawXmlAndGetResponse(this QualcommFirehose firehose, string xmlCommand)
     {
         LibraryLogger.Debug($"Sending Raw XML: {xmlCommand}");
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(xmlCommand));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(xmlCommand));
 
         var finalAckOrNakReceived = false;
         var success = false;

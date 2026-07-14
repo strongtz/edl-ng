@@ -18,11 +18,11 @@ internal sealed class Execute
         return QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.ExecuteData, execute);
     }
 
-    private static byte[] GetCommandVariable(QualcommSerial serial, QualcommSaharaExecuteCommand command)
+    private static byte[] GetCommandVariable(IQualcommTransport transport, QualcommSaharaExecuteCommand command)
     {
-        serial.SendData(BuildExecutePacket((uint)command));
+        transport.SendData(BuildExecutePacket((uint)command));
 
-        var readDataRequest = serial.GetResponse(null);
+        var readDataRequest = transport.GetResponse(null);
         var responseId = ByteOperations.ReadUInt32(readDataRequest, 0);
 
         if (responseId != 0xE)
@@ -32,15 +32,15 @@ internal sealed class Execute
 
         var dataLength = ByteOperations.ReadUInt32(readDataRequest, 0x0C);
 
-        serial.SendData(BuildExecuteDataPacket((uint)command));
+        transport.SendData(BuildExecuteDataPacket((uint)command));
 
-        return serial.GetResponse(null, length: (int)dataLength);
+        return transport.GetResponse(null, length: (int)dataLength);
     }
 
 
-    public static byte[][] GetRkHs(QualcommSerial serial)
+    public static byte[][] GetRkHs(IQualcommTransport transport)
     {
-        var response = GetCommandVariable(serial, QualcommSaharaExecuteCommand.OemPkHashRead);
+        var response = GetCommandVariable(transport, QualcommSaharaExecuteCommand.OemPkHashRead);
 
         List<byte[]> rootKeyHashes = [];
 
@@ -66,21 +66,21 @@ internal sealed class Execute
         return [.. rootKeyHashes];
     }
 
-    public static byte[] GetRkh(QualcommSerial serial)
+    public static byte[] GetRkh(IQualcommTransport transport)
     {
-        var rkHs = GetRkHs(serial);
+        var rkHs = GetRkHs(transport);
         return rkHs[0];
     }
 
-    public static byte[] GetHwid(QualcommSerial serial)
+    public static byte[] GetHwid(IQualcommTransport transport)
     {
-        var response = GetCommandVariable(serial, QualcommSaharaExecuteCommand.MsmHwidRead);
+        var response = GetCommandVariable(transport, QualcommSaharaExecuteCommand.MsmHwidRead);
         return [.. response.Reverse()];
     }
 
-    public static byte[] GetSerialNumber(QualcommSerial serial)
+    public static byte[] GetSerialNumber(IQualcommTransport transport)
     {
-        var response = GetCommandVariable(serial, QualcommSaharaExecuteCommand.SerialNumRead);
+        var response = GetCommandVariable(transport, QualcommSaharaExecuteCommand.SerialNumRead);
         return [.. response.Reverse()];
     }
 }

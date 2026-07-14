@@ -26,7 +26,7 @@ namespace Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
 
 internal delegate void ReadyHandler();
 
-public class QualcommSahara(QualcommSerial serial)
+public class QualcommSahara(IQualcommTransport transport)
 {
     private const uint FirehoseProgrammerImageId = 13;
     public uint DetectedDeviceSaharaVersion { get; private set; } = 2;
@@ -85,7 +85,7 @@ public class QualcommSahara(QualcommSerial serial)
         }
 
         fileStream.ReadExactly(imageBuffer, 0, (int)length);
-        serial.SendData(imageBuffer);
+        transport.SendData(imageBuffer);
     }
 
     private void SendData(FileStream fileStream, byte[] readDataRequest)
@@ -100,7 +100,7 @@ public class QualcommSahara(QualcommSerial serial)
         }
 
         fileStream.ReadExactly(imageBuffer, 0, (int)length);
-        serial.SendData(imageBuffer);
+        transport.SendData(imageBuffer);
     }
 
     #endregion
@@ -126,12 +126,12 @@ public class QualcommSahara(QualcommSerial serial)
             else
             {
                 LibraryLogger.Debug("Reading HELLO packet from device for handshake.");
-                hello = serial.GetResponse([0x01, 0x00, 0x00, 0x00]);
+                hello = transport.GetResponse([0x01, 0x00, 0x00, 0x00]);
             }
 
             DetectedDeviceSaharaVersion = ByteOperations.ReadUInt32(hello, 0x08);
             var helloResponse = BuildHelloResponsePacket(QualcommSaharaMode.Command);
-            var ready = serial.SendCommand(helloResponse, null);
+            var ready = transport.SendCommand(helloResponse, null);
             var responseId = ByteOperations.ReadUInt32(ready, 0);
 
             return responseId == (uint)QualcommSaharaCommand.CommandReady;
@@ -145,14 +145,14 @@ public class QualcommSahara(QualcommSerial serial)
 
     public void ResetSahara()
     {
-        _ = serial.SendCommand(BuildCommandPacket(QualcommSaharaCommand.Reset), [0x08, 0x00, 0x00, 0x00]);
+        _ = transport.SendCommand(BuildCommandPacket(QualcommSaharaCommand.Reset), [0x08, 0x00, 0x00, 0x00]);
     }
 
     public void SwitchMode(QualcommSaharaMode mode)
     {
         var switchMode = new byte[0x04];
         ByteOperations.WriteUInt32(switchMode, 0x00, (uint)mode);
-        serial.SendData(BuildCommandPacket(QualcommSaharaCommand.SwitchMode, switchMode));
+        transport.SendData(BuildCommandPacket(QualcommSaharaCommand.SwitchMode, switchMode));
     }
 
     #endregion
@@ -186,18 +186,18 @@ public class QualcommSahara(QualcommSerial serial)
         var imagesTransferredCount = 0;
         try
         {
-            var hello = serial.GetResponse([0x01, 0x00, 0x00, 0x00]);
+            var hello = transport.GetResponse([0x01, 0x00, 0x00, 0x00]);
             DetectedDeviceSaharaVersion = ByteOperations.ReadUInt32(hello, 0x08);
 
             var helloResponse = BuildHelloResponsePacket(QualcommSaharaMode.ImageTxPending);
-            serial.SendData(helloResponse);
+            transport.SendData(helloResponse);
 
             while (true)
             {
                 byte[] request;
                 try
                 {
-                    request = serial.GetResponse(null);
+                    request = transport.GetResponse(null);
                 }
                 catch (TimeoutException)
                 {
@@ -214,7 +214,7 @@ public class QualcommSahara(QualcommSerial serial)
                 if (commandId == QualcommSaharaCommand.Hello)
                 {
                     LibraryLogger.Debug("Device requested re-handshake (Next stage).");
-                    serial.SendData(BuildHelloResponsePacket(QualcommSaharaMode.ImageTxPending));
+                    transport.SendData(BuildHelloResponsePacket(QualcommSaharaMode.ImageTxPending));
                     continue;
                 }
 
@@ -243,7 +243,7 @@ public class QualcommSahara(QualcommSerial serial)
                 else if (commandId == QualcommSaharaCommand.EndImageTx)
                 {
                     LibraryLogger.Debug("Image chunk transfer finished, sending DONE.");
-                    serial.SendData(BuildCommandPacket(QualcommSaharaCommand.Done));
+                    transport.SendData(BuildCommandPacket(QualcommSaharaCommand.Done));
                     imagesTransferredCount++;
                 }
                 else if (commandId is QualcommSaharaCommand.Done or QualcommSaharaCommand.DoneResponse)
@@ -271,50 +271,31 @@ public class QualcommSahara(QualcommSerial serial)
         }
     }
 
-    public void StartProgrammer()
+    public Task<bool> LoadProgrammer(string programmerPath)
     {
-        LibraryLogger.Debug("Attempting to activate the bootloader...");
-        try
-        {
-            _ = serial.SendCommand(BuildCommandPacket(QualcommSaharaCommand.Done), [0x06, 0x00, 0x00, 0x00]);
-            LibraryLogger.Info("Programmer execution signaled.");
-        }
-        catch
-        {
-            LibraryLogger.Debug("Device hand-off to Firehose mode.");
-        }
-    }
-
-    public async Task<bool> LoadProgrammer(string programmerPath)
-    {
-        var success = await Task.Run(() => SendImage(programmerPath));
-        if (success)
-        {
-            await Task.Run(StartProgrammer);
-        }
-        return success;
+        return Task.Run(() => SendImage(programmerPath));
     }
 
     #region Helper Methods for Device Info
 
     public byte[][] GetRkHs()
     {
-        return Execute.GetRkHs(serial);
+        return Execute.GetRkHs(transport);
     }
 
     public byte[] GetRkh()
     {
-        return Execute.GetRkh(serial);
+        return Execute.GetRkh(transport);
     }
 
     public byte[] GetHwid()
     {
-        return Execute.GetHwid(serial);
+        return Execute.GetHwid(transport);
     }
 
     public byte[] GetSerialNumber()
     {
-        return Execute.GetSerialNumber(serial);
+        return Execute.GetSerialNumber(transport);
     }
 
     #endregion

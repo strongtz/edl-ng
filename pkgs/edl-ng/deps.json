@@ -35,91 +35,6 @@
     "hash": "sha256-Prh2RPebz/s8AzHb2sPHg3Jl8s31inv9k+Qxd293ybo="
   },
   {
-    "pname": "runtime.android-arm.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-yIW89EC0TmjBRGyMkhohMC3PnYLE34tXPr5MXeYcTNA="
-  },
-  {
-    "pname": "runtime.android-arm64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-dDQ+bbxS/ZY1k3i0uYd0YNklbi5cpGU50FQNa/UDENM="
-  },
-  {
-    "pname": "runtime.android-x64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-AM7YeSgVQX5AxVN2YmcBxY2fV2E6ouTGMeYokzhi8/A="
-  },
-  {
-    "pname": "runtime.android-x86.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-3MSJ/T4NNK9qcMxjEX6LHyxaZRxVPGcl465A9n/XDJA="
-  },
-  {
-    "pname": "runtime.linux-arm.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-sy029kCdDbVp2PtGX2Fq6ph4kmLeVhRgKVmxzlX03V0="
-  },
-  {
-    "pname": "runtime.linux-arm64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-Dn4hNHPX65vv7M0p7AfEbnJcVwoVlYNCZN4Ut+7HPmA="
-  },
-  {
-    "pname": "runtime.linux-bionic-arm64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-rNVMIOcIvysHrD/c+A8gTK+EEzFp/71sbQB4pv0IqkA="
-  },
-  {
-    "pname": "runtime.linux-bionic-x64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-bvmwZCZG7ImsqufiAijsOGt8o1J74cGA4+P2rnsNcZY="
-  },
-  {
-    "pname": "runtime.linux-musl-arm.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-p3v52sZ8GqHfGfiWTaRu4YwLL4gCTY6PKp+6ayjafgw="
-  },
-  {
-    "pname": "runtime.linux-musl-arm64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-r2coPqXQODl6/aGEPWLobQCQqkxZonELd/HzMzVM6KI="
-  },
-  {
-    "pname": "runtime.linux-musl-x64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-nA16A7wp5xhuINn3SjnQQ2craQnHCJKWT3/AaUBivFE="
-  },
-  {
-    "pname": "runtime.linux-x64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-HhrLXjn+/l6SkS7Ss8q8oPfsxmoxjTjdt2Ht7GE5Cww="
-  },
-  {
-    "pname": "runtime.maccatalyst-arm64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-BddHZDmoP2EoTheZEnEZa5LEJ3lKK3XOkPHRXmFDuI4="
-  },
-  {
-    "pname": "runtime.maccatalyst-x64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-4b7Ix/2QHV47L5DvAf+c491ktFckJco/p8AGmq34kDA="
-  },
-  {
-    "pname": "runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-FKt6sP8mv5dVUSlNJITxoKs4GlRAAWKL3riMnbe1pDo="
-  },
-  {
-    "pname": "runtime.osx-arm64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-0ezSkrV2tSrCOm/hmQJqpEd9ua6NIsSVis5YbwS6jTQ="
-  },
-  {
-    "pname": "runtime.osx-x64.runtime.native.System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-o83VwWKf5yAdk/uyg1uNPXICI58wJ++s8dIe3d0Vb3Y="
-  },
-  {
     "pname": "System.Buffers",
     "version": "4.5.1",
     "hash": "sha256-wws90sfi9M7kuCPWkv1CEYMJtCqx9QB/kj0ymlsNaxI="
@@ -138,11 +53,6 @@
     "pname": "System.CommandLine.NamingConventionBinder",
     "version": "2.0.0-beta4.22272.1",
     "hash": "sha256-Ffzs51XiFraSX1efQRO1IyiNraIgi8aOdkRRzCT6DB4="
-  },
-  {
-    "pname": "System.IO.Ports",
-    "version": "9.0.4",
-    "hash": "sha256-8ugNZhBI42uOThI5uFUVU7sKr1b8fxDCp1zIIWTVfmM="
   },
   {
     "pname": "System.Memory",
