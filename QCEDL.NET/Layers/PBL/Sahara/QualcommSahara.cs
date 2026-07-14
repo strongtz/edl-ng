@@ -69,6 +69,31 @@ public class QualcommSahara(IQualcommTransport transport)
         return BuildCommandPacket(QualcommSaharaCommand.HelloResponse, hello);
     }
 
+    private static bool IsFirehoseXml(ReadOnlySpan<byte> packet)
+    {
+        return packet.StartsWith("<?xml"u8);
+    }
+
+    private (byte[] Packet, bool HelloResponseSent) ReadInitialPacket(QualcommSaharaMode mode)
+    {
+        try
+        {
+            return (transport.GetResponse(null), false);
+        }
+        catch (TimeoutException) when (transport.Backend == TransportBackend.WindowsQud)
+        {
+            return RecoverDiscardedQudHello(mode);
+        }
+    }
+
+    private (byte[] Packet, bool HelloResponseSent) RecoverDiscardedQudHello(QualcommSaharaMode mode)
+    {
+        LibraryLogger.Warning(
+            $"Initial Sahara read timed out on Windows QUD; sending a speculative HELLO response for {mode} mode.");
+        transport.SendData(BuildHelloResponsePacket(mode));
+        return (transport.GetResponse(null), true);
+    }
+
     #endregion
 
     #region Data Transfer Core
@@ -107,40 +132,99 @@ public class QualcommSahara(IQualcommTransport transport)
 
     #region Public Interface
 
-    public bool CommandHandshake(byte[]? preReadHelloPacket = null)
+    public QualcommSaharaHandshakeResult ProbeCommandMode(
+        byte[]? preReadHelloPacket = null,
+        bool initialReadAlreadyTimedOut = false)
     {
         try
         {
-            byte[] hello;
+            byte[] packet;
+            var helloResponseSent = false;
+            if (preReadHelloPacket != null && initialReadAlreadyTimedOut)
+            {
+                throw new ArgumentException(
+                    "A pre-read HELLO packet cannot be combined with an already timed-out initial read.",
+                    nameof(initialReadAlreadyTimedOut));
+            }
+
             if (preReadHelloPacket != null)
             {
                 LibraryLogger.Debug("Using pre-read HELLO packet for handshake.");
-                hello = preReadHelloPacket;
-                // Basic validation: check command ID
-                if (hello.Length < 4 || ByteOperations.ReadUInt32(hello, 0) != (uint)QualcommSaharaCommand.Hello)
+                packet = preReadHelloPacket;
+            }
+            else if (initialReadAlreadyTimedOut)
+            {
+                if (transport.Backend != TransportBackend.WindowsQud)
                 {
-                    LibraryLogger.Error("Pre-read packet is not a valid Sahara HELLO packet.");
-                    throw new BadMessageException("Invalid pre-read HELLO packet.");
+                    throw new InvalidOperationException(
+                        "Discarded HELLO recovery is only available for Windows QUD transports.");
                 }
+
+                (packet, helloResponseSent) = RecoverDiscardedQudHello(QualcommSaharaMode.Command);
             }
             else
             {
                 LibraryLogger.Debug("Reading HELLO packet from device for handshake.");
-                hello = transport.GetResponse([0x01, 0x00, 0x00, 0x00]);
+                (packet, helloResponseSent) = ReadInitialPacket(QualcommSaharaMode.Command);
             }
 
-            DetectedDeviceSaharaVersion = ByteOperations.ReadUInt32(hello, 0x08);
+            if (IsFirehoseXml(packet))
+            {
+                LibraryLogger.Debug("Device returned Firehose XML while probing Sahara command mode.");
+                return QualcommSaharaHandshakeResult.Firehose;
+            }
+
+            if (packet.Length < sizeof(uint))
+            {
+                throw new BadMessageException("Initial Sahara response is shorter than a command ID.");
+            }
+
+            var command = (QualcommSaharaCommand)ByteOperations.ReadUInt32(packet, 0);
+            if (helloResponseSent && command == QualcommSaharaCommand.CommandReady)
+            {
+                LibraryLogger.Debug("Windows QUD accepted the speculative HELLO response.");
+                return QualcommSaharaHandshakeResult.Sahara;
+            }
+
+            if (command != QualcommSaharaCommand.Hello)
+            {
+                throw new BadMessageException($"Expected Sahara HELLO, received {command}.");
+            }
+
+            if (packet.Length < 0x0C)
+            {
+                throw new BadMessageException("Sahara HELLO packet is too short.");
+            }
+
+            DetectedDeviceSaharaVersion = ByteOperations.ReadUInt32(packet, 0x08);
             var helloResponse = BuildHelloResponsePacket(QualcommSaharaMode.Command);
             var ready = transport.SendCommand(helloResponse, null);
-            var responseId = ByteOperations.ReadUInt32(ready, 0);
+            if (IsFirehoseXml(ready))
+            {
+                LibraryLogger.Debug("Device returned Firehose XML after the Sahara HELLO response.");
+                return QualcommSaharaHandshakeResult.Firehose;
+            }
 
-            return responseId == (uint)QualcommSaharaCommand.CommandReady;
+            if (ready.Length < sizeof(uint))
+            {
+                throw new BadMessageException("Sahara command-mode response is shorter than a command ID.");
+            }
+
+            var responseId = (QualcommSaharaCommand)ByteOperations.ReadUInt32(ready, 0);
+            return responseId != QualcommSaharaCommand.CommandReady
+                ? throw new BadMessageException($"Expected Sahara COMMAND_READY, received {responseId}.")
+                : QualcommSaharaHandshakeResult.Sahara;
         }
         catch (Exception ex)
         {
             LibraryLogger.Error($"Handshake failed: {ex.Message}");
-            return false;
+            return QualcommSaharaHandshakeResult.Failed;
         }
+    }
+
+    public bool CommandHandshake(byte[]? preReadHelloPacket = null)
+    {
+        return ProbeCommandMode(preReadHelloPacket) == QualcommSaharaHandshakeResult.Sahara;
     }
 
     public void ResetSahara()
@@ -186,18 +270,43 @@ public class QualcommSahara(IQualcommTransport transport)
         var imagesTransferredCount = 0;
         try
         {
-            var hello = transport.GetResponse([0x01, 0x00, 0x00, 0x00]);
-            DetectedDeviceSaharaVersion = ByteOperations.ReadUInt32(hello, 0x08);
+            var (initialPacket, helloResponseSent) = ReadInitialPacket(QualcommSaharaMode.ImageTxPending);
+            if (IsFirehoseXml(initialPacket))
+            {
+                LibraryLogger.Debug("Device is already in Firehose mode; skipping Sahara image transfer.");
+                return true;
+            }
 
-            var helloResponse = BuildHelloResponsePacket(QualcommSaharaMode.ImageTxPending);
-            transport.SendData(helloResponse);
+            if (initialPacket.Length < sizeof(uint))
+            {
+                throw new BadMessageException("Initial Sahara transfer response is shorter than a command ID.");
+            }
+
+            var pendingRequest = initialPacket;
+            var initialCommand = (QualcommSaharaCommand)ByteOperations.ReadUInt32(initialPacket, 0);
+            if (initialCommand == QualcommSaharaCommand.Hello)
+            {
+                if (initialPacket.Length < 0x0C)
+                {
+                    throw new BadMessageException("Sahara HELLO packet is too short.");
+                }
+
+                DetectedDeviceSaharaVersion = ByteOperations.ReadUInt32(initialPacket, 0x08);
+                transport.SendData(BuildHelloResponsePacket(QualcommSaharaMode.ImageTxPending));
+                pendingRequest = null;
+            }
+            else if (!helloResponseSent)
+            {
+                LibraryLogger.Debug($"Sahara transfer started with {initialCommand} instead of HELLO.");
+            }
 
             while (true)
             {
                 byte[] request;
                 try
                 {
-                    request = transport.GetResponse(null);
+                    request = pendingRequest ?? transport.GetResponse(null);
+                    pendingRequest = null;
                 }
                 catch (TimeoutException)
                 {

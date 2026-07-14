@@ -203,6 +203,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         IQualcommTransport? probeTransport = null;
         var detectedMode = DeviceMode.Unknown;
         byte[]? initialReadBuffer = null;
+        var passiveReadTimedOut = false;
 
         try
         {
@@ -221,6 +222,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             {
                 Logging.Log("Passive read timed out (no initial data from device).", LogLevel.Debug);
                 initialReadBuffer = null;
+                passiveReadTimedOut = true;
             }
             catch (BadMessageException)
             {
@@ -268,6 +270,39 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 else
                 {
                     Logging.Log("Passive read received unexpected data.", LogLevel.Debug);
+                }
+            }
+
+            // Modern Qualcomm USB serial drivers may discard the initial Sahara HELLO before
+            // it reaches the application. Match qdl by speculatively responding immediately
+            // after the first QUD read timeout, before sending any Firehose probe traffic.
+            if (detectedMode == DeviceMode.Unknown && passiveReadTimedOut && probeTransport != null &&
+                probeTransport.Backend == TransportBackend.WindowsQud)
+            {
+                Logging.Log("Initial Windows QUD read timed out. Attempting discarded HELLO recovery...", LogLevel.Debug);
+                probeTransport.TimeoutMilliseconds = 2000;
+                var saharaProbeClient = new QualcommSahara(probeTransport);
+                var handshakeResult = await Task.Run(() =>
+                    saharaProbeClient.ProbeCommandMode(initialReadAlreadyTimedOut: true));
+
+                if (handshakeResult == QualcommSaharaHandshakeResult.Sahara)
+                {
+                    Logging.Log("Discarded HELLO recovery successful. Detected Mode: Sahara");
+                    detectedMode = DeviceMode.Sahara;
+                    _transport = probeTransport;
+                    probeTransport = null;
+                    _saharaClient = saharaProbeClient;
+                    CurrentMode = DeviceMode.Sahara;
+                    try { _saharaClient.ResetSahara(); } catch { /* Ignore reset errors */ }
+                }
+                else if (handshakeResult == QualcommSaharaHandshakeResult.Firehose)
+                {
+                    Logging.Log("Discarded HELLO recovery received Firehose XML. Detected Mode: Firehose");
+                    detectedMode = DeviceMode.Firehose;
+                }
+                else
+                {
+                    Logging.Log("Discarded HELLO recovery was inconclusive.", LogLevel.Debug);
                 }
             }
 
@@ -347,7 +382,8 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                         transportForSaharaProbe.TimeoutMilliseconds = 2000;
                         var saharaProbeClient = new QualcommSahara(transportForSaharaProbe);
                         // Pass null to CommandHandshake as we don't have a pre-read packet here
-                        if (await Task.Run(() => saharaProbeClient.CommandHandshake()))
+                        var handshakeResult = await Task.Run(() => saharaProbeClient.ProbeCommandMode());
+                        if (handshakeResult == QualcommSaharaHandshakeResult.Sahara)
                         {
                             Logging.Log("Full Sahara handshake probe successful. Detected Mode: Sahara");
                             detectedMode = DeviceMode.Sahara;
@@ -357,6 +393,11 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                             _saharaClient = saharaProbeClient;
                             CurrentMode = DeviceMode.Sahara;
                             try { _saharaClient.ResetSahara(); } catch { /* Ignore reset errors */ }
+                        }
+                        else if (handshakeResult == QualcommSaharaHandshakeResult.Firehose)
+                        {
+                            Logging.Log("Sahara probe received Firehose XML. Detected Mode: Firehose");
+                            detectedMode = DeviceMode.Firehose;
                         }
                         else
                         {
