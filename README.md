@@ -10,6 +10,7 @@ Built with .NET, `edl-ng` provides tools for both Sahara and Firehose protocols,
 * **Sahara Protocol Support:**
   * Upload Firehose programmers (`.elf` files).
   * Device information retrieval (Serial Number, HWID, RKH).
+  * Collect 64-bit crash dumps from devices in Sahara MemoryDebug mode (normally USB PID `0x900E`).
 * **Firehose Protocol Support:**
   * Automatic Firehose configuration.
   * **GPT Management:** Print GUID Partition Table.
@@ -46,6 +47,7 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 ### Supported Commands
 
 * `upload-loader`: Connects in Sahara mode and uploads the specified Firehose loader. (e.g., qsahara_device_programmer.xml, xbl_s_devprg_ns.melf or prog_firehose_*.elf)
+* `ramdump [-o <directory>] [segment-filter]`: Collects Sahara 64-bit crashdump regions. The output directory defaults to the current directory.
 * `printgpt`: Reads and prints the GPT from the device.
 * `read-part <partition_name> <filename>`: Reads a partition to a file.
 * `read-sector <start_sector> <num_sectors> <filename>`: Reads sectors to a file.
@@ -68,6 +70,24 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
     ```bash
     edl-ng --loader prog_firehose_ddr.elf --memory UFS rawprogram rawprogram*.xml patch*.xml
     ```
+
+* **Collect all regions from a `0x900E` crashdump device:**
+
+    ```bash
+    edl-ng ramdump -o ./ramdump
+    ```
+
+    To collect selected regions, pass a comma-separated, case-sensitive filter supporting `*` and `?`:
+
+    ```bash
+    edl-ng ramdump -o ./ramdump OCIMEM,CODERAM,DDR*
+    ```
+
+    Each region is written to `<filename>.partial` and replaces the final file only after the region is complete.
+    A failed transfer leaves the partial file for diagnosis while preserving any existing completed dump. KELF is
+    downloaded as an ordinary region, but `edl-ng` does not currently parse it or generate `minidump.elf`. The
+    command searches for PID `0x900E` by default; use the global `--vid`/`--pid` options for targets using different
+    identifiers. A Firehose loader is not required for ramdump collection.
 
 * **Print GPT from LUN 0 (UFS memory):**
 

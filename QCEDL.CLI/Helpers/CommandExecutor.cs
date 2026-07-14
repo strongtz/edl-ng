@@ -36,6 +36,16 @@ internal static class CommandExecutor
             Logging.Log($"Platform Error: {ex.Message}", LogLevel.Error);
             return 1;
         }
+        catch (NotSupportedException ex)
+        {
+            Logging.Log($"Unsupported operation: {ex.Message}", LogLevel.Error);
+            return 1;
+        }
+        catch (TimeoutException ex)
+        {
+            Logging.Log($"Timeout: {ex.Message}", LogLevel.Error);
+            return 1;
+        }
         catch (Exception ex)
         {
             Logging.Log($"An unexpected error occurred in '{commandName}': {ex.Message}", LogLevel.Error);

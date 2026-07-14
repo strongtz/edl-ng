@@ -33,6 +33,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
     // Default USB device IDs
     private static readonly int DefaultVid = 0x05C6;
     private static readonly int[] DefaultPids = [0x9008, 0x900E];
+    private const int RamDumpPid = 0x900E;
 
     private byte[]? _initialSaharaHelloPacket;
 
@@ -161,6 +162,50 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         if (!success)
         {
             throw new InvalidOperationException($"Patch operation failed for sector {startSectorStr}");
+        }
+    }
+
+    public async Task<IReadOnlyList<QualcommSaharaRamDumpRegion>> CollectRamDumpAsync(
+        string outputDirectory,
+        string? segmentFilter = null,
+        Action<QualcommSaharaRamDumpProgress>? progress = null)
+    {
+        EnsureValidDirectMode();
+        if (IsDirectMode)
+        {
+            throw new InvalidOperationException(
+                "Sahara ramdump requires a Qualcomm USB device and cannot use a direct storage backend.");
+        }
+
+        _transport?.Dispose();
+        _transport = null;
+        _saharaClient = null;
+        _firehoseClient = null;
+        _devicePath = null;
+        _deviceGuid = null;
+        _initialSaharaHelloPacket = null;
+        CurrentMode = DeviceMode.Unknown;
+
+        int[] ramDumpPids = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : [RamDumpPid];
+        if (!FindDevice(ramDumpPids))
+        {
+            throw new IOException(
+                $"No Qualcomm ramdump device was found for PID(s): {string.Join(", ", ramDumpPids.Select(pid => $"0x{pid:X4}"))}.");
+        }
+
+        _transport = OpenTransport();
+        _saharaClient = new(_transport);
+        CurrentMode = DeviceMode.SaharaMemoryDebug;
+
+        try
+        {
+            return await Task.Run(() =>
+                _saharaClient.CollectRamDump(outputDirectory, segmentFilter, progress));
+        }
+        catch
+        {
+            CurrentMode = DeviceMode.Error;
+            throw;
         }
     }
 
@@ -438,12 +483,14 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
     /// </summary>
     /// <returns>True if a device is found, false otherwise.</returns>
     /// <exception cref="Exception">Throws if multiple devices are found without specific selection criteria.</exception>
-    private bool FindDevice()
+    private bool FindDevice(int[]? requestedPids = null)
     {
         Logging.Log("Searching for Qualcomm EDL device...", LogLevel.Trace);
+        var pidsToFind = requestedPids ??
+            (globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : DefaultPids);
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            if (FindDeviceLinuxLibUsb())
+            if (FindDeviceLinuxLibUsb(pidsToFind))
             {
                 Logging.Log("Found device using LibUsbDotNet on Linux / MacOS.");
                 return true;
@@ -453,7 +500,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return FindDeviceWindows();
+            return FindDeviceWindows(pidsToFind);
         }
 
         Logging.Log($"Unsupported OS: {RuntimeInformation.OSDescription}. Device discovery skipped.", LogLevel.Error);
@@ -473,7 +520,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         return QualcommTransportFactory.Open(_devicePath, backend);
     }
 
-    private bool FindDeviceLinuxLibUsb()
+    private bool FindDeviceLinuxLibUsb(IReadOnlyCollection<int> pidsToFind)
     {
         Logging.Log("Trying to find device using LibUsbDotNet on Linux / MacOS...", LogLevel.Debug);
         if (LibUsbTransport.Context == null)
@@ -483,8 +530,6 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         }
 
         var vidToFind = globalOptions.Vid ?? DefaultVid;
-        var pidsToFind = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : DefaultPids;
-
         // string serialToFind = _globalOptions.SerialNumber; // If you add a serial number option
         try
         {
@@ -521,7 +566,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         }
     }
 
-    private bool FindDeviceWindows()
+    private bool FindDeviceWindows(IReadOnlyCollection<int> pidsToFind)
     {
         Logging.Log("Searching for Qualcomm EDL device on Windows (Qualcomm Serial Driver or WinUSB)...");
 
@@ -533,7 +578,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         {
             Logging.Log($"Found device via COMPortGuid: {pathName} on bus {busName} (DevInst: {devInst})", LogLevel.Debug);
             if (pathName is not null && !string.IsNullOrEmpty(portName) &&
-                IsQualcommEdlDevice(pathName, busName))
+                IsQualcommEdlDevice(pathName, busName, pidsToFind))
             {
                 potentialDevices.Add((pathName, busName, ComPortGuid, devInst, $@"\\.\{portName}"));
             }
@@ -542,7 +587,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         foreach (var (pathName, busName, devInst, _) in UsbExtensions.GetDeviceInfos(WinUsbGuid))
         {
             Logging.Log($"Found device via WinUSBGuid: {pathName} on bus {busName} (DevInst: {devInst})", LogLevel.Debug);
-            if (pathName is not null && IsQualcommEdlDevice(pathName, busName))
+            if (pathName is not null && IsQualcommEdlDevice(pathName, busName, pidsToFind))
             {
                 potentialDevices.Add((pathName, busName, WinUsbGuid, devInst, pathName));
             }
@@ -625,10 +670,12 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         return await StorageBackend.FindPartitionWithLunAsync(partitionName, specifiedLun);
     }
 
-    private bool IsQualcommEdlDevice(string devicePath, string _)
+    private bool IsQualcommEdlDevice(
+        string devicePath,
+        string _,
+        IReadOnlyCollection<int> targetPids)
     {
         var targetVid = globalOptions.Vid ?? DefaultVid;
-        var targetPids = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : DefaultPids;
 
         var isQualcomm = devicePath.Contains($"VID_{targetVid:X4}&", StringComparison.OrdinalIgnoreCase);
         var isEdl = targetPids.Any(pid => devicePath.Contains($"&PID_{pid:X4}", StringComparison.OrdinalIgnoreCase));

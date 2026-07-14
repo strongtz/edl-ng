@@ -53,6 +53,26 @@ public sealed class WindowsQudTransportTests
     }
 
     [Fact]
+    public void RepeatedReadsReuseUnchangedCommTimeouts()
+    {
+        var native = new FakeWindowsQudNativeApi();
+        using var transport = CreateTransport(native);
+
+        transport.TimeoutMilliseconds = 500;
+        _ = transport.Read(new byte[8], 0, 8);
+        _ = transport.Read(new byte[8], 0, 8);
+
+        Assert.Equal(2, native.Timeouts.Count);
+        Assert.Equal(500U, native.Timeouts[^1].ReadTotalTimeoutConstant);
+
+        transport.TimeoutMilliseconds = 750;
+        _ = transport.Read(new byte[8], 0, 8);
+
+        Assert.Equal(3, native.Timeouts.Count);
+        Assert.Equal(750U, native.Timeouts[^1].ReadTotalTimeoutConstant);
+    }
+
+    [Fact]
     public void ReadZeroBytesIsReportedAsTimeout()
     {
         var native = new FakeWindowsQudNativeApi { Transferred = 0 };

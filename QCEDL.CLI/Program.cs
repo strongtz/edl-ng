@@ -147,6 +147,7 @@ rootCommand.AddGlobalOption(radxaWosOption);
 
 // --- Define Commands (Add more commands here later) ---
 rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));
+rootCommand.AddCommand(RamDumpCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ResetCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(PrintGptCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ReadPartitionCommand.Create(globalOptionsBinder));

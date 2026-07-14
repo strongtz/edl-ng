@@ -35,6 +35,7 @@ public sealed class WindowsQudTransport : IQualcommTransport
     private readonly string _path;
     private SafeFileHandle? _handle;
     private int _timeoutMilliseconds = 1000;
+    private uint _configuredReadTimeoutConstant;
     private bool _disposed;
 
     public TransportBackend Backend => TransportBackend.WindowsQud;
@@ -91,17 +92,23 @@ public sealed class WindowsQudTransport : IQualcommTransport
         ThrowIfDisposed();
         ValidateBuffer(buffer, offset, count);
 
-        var timeout = new CommTimeouts
+        var readTimeoutConstant = (uint)Math.Max(TimeoutMilliseconds, 1);
+        if (_configuredReadTimeoutConstant != readTimeoutConstant)
         {
-            ReadIntervalTimeout = MaxDword,
-            ReadTotalTimeoutMultiplier = MaxDword,
-            ReadTotalTimeoutConstant = (uint)Math.Max(TimeoutMilliseconds, 1),
-            WriteTotalTimeoutMultiplier = 0,
-            WriteTotalTimeoutConstant = 0
-        };
-        if (!_nativeApi.SetCommTimeouts(_handle!, in timeout, out var error))
-        {
-            throw CreateIOException("SetCommTimeouts", error);
+            var timeout = new CommTimeouts
+            {
+                ReadIntervalTimeout = MaxDword,
+                ReadTotalTimeoutMultiplier = MaxDword,
+                ReadTotalTimeoutConstant = readTimeoutConstant,
+                WriteTotalTimeoutMultiplier = 0,
+                WriteTotalTimeoutConstant = 0
+            };
+            if (!_nativeApi.SetCommTimeouts(_handle!, in timeout, out var error))
+            {
+                throw CreateIOException("SetCommTimeouts", error);
+            }
+
+            _configuredReadTimeoutConstant = readTimeoutConstant;
         }
 
         var bytesRead = OverlappedIo(buffer, offset, count, (uint)TimeoutMilliseconds + 250, false);
@@ -166,6 +173,7 @@ public sealed class WindowsQudTransport : IQualcommTransport
         {
             throw CreateIOException("SetCommTimeouts", error);
         }
+        _configuredReadTimeoutConstant = timeout.ReadTotalTimeoutConstant;
 
         _ = _nativeApi.SetupComm(_handle!, 64 * 1024, 64 * 1024, out _);
         _ = _nativeApi.PurgeComm(_handle!, PurgeTxClear | PurgeTxAbort, out _);

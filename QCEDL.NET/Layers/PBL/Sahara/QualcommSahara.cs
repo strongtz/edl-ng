@@ -132,6 +132,14 @@ public class QualcommSahara(IQualcommTransport transport)
 
     #region Public Interface
 
+    public IReadOnlyList<QualcommSaharaRamDumpRegion> CollectRamDump(
+        string outputDirectory,
+        string? segmentFilter = null,
+        Action<QualcommSaharaRamDumpProgress>? progress = null)
+    {
+        return new QualcommSaharaRamDump(transport).Collect(outputDirectory, segmentFilter, progress);
+    }
+
     public QualcommSaharaHandshakeResult ProbeCommandMode(
         byte[]? preReadHelloPacket = null,
         bool initialReadAlreadyTimedOut = false)
