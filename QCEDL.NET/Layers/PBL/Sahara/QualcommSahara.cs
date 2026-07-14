@@ -30,6 +30,7 @@ public class QualcommSahara(IQualcommTransport transport)
 {
     private const uint FirehoseProgrammerImageId = 13;
     public uint DetectedDeviceSaharaVersion { get; private set; } = 2;
+    public bool IsCommandModeReady { get; private set; }
     private Dictionary<uint, string> _imageMappings = [];
 
     #region Packet Building Logic
@@ -146,6 +147,12 @@ public class QualcommSahara(IQualcommTransport transport)
     {
         try
         {
+            if (IsCommandModeReady)
+            {
+                LibraryLogger.Debug("Sahara command mode is already established; reusing the existing session.");
+                return QualcommSaharaHandshakeResult.Sahara;
+            }
+
             byte[] packet;
             var helloResponseSent = false;
             if (preReadHelloPacket != null && initialReadAlreadyTimedOut)
@@ -191,6 +198,7 @@ public class QualcommSahara(IQualcommTransport transport)
             if (helloResponseSent && command == QualcommSaharaCommand.CommandReady)
             {
                 LibraryLogger.Debug("Windows QUD accepted the speculative HELLO response.");
+                IsCommandModeReady = true;
                 return QualcommSaharaHandshakeResult.Sahara;
             }
 
@@ -219,9 +227,13 @@ public class QualcommSahara(IQualcommTransport transport)
             }
 
             var responseId = (QualcommSaharaCommand)ByteOperations.ReadUInt32(ready, 0);
-            return responseId != QualcommSaharaCommand.CommandReady
-                ? throw new BadMessageException($"Expected Sahara COMMAND_READY, received {responseId}.")
-                : QualcommSaharaHandshakeResult.Sahara;
+            if (responseId != QualcommSaharaCommand.CommandReady)
+            {
+                throw new BadMessageException($"Expected Sahara COMMAND_READY, received {responseId}.");
+            }
+
+            IsCommandModeReady = true;
+            return QualcommSaharaHandshakeResult.Sahara;
         }
         catch (Exception ex)
         {
@@ -237,11 +249,13 @@ public class QualcommSahara(IQualcommTransport transport)
 
     public void ResetSahara()
     {
+        IsCommandModeReady = false;
         _ = transport.SendCommand(BuildCommandPacket(QualcommSaharaCommand.Reset), [0x08, 0x00, 0x00, 0x00]);
     }
 
     public void SwitchMode(QualcommSaharaMode mode)
     {
+        IsCommandModeReady = false;
         var switchMode = new byte[0x04];
         ByteOperations.WriteUInt32(switchMode, 0x00, (uint)mode);
         transport.SendData(BuildCommandPacket(QualcommSaharaCommand.SwitchMode, switchMode));

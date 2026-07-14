@@ -338,7 +338,6 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                     probeTransport = null;
                     _saharaClient = saharaProbeClient;
                     CurrentMode = DeviceMode.Sahara;
-                    try { _saharaClient.ResetSahara(); } catch { /* Ignore reset errors */ }
                 }
                 else if (handshakeResult == QualcommSaharaHandshakeResult.Firehose)
                 {
@@ -437,7 +436,6 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                             probeTransport = null; // Don't dispose it
                             _saharaClient = saharaProbeClient;
                             CurrentMode = DeviceMode.Sahara;
-                            try { _saharaClient.ResetSahara(); } catch { /* Ignore reset errors */ }
                         }
                         else if (handshakeResult == QualcommSaharaHandshakeResult.Firehose)
                         {
@@ -806,24 +804,13 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             Logging.Log("Using pre-established Sahara connection.", LogLevel.Debug);
         }
 
-        if (_deviceGuid == ComPortGuid && _initialSaharaHelloPacket == null) // Only if using COM port and not using pre-read packet
-        {
-            Logging.Log("Device is COM Port and no pre-read HELLO. Sending ResetStateMachine command to device...", LogLevel.Debug);
-            try
-            {
-                var resetStateMachineCmd = QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.ResetStateMachine);
-                _transport.SendData(resetStateMachineCmd);
-                await Task.Delay(50);
-            }
-            catch (Exception rsmEx)
-            {
-                Logging.Log($"Failed to send ResetStateMachine for COM port: {rsmEx.Message}", LogLevel.Warning);
-            }
-        }
-
         try
         {
-            Logging.Log("Attempting Sahara handshake...", LogLevel.Debug);
+            Logging.Log(
+                _saharaClient.IsCommandModeReady
+                    ? "Reusing the established Sahara command-mode session."
+                    : "Attempting Sahara handshake...",
+                LogLevel.Debug);
             if (!_saharaClient.CommandHandshake(_initialSaharaHelloPacket))
             {
                 Logging.Log("Initial Sahara handshake failed, attempting reset and retry...", LogLevel.Warning);

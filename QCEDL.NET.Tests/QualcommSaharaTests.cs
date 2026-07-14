@@ -37,9 +37,47 @@ public sealed class QualcommSaharaTests
         var result = sahara.ProbeCommandMode();
 
         Assert.Equal(QualcommSaharaHandshakeResult.Sahara, result);
+        Assert.True(sahara.IsCommandModeReady);
         var helloResponse = Assert.Single(transport.SentPackets);
         Assert.Equal(QualcommSaharaCommand.HelloResponse, ReadCommand(helloResponse));
         Assert.Equal(QualcommSaharaMode.Command, (QualcommSaharaMode)BitConverter.ToUInt32(helloResponse, 0x14));
+    }
+
+    [Fact]
+    public void CommandHandshakeReusesEstablishedCommandModeWithoutIo()
+    {
+        var responses = new Queue<byte[]>(
+        [
+            QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.CommandReady)
+        ]);
+        using var transport = new SaharaRecordingTransport(responses, initialReadTimeouts: 1);
+        var sahara = new QualcommSahara(transport);
+
+        Assert.Equal(QualcommSaharaHandshakeResult.Sahara, sahara.ProbeCommandMode());
+        Assert.True(sahara.CommandHandshake());
+
+        Assert.True(sahara.IsCommandModeReady);
+        Assert.Equal([QualcommSaharaCommand.HelloResponse], transport.SentCommands);
+        Assert.Empty(responses);
+    }
+
+    [Fact]
+    public void LeavingCommandModeClearsEstablishedSessionState()
+    {
+        var responses = new Queue<byte[]>(
+        [
+            QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.CommandReady)
+        ]);
+        using var transport = new SaharaRecordingTransport(responses, initialReadTimeouts: 1);
+        var sahara = new QualcommSahara(transport);
+
+        Assert.Equal(QualcommSaharaHandshakeResult.Sahara, sahara.ProbeCommandMode());
+        sahara.SwitchMode(QualcommSaharaMode.ImageTxPending);
+
+        Assert.False(sahara.IsCommandModeReady);
+        Assert.Equal(
+            [QualcommSaharaCommand.HelloResponse, QualcommSaharaCommand.SwitchMode],
+            transport.SentCommands);
     }
 
     [Fact]
