@@ -314,6 +314,7 @@ internal sealed class RawProgramCommand
             else
             {
                 var imageFile = new FileInfo(Path.Combine(rawFile.DirectoryName ?? string.Empty, filename));
+                imageFile = imageFile.ResolveLinkTarget(true) as FileInfo ?? imageFile;
                 if (!imageFile.Exists)
                 {
                     Logging.Log($"Error: Image file '{imageFile.FullName}' (Label: {label}) not found.", LogLevel.Error);
