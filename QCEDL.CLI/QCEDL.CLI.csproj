@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <Version>1.5.0</Version>
+        <Version>1.6.0</Version>
         <Description>A modern, user-friendly tool for interacting with Qualcomm devices in Emergency
             Download (EDL) mode. Built with .NET, edl-ng provides tools for both Sahara and Firehose
             protocols, enabling device flashing, partition management, and low-level device
