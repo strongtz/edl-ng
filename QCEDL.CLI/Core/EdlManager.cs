@@ -1038,6 +1038,53 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         await StorageBackend.EraseSectorsAsync(lun, startSector, sectorCount, progressCallback);
     }
 
+    public async Task EraseAllAsync()
+    {
+        EnsureValidDirectMode();
+        if (IsDirectMode)
+        {
+            throw new NotSupportedException(
+                "erase-all is only supported for USB Firehose targets; direct storage backends are not supported.");
+        }
+
+        await EnsureFirehoseModeAsync();
+        if (!_firehoseConfigured)
+        {
+            await ConfigureFirehoseAsync();
+        }
+
+        var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
+        Root? storageInfo = null;
+        try
+        {
+            storageInfo = await Task.Run(() => Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot));
+        }
+        catch (Exception ex)
+        {
+            Logging.Log(
+                $"Could not determine the physical partition count. Falling back to probing partitions 0-7. Error: {ex.Message}",
+                LogLevel.Warning);
+        }
+
+        int? physicalPartitionCount = storageInfo?.StorageInfo?.NumPhysical > 0
+            ? storageInfo.StorageInfo.NumPhysical
+            : null;
+        var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0
+            ? (uint)storageInfo.StorageInfo.BlockSize
+            : GetSectorSize();
+
+        var success = await Task.Run(() => Firehose.EraseAll(
+            storageType,
+            globalOptions.Slot,
+            sectorSize,
+            physicalPartitionCount));
+
+        if (!success)
+        {
+            throw new InvalidOperationException("Failed to erase all physical partitions.");
+        }
+    }
+
     public uint GetSectorSize(uint lun = 0)
     {
         return StorageBackend.GetDefaultSectorSize(lun);

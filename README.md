@@ -57,6 +57,7 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 * `write-sector <start_sector> <filename>`: Writes data from a file to sectors.
 * `erase-part <partition_name>`: Erases a partition by name from the device.
 * `erase-sector <start_sector> <sectors>`: Erases a specified number of sectors from a given LUN and start LBA.
+* `erase-all`: Erases every physical partition on the Firehose storage device.
 * `provision <xmlfile>`: Performs UFS provisioning using an XML file.
 * `rawprogram <xmlfile_patterns>`: Processes rawprogramN.xml and patchN.xml files for flashing.
 * `reset`: Resets or powers off the device.
@@ -126,6 +127,15 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
     ```bash
     edl-ng --loader prog_firehose_ddr.elf --memory UFS write-sector 0 lun0.bin --lun 0
     ```
+
+* **Erase the entire storage device:**
+
+    ```bash
+    edl-ng --loader prog_firehose_ddr.elf --memory UFS erase-all
+    ```
+
+    This operation starts immediately and irreversibly erases every physical partition reported by the device. On
+    eMMC targets this can include hardware boot partitions.
 
 * **Reboot the device:**
 

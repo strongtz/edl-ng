@@ -158,6 +158,7 @@ rootCommand.AddCommand(WritePartitionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(WriteSectorCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ErasePartitionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(EraseSectorCommand.Create(globalOptionsBinder));
+rootCommand.AddCommand(EraseAllCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ProvisionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(RawProgramCommand.Create(globalOptionsBinder));
 // ... etc ...

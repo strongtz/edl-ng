@@ -13,6 +13,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 
 public static class QualcommFirehoseCommands
 {
+    private const int MaxPhysicalPartitionsToProbe = 8;
     public static bool Configure(this QualcommFirehose firehose, StorageType storageType, bool skipStorageInit = false)
     {
         LibraryLogger.Debug($"Configuring (Memory: {storageType}, SkipStorageInit: {skipStorageInit})");
@@ -935,6 +936,83 @@ public static class QualcommFirehoseCommands
                 numSectorsToErase)
         ]);
 
+        return ExecuteEraseCommand(firehose, eraseCommandXml);
+    }
+
+    public static bool ErasePhysicalPartition(this QualcommFirehose firehose, StorageType storageType, uint luNi,
+        uint slot, uint sectorSize)
+    {
+        return ErasePhysicalPartition(firehose, storageType, luNi, slot, sectorSize, expectedFailure: false);
+    }
+
+    private static bool ErasePhysicalPartition(QualcommFirehose firehose, StorageType storageType, uint luNi,
+        uint slot, uint sectorSize, bool expectedFailure)
+    {
+        LibraryLogger.Debug(
+            $"ERASE PHYSICAL PARTITION: LUN{luNi}, Slot: {slot}, SectorSize: {sectorSize}");
+
+        var eraseCommandXml = QualcommFirehoseXml.BuildCommandPacket([
+            QualcommFirehoseXmlPackets.GetErasePacket(storageType, luNi, slot, sectorSize)
+        ]);
+
+        return ExecuteEraseCommand(firehose, eraseCommandXml, expectedFailure);
+    }
+
+    public static bool EraseAll(this QualcommFirehose firehose, StorageType storageType, uint slot,
+        uint sectorSize, int? physicalPartitionCount)
+    {
+        if (physicalPartitionCount <= 0)
+        {
+            physicalPartitionCount = null;
+        }
+
+        if (physicalPartitionCount.HasValue)
+        {
+            LibraryLogger.Debug(
+                $"Erase all: device reports {physicalPartitionCount.Value} physical partition(s).");
+
+            for (var partition = 0; partition < physicalPartitionCount.Value; partition++)
+            {
+                if (!firehose.ErasePhysicalPartition(storageType, (uint)partition, slot, sectorSize))
+                {
+                    LibraryLogger.Error($"Failed to erase physical partition {partition}.");
+                    return false;
+                }
+
+                LibraryLogger.Info($"Successfully erased physical partition {partition}.");
+            }
+
+            return true;
+        }
+
+        LibraryLogger.Warning(
+            $"Erase all: physical partition count is unavailable. Probing partitions 0-{MaxPhysicalPartitionsToProbe - 1}.");
+
+        for (var partition = 0; partition < MaxPhysicalPartitionsToProbe; partition++)
+        {
+            var success = ErasePhysicalPartition(firehose, storageType, (uint)partition, slot, sectorSize,
+                expectedFailure: partition > 0);
+            if (!success)
+            {
+                if (partition == 0)
+                {
+                    LibraryLogger.Error("Failed to erase physical partition 0.");
+                    return false;
+                }
+
+                LibraryLogger.Debug($"Erase all probe stopped after physical partition {partition - 1}.");
+                return true;
+            }
+
+            LibraryLogger.Info($"Successfully erased physical partition {partition}.");
+        }
+
+        return true;
+    }
+
+    private static bool ExecuteEraseCommand(QualcommFirehose firehose, string eraseCommandXml,
+        bool expectedFailure = false)
+    {
         firehose.Transport.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
 
         var finalAckOrNakReceived = false;
@@ -993,7 +1071,15 @@ public static class QualcommFirehoseCommands
                     }
                     else if (data.Response.Value == "NAK")
                     {
-                        LibraryLogger.Error($"Erase command NAKed. Details: {data.Response.Value}");
+                        if (expectedFailure)
+                        {
+                            LibraryLogger.Debug("Erase command NAKed while probing for another physical partition.");
+                        }
+                        else
+                        {
+                            LibraryLogger.Error($"Erase command NAKed. Details: {data.Response.Value}");
+                        }
+
                         success = false;
                     }
                     else
