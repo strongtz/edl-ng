@@ -1242,8 +1242,8 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
         public async Task<byte[]> ReadSectorsAsync(uint lun, ulong startSector, uint sectorCount)
         {
-            ValidateLbaRange(startSector, sectorCount);
             var geometry = await GetGeometryAsync(lun);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
 
             await EnsureReadyAsync();
 
@@ -1271,8 +1271,8 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 return;
             }
 
-            ValidateLbaRange(startSector, sectorCount);
             var geometry = await GetGeometryAsync(lun);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
 
             await EnsureReadyAsync();
 
@@ -1305,7 +1305,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
             var storageInfo = await GetDeviceInfoAsync(lun);
             var sectorSize = DetermineSectorSize(storageInfo, logFallback: true);
-            ulong? totalBlocks = storageInfo?.StorageInfo?.TotalBlocks > 0 ? (ulong)storageInfo.StorageInfo.TotalBlocks : null;
+            ulong? totalBlocks = storageInfo?.StorageInfo?.TotalBlocks > 0 ? storageInfo.StorageInfo.TotalBlocks : null;
 
             var geometry = new StorageGeometry(sectorSize, totalBlocks);
             _geometryCache[lun] = geometry;
@@ -1321,10 +1321,15 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
 
         public async Task EraseSectorsAsync(uint lun, ulong startSector, ulong sectorCount, Action<long, long>? progressCallback)
         {
-            ValidateLbaRange(startSector, sectorCount);
+            var geometry = await GetGeometryAsync(lun);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
+            if (sectorCount > uint.MaxValue)
+            {
+                throw new ArgumentException("Erase length exceeds Firehose limit (uint32 sectors).", nameof(sectorCount));
+            }
+
             await EnsureReadyAsync();
 
-            var geometry = await GetGeometryAsync(lun);
             var start = (uint)startSector;
             var count = (uint)sectorCount;
 
@@ -1364,7 +1369,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             }
 
             var sectorCount = totalBytes / geometry.SectorSize;
-            ValidateLbaRange(startSector, sectorCount);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
 
             if (startSector > uint.MaxValue)
             {
@@ -1520,17 +1525,27 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
         };
 
-        private static void ValidateLbaRange(ulong startSector, ulong sectorCount)
+        private static void ValidateLbaRange(ulong startSector, ulong sectorCount, ulong? totalSectors)
         {
             if (sectorCount == 0)
             {
                 throw new ArgumentException("Sector count must be greater than zero", nameof(sectorCount));
             }
 
-            var lastSector = startSector + sectorCount - 1;
-            if (startSector > uint.MaxValue || lastSector > uint.MaxValue)
+            // Check by subtraction so an overflowing startSector + sectorCount cannot
+            // wrap around and accidentally pass validation.
+            if (startSector > uint.MaxValue || sectorCount - 1 > uint.MaxValue - startSector)
             {
                 throw new ArgumentException("Sector range exceeds uint.MaxValue, which is not supported by the current Firehose implementation.");
+            }
+
+            if (totalSectors is > 0 &&
+                (startSector >= totalSectors.Value || sectorCount > totalSectors.Value - startSector))
+            {
+                var lastSector = startSector + sectorCount - 1;
+                throw new ArgumentOutOfRangeException(
+                    nameof(sectorCount),
+                    $"Sector range LBA {startSector}-{lastSector} exceeds storage bounds (valid LBA range: 0-{totalSectors.Value - 1}, total blocks: {totalSectors.Value}).");
             }
         }
 

@@ -6,7 +6,7 @@ public record Root(
     [property: JsonPropertyName("storage_info")] StorageInfo? StorageInfo);
 
 public sealed record StorageInfo(
-    [property: JsonPropertyName("total_blocks")] int TotalBlocks,
+    [property: JsonPropertyName("total_blocks")] ulong TotalBlocks,
     [property: JsonPropertyName("block_size")] int BlockSize,
     [property: JsonPropertyName("page_size")] int PageSize,
     [property: JsonPropertyName("num_physical")] int NumPhysical,
