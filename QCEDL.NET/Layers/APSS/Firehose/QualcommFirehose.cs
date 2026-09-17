@@ -18,6 +18,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Diagnostics;
 using System.Text;
 using QCEDL.NET.Logging;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml;
@@ -30,7 +31,7 @@ public class QualcommFirehose(IQualcommTransport transport)
 {
     public IQualcommTransport Transport { get; } = transport;
 
-    public byte[] GetFirehoseXmlResponseBuffer(bool waitTilFooter = false)
+    public byte[] GetFirehoseXmlResponseBuffer(bool waitTilFooter = false, int? timeoutMilliseconds = null)
     {
         if (!waitTilFooter)
         {
@@ -43,46 +44,67 @@ public class QualcommFirehose(IQualcommTransport transport)
         var footerPattern = " /></data>"u8;
         // int patternMatchIndex = 0; // unused
         var safetyReadLimit = 8192; // Max 8KB for an XML ACK, to prevent infinite loop
-        while (bufferList.Count < safetyReadLimit)
+        var originalTimeout = Transport.TimeoutMilliseconds;
+        try
         {
-            var chunk = Transport.GetResponse(null, length: readChunkSize);
-            if (chunk == null || chunk.Length == 0)
+            var timer = Stopwatch.StartNew();
+            while (bufferList.Count < safetyReadLimit)
             {
-                // Timeout or no data from device
-                LibraryLogger.Warning("Timeout or no data received while waiting for XML footer.");
-                break;
-            }
-            bufferList.AddRange(chunk);
-            // Efficiently check for footerPattern in the newly added chunk or at the end of bufferList
-            // This is a simplified check; more robust would be a sliding window search
-            // For performance, avoid converting bufferList to string repeatedly in the loop.
-            // Check if the end of bufferList now contains the footer.
-            if (bufferList.Count >= footerPattern.Length)
-            {
-                var found = true;
-                for (var i = 0; i < footerPattern.Length; i++)
+                if (timeoutMilliseconds.HasValue)
                 {
-                    if (bufferList[bufferList.Count - footerPattern.Length + i] != footerPattern[i])
+                    var remaining = timeoutMilliseconds.Value - (int)timer.ElapsedMilliseconds;
+                    if (remaining <= 0)
                     {
-                        found = false;
-                        break;
+                        throw new TimeoutException("Timed out waiting for Firehose XML footer.");
+                    }
+                    Transport.TimeoutMilliseconds = remaining;
+                }
+                var chunk = Transport.GetResponse(null, length: readChunkSize);
+                if (chunk == null || chunk.Length == 0)
+                {
+                    // Timeout or no data from device
+                    LibraryLogger.Warning("Timeout or no data received while waiting for XML footer.");
+                    break;
+                }
+                bufferList.AddRange(chunk);
+                // Efficiently check for footerPattern in the newly added chunk or at the end of bufferList
+                // This is a simplified check; more robust would be a sliding window search
+                // For performance, avoid converting bufferList to string repeatedly in the loop.
+                // Check if the end of bufferList now contains the footer.
+                if (bufferList.Count >= footerPattern.Length)
+                {
+                    var found = true;
+                    for (var i = 0; i < footerPattern.Length; i++)
+                    {
+                        if (bufferList[bufferList.Count - footerPattern.Length + i] != footerPattern[i])
+                        {
+                            found = false;
+                            break;
+                        }
+                    }
+                    if (found)
+                    {
+                        return [.. bufferList];
                     }
                 }
-                if (found)
-                {
-                    return [.. bufferList];
-                }
+            }
+
+            LibraryLogger.Error($"XML response footer not found or exceeded safety limit ({safetyReadLimit} bytes). Buffer size: {bufferList.Count}");
+            // Return what we have, or throw, depending on how GetFirehoseResponseDataPayloads handles partial XML
+            return [.. bufferList];
+        }
+        finally
+        {
+            if (timeoutMilliseconds.HasValue)
+            {
+                Transport.TimeoutMilliseconds = originalTimeout;
             }
         }
-
-        LibraryLogger.Error($"XML response footer not found or exceeded safety limit ({safetyReadLimit} bytes). Buffer size: {bufferList.Count}");
-        // Return what we have, or throw, depending on how GetFirehoseResponseDataPayloads handles partial XML
-        return [.. bufferList];
     }
 
-    public Data[] GetFirehoseResponseDataPayloads(bool waitTilFooter = false)
+    public Data[] GetFirehoseResponseDataPayloads(bool waitTilFooter = false, int? timeoutMilliseconds = null)
     {
-        var responseBuffer = GetFirehoseXmlResponseBuffer(waitTilFooter);
+        var responseBuffer = GetFirehoseXmlResponseBuffer(waitTilFooter, timeoutMilliseconds);
 
         if (responseBuffer.Length == 0 || responseBuffer.All(t => t == 0x0))
         {

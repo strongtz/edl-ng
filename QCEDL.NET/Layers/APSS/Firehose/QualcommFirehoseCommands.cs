@@ -1228,96 +1228,73 @@ public static class QualcommFirehoseCommands
         }
     }
 
-    public static bool SendRawXmlAndGetResponse(this QualcommFirehose firehose, string xmlCommand)
+    public static bool SendRawXmlAndGetResponse(this QualcommFirehose firehose, string xmlCommand,
+        int timeoutMilliseconds = 10000)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMilliseconds);
         LibraryLogger.Debug($"Sending Raw XML: {xmlCommand}");
         firehose.Transport.SendData(Encoding.UTF8.GetBytes(xmlCommand));
 
-        var finalAckOrNakReceived = false;
-        var success = false;
-        var attempts = 0;
-        const int maxAttempts = 10;
-
-        while (!finalAckOrNakReceived && attempts < maxAttempts)
+        var originalTimeout = firehose.Transport.TimeoutMilliseconds;
+        var timer = Stopwatch.StartNew();
+        try
         {
-            attempts++;
-            Data[] datas;
-            try
+            // Log traffic is normal progress, not a failed attempt. Bound the entire
+            // response wait by elapsed time, including a continuous stream of logs.
+            while (timer.ElapsedMilliseconds < timeoutMilliseconds)
             {
-                datas = firehose.GetFirehoseResponseDataPayloads(waitTilFooter: true);
-            }
-            catch (TimeoutException)
-            {
-                LibraryLogger.Warning($"Timeout waiting for response to raw XML (Attempt {attempts}/{maxAttempts}).");
-                if (attempts < maxAttempts)
+                var remaining = timeoutMilliseconds - (int)timer.ElapsedMilliseconds;
+                if (remaining <= 0)
                 {
-                    Thread.Sleep(200);
+                    break;
                 }
 
-                continue;
-            }
-            catch (BadMessageException bme)
-            {
-                LibraryLogger.Warning(
-                    $"Bad message received for raw XML (Attempt {attempts}/{maxAttempts}): {bme.Message}");
-                if (attempts < maxAttempts)
+                Data[] datas;
+                try
                 {
-                    Thread.Sleep(200);
+                    datas = firehose.GetFirehoseResponseDataPayloads(waitTilFooter: true,
+                        timeoutMilliseconds: remaining);
                 }
-
-                continue;
-            }
-
-            if (datas.Length == 0 && !finalAckOrNakReceived)
-            {
-                LibraryLogger.Warning($"No data received in response to raw XML (Attempt {attempts}/{maxAttempts}).");
-                if (attempts < maxAttempts)
+                catch (Exception ex) when (ex is TimeoutException or BadMessageException)
                 {
-                    Thread.Sleep(200);
-                }
-
-                continue;
-            }
-
-            foreach (var data in datas)
-            {
-                if (data.Log != null)
-                {
-                    LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
-                }
-                else if (data.Response != null)
-                {
-                    if (data.Response.Value == "ACK")
+                    LibraryLogger.Debug($"Waiting for raw XML response: {ex.Message}");
+                    remaining = timeoutMilliseconds - (int)timer.ElapsedMilliseconds;
+                    if (remaining > 0)
                     {
-                        LibraryLogger.Debug($"Raw XML command ACKed. RawMode: {data.Response.RawMode}");
-                        success = true;
-                        finalAckOrNakReceived = true;
-                        break;
+                        Thread.Sleep(Math.Min(20, remaining));
                     }
-
-                    if (data.Response.Value == "NAK")
-                    {
-                        LibraryLogger.Error("Raw XML command NAKed.");
-                        success = false;
-                        finalAckOrNakReceived = true;
-                        break;
-                    }
-
-                    LibraryLogger.Warning($"Unexpected response value for raw XML: {data.Response.Value}");
+                    continue;
                 }
-                else
+
+                foreach (var data in datas)
                 {
-                    LibraryLogger.Warning("Received data payload without Log or Response element for raw XML command.");
+                    if (data.Log != null)
+                    {
+                        LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
+                    }
+                    if (data.Response != null)
+                    {
+                        if (data.Response.Value == "ACK")
+                        {
+                            LibraryLogger.Debug($"Raw XML command ACKed. RawMode: {data.Response.RawMode}");
+                            return true;
+                        }
+                        if (data.Response.Value == "NAK")
+                        {
+                            LibraryLogger.Error("Raw XML command NAKed.");
+                            return false;
+                        }
+                        LibraryLogger.Warning($"Unexpected response value for raw XML: {data.Response.Value}");
+                    }
                 }
             }
-        }
 
-        if (!finalAckOrNakReceived)
-        {
-            LibraryLogger.Error("Failed to get ACK/NAK after sending raw XML command and multiple attempts.");
+            LibraryLogger.Error($"Timed out waiting for ACK/NAK after sending raw XML command ({timeoutMilliseconds} ms).");
             return false;
         }
-
-        return success;
+        finally
+        {
+            firehose.Transport.TimeoutMilliseconds = originalTimeout;
+        }
     }
 }

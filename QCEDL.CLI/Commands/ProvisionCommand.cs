@@ -87,7 +87,10 @@ internal sealed class ProvisionCommand
 
                 Logging.Log($"Sending UFS command {commandIndex}/{ufsElements.Count}");
 
-                var success = await Task.Run(() => manager.Firehose.SendRawXmlAndGetResponse(fullXmlPayload));
+                // Committing writes the UFS configuration descriptor and can take much longer.
+                var responseTimeout = (string?)ufsElement.Attribute("commit") == "1" ? 120000 : 5000;
+                var success = await Task.Run(() => manager.Firehose.SendRawXmlAndGetResponse(
+                    fullXmlPayload, responseTimeout));
 
                 if (success)
                 {
