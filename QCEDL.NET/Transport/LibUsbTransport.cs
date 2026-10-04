@@ -17,6 +17,7 @@ public sealed class LibUsbTransport : IQualcommTransport
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private bool _disposed;
+    private readonly int _claimedInterface;
     private UsbDevice? _device;
     private UsbEndpointReader? _reader;
     private UsbEndpointWriter? _writer;
@@ -67,7 +68,8 @@ public sealed class LibUsbTransport : IQualcommTransport
                 _device.SetConfiguration(1);
             }
 
-            const int interfaceNumber = 0;
+            LogDeviceDescriptors();
+            var (interfaceNumber, readEndpoint, writeEndpoint) = SelectBulkEndpoints();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && _device.SupportsDetachKernelDriver() &&
                 _device.IsKernelDriverActive(interfaceNumber))
             {
@@ -75,8 +77,9 @@ public sealed class LibUsbTransport : IQualcommTransport
             }
 
             _ = _device.ClaimInterface(interfaceNumber);
-            _reader = _device.OpenEndpointReader(ReadEndpointID.Ep01);
-            _writer = _device.OpenEndpointWriter(WriteEndpointID.Ep01);
+            _claimedInterface = interfaceNumber;
+            _reader = _device.OpenEndpointReader(readEndpoint);
+            _writer = _device.OpenEndpointWriter(writeEndpoint);
             if (_reader is null || _writer is null)
             {
                 throw new IOException("LibUsb could not open the required bulk endpoints.");
@@ -157,7 +160,7 @@ public sealed class LibUsbTransport : IQualcommTransport
             {
                 try
                 {
-                    _ = _device.ReleaseInterface(0);
+                    _ = _device.ReleaseInterface(_claimedInterface);
                 }
                 catch (Exception ex)
                 {
@@ -174,6 +177,109 @@ public sealed class LibUsbTransport : IQualcommTransport
             _device = null;
             _disposed = true;
         }
+    }
+
+    private void LogDeviceDescriptors()
+    {
+        if (_device is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var info = _device.Info;
+            LibraryLogger.Debug(
+                $"USB descriptors: VID={info.VendorId:X4} PID={info.ProductId:X4}, bcdUSB 0x{info.Usb:X4}, bcdDevice 0x{info.Device:X4}, class {info.DeviceClass}/{info.DeviceSubClass}/{info.DeviceProtocol}, {info.NumConfigurations} configuration(s).");
+            LibraryLogger.Debug(
+                $"USB strings: manufacturer \"{info.Manufacturer}\", product \"{info.Product}\", serial \"{info.SerialNumber}\".");
+            foreach (var configuration in info.Configurations)
+            {
+                LibraryLogger.Debug(
+                    $"  Configuration {configuration.ConfigurationValue}: {configuration.Interfaces.Count} interface(s).");
+                foreach (var usbInterface in configuration.Interfaces)
+                {
+                    LibraryLogger.Debug(
+                        $"    Interface {usbInterface.Number} alt {usbInterface.AlternateSetting}: class {usbInterface.Class}/{usbInterface.SubClass}/{usbInterface.Protocol}, {usbInterface.Endpoints.Count} endpoint(s).");
+                    foreach (var endpoint in usbInterface.Endpoints)
+                    {
+                        LibraryLogger.Debug(
+                            $"      Endpoint 0x{endpoint.EndpointAddress:X2} {((endpoint.EndpointAddress & 0x80) != 0 ? "IN " : "OUT")} {DescribeEndpointType(endpoint.Attributes)}, max packet {endpoint.MaxPacketSize}.");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LibraryLogger.Debug($"Could not read the USB descriptors: {ex.Message}");
+        }
+    }
+
+    private (int InterfaceNumber, ReadEndpointID ReadEndpoint, WriteEndpointID WriteEndpoint) SelectBulkEndpoints()
+    {
+        const int defaultInterface = 0;
+        try
+        {
+            foreach (var configuration in _device!.Info.Configurations)
+            {
+                foreach (var usbInterface in configuration.Interfaces)
+                {
+                    byte? bulkIn = null;
+                    byte? bulkOut = null;
+                    foreach (var endpoint in usbInterface.Endpoints)
+                    {
+                        if ((endpoint.Attributes & 0x03) != 0x02)
+                        {
+                            continue;
+                        }
+
+                        if ((endpoint.EndpointAddress & 0x80) != 0)
+                        {
+                            bulkIn ??= endpoint.EndpointAddress;
+                        }
+                        else
+                        {
+                            bulkOut ??= endpoint.EndpointAddress;
+                        }
+                    }
+
+                    if (bulkIn is null || bulkOut is null)
+                    {
+                        continue;
+                    }
+
+                    if (usbInterface.Number != defaultInterface ||
+                        bulkIn.Value != (byte)ReadEndpointID.Ep01 ||
+                        bulkOut.Value != (byte)WriteEndpointID.Ep01)
+                    {
+                        LibraryLogger.Warning(
+                            $"Using interface {usbInterface.Number}, bulk IN 0x{bulkIn.Value:X2} / OUT 0x{bulkOut.Value:X2}.");
+                    }
+
+                    return (usbInterface.Number, (ReadEndpointID)bulkIn.Value, (WriteEndpointID)bulkOut.Value);
+                }
+            }
+
+            LibraryLogger.Warning(
+                "No bulk endpoint pair was found in the USB descriptors; falling back to interface 0 endpoint 1.");
+        }
+        catch (Exception ex)
+        {
+            LibraryLogger.Debug($"Could not inspect the USB endpoints: {ex.Message}");
+        }
+
+        return (defaultInterface, ReadEndpointID.Ep01, WriteEndpointID.Ep01);
+    }
+
+    private static string DescribeEndpointType(byte attributes)
+    {
+        return (attributes & 0x03) switch
+        {
+            0x00 => "control",
+            0x01 => "isochronous",
+            0x02 => "bulk",
+            _ => "interrupt"
+        };
     }
 
     private int EffectiveTimeout => Math.Max(TimeoutMilliseconds, 1);

@@ -37,6 +37,9 @@ public class QualcommSahara(IQualcommTransport transport)
     public bool IsDeviceSaharaVersionInferred { get; private set; }
     public uint? DetectedDeviceChipId { get; private set; }
     public bool IsCommandModeReady { get; private set; }
+
+    public Func<IQualcommTransport?>? TransportReconnector { get; set; }
+
     private Dictionary<uint, string> _imageMappings = [];
 
     #region Packet Building Logic
@@ -379,6 +382,7 @@ public class QualcommSahara(IQualcommTransport transport)
 
     public bool SendImage(string path)
     {
+        var isMultiImageConfig = false;
         try
         {
             if (path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
@@ -386,6 +390,7 @@ public class QualcommSahara(IQualcommTransport transport)
                 _imageMappings = SaharaConfigParser.ParseAndValidateConfig(path);
                 LibraryLogger.Debug("Multi-image mode validated.");
                 LibraryLogger.Debug($"Loaded configuration, total {_imageMappings.Count} files.");
+                isMultiImageConfig = true;
             }
             else
             {
@@ -401,6 +406,11 @@ public class QualcommSahara(IQualcommTransport transport)
         {
             LibraryLogger.Error($"Pre-transfer validation failed: {ex.Message}");
             return false;
+        }
+
+        if (isMultiImageConfig)
+        {
+            return new QualcommSaharaMultiImage(transport, _imageMappings, TransportReconnector).Run();
         }
 
         var imagesTransferredCount = 0;

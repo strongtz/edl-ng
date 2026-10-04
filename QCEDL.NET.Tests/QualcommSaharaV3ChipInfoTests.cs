@@ -65,13 +65,49 @@ public sealed class QualcommSaharaV3ChipInfoTests
         Assert.Equal(0x001B30E10051A012ul, chipInfo.Hwid);
     }
 
+    [Fact]
+    public void ParsesTheTextualCmd10ReportOfNewerTargets()
+    {
+        const string report =
+            "CMD REV INFO: 0x30000\r\nFW QC_ARB: 0x0\r\nFW OEM_ARB: 0x0\r\nXBL QC_ARB: 0x0\r\n" +
+            "XBL OEM_ARB: 0x0\r\nBB ARB: 0x0\r\nCFG QC_ARB: 0x0\r\nCFG OEM_ARB: 0x0\r\n" +
+            "QTI_MISC ARB: 0x0\r\nOEM_MISC ARB: 0x0\r\nSOC_HW_VERSION: 0xA0230000\r\n" +
+            "JTAG_ID: 0x3150E1\r\nOEM_ID: 0x0\r\nOEM_PRODUCT_ID: 0x0\r\nOEM_LCS: 0x1\r\n" +
+            "OEM MRC: 0x0\r\nOEM MRC REVOK: 0x0\r\nCERTS: 0x1\r\nDBG: 0x1\r\nAUTH: 0x0\r\n" +
+            "PROD-SEGMENT: 0x0\r\nHASH FUSE: 0x0\r\nROM IDX: 0x0\r\nUFS LOG: \r\n";
+
+        var chipInfo = QualcommSaharaV3ChipInfo.Parse(System.Text.Encoding.ASCII.GetBytes(report));
+
+        Assert.Equal(0xA0230000u, chipInfo.SocHardwareVersion);
+        Assert.Equal(0x3150E1u, chipInfo.JtagId);
+        Assert.Equal(0x30000u, chipInfo.BinaryVersion);
+        Assert.Equal(0u, chipInfo.OemAuthenticationEnabled);
+        Assert.Equal(1u, chipInfo.AppsSecureDebugStatus);
+        Assert.Equal(1u, chipInfo.OemLifeCycleState);
+        Assert.Equal(0x003150E100000000ul, chipInfo.Hwid);
+    }
+
     [Theory]
     [InlineData(40)]
-    [InlineData(45)]
-    public void ParseRejectsMissingOrUnalignedHwidFields(int payloadLength)
+    [InlineData(43)]
+    public void ParseRejectsPayloadsTooShortForTheHwidFields(int payloadLength)
     {
         _ = Assert.Throws<BadMessageException>(() =>
             QualcommSaharaV3ChipInfo.Parse(new byte[payloadLength]));
+    }
+
+    [Theory]
+    [InlineData(45)]
+    [InlineData(399)]
+    public void ParseIgnoresTrailingBytesThatDoNotCompleteAField(int payloadLength)
+    {
+        var payload = BuildPayload();
+        var padded = new byte[payloadLength];
+        payload.AsSpan(0, Math.Min(payload.Length, payloadLength)).CopyTo(padded);
+
+        var chipInfo = QualcommSaharaV3ChipInfo.Parse(padded);
+
+        Assert.Equal(0x001B30E10051A012ul, chipInfo.Hwid);
     }
 
     [Fact]

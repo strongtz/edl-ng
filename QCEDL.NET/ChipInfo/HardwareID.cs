@@ -14,11 +14,11 @@ public class HardwareId
 
         if (manufacturerId == 0x0E1)
         {
-            LibraryLogger.Debug($"Manufacturer ID: {manufacturerId:X3} (Qualcomm)");
+            LibraryLogger.Info($"Manufacturer ID: {manufacturerId:X3} (Qualcomm)");
         }
         else
         {
-            LibraryLogger.Debug($"Manufacturer ID: {manufacturerId:X3} (Unknown)");
+            LibraryLogger.Info($"Manufacturer ID: {manufacturerId:X3} (Unknown)");
         }
 
         if (Enum.IsDefined(typeof(QualcommPartNumbers), productId))
@@ -31,7 +31,7 @@ public class HardwareId
             LibraryLogger.Info($"Product ID: {productId} (Unknown)");
         }
 
-        LibraryLogger.Debug($"Die Revision: {dieRevision:X1}");
+        LibraryLogger.Info($"Die Revision: {dieRevision:X1}");
     }
 
     internal static uint GetManufacturerIdFromMsmid(uint msmid)
@@ -74,7 +74,7 @@ public class HardwareId
         var modelId = GetModelIdFromHwid(hwid);
 
         ParseMsmid(msmid);
-        LibraryLogger.Debug($"OEM: {oemid:X4}");
-        LibraryLogger.Debug($"Model: {modelId:X4}");
+        LibraryLogger.Info($"OEM: {oemid:X4}");
+        LibraryLogger.Info($"Model: {modelId:X4}");
     }
 }

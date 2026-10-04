@@ -166,6 +166,8 @@ internal sealed class Execute
     public static QualcommSaharaV3ChipInfo GetV3ChipInfo(IQualcommTransport transport)
     {
         var response = GetCommandVariable(transport, QualcommSaharaExecuteCommand.ReadChipIdV3);
+        LibraryLogger.Debug(
+            $"Sahara v3 CMD10 raw payload ({response.Length} bytes): {Convert.ToHexString(response)}");
         return QualcommSaharaV3ChipInfo.Parse(response);
     }
 

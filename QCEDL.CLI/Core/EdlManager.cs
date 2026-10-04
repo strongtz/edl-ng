@@ -227,7 +227,6 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         }
     }
 
-
     /// <summary>
     /// Attempts to detect the current operating mode of the connected EDL device.
     /// Connects temporarily if not already connected.
@@ -550,6 +549,32 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         return QualcommTransportFactory.Open(_devicePath, backend);
     }
 
+    /// <summary>
+    /// </summary>
+    private IQualcommTransport? ReopenEdlTransport()
+    {
+        try
+        {
+            _transport?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"Failed to dispose the stale Sahara transport: {ex.Message}", LogLevel.Debug);
+        }
+
+        _transport = null;
+        _devicePath = null;
+        _deviceGuid = null;
+        if (!FindDevice())
+        {
+            return null;
+        }
+
+        _transport = OpenTransport();
+        _transport.TimeoutMilliseconds = SaharaImageTransferTimeoutMilliseconds;
+        return _transport;
+    }
+
     private bool FindDeviceLinuxLibUsb(IReadOnlyCollection<int> pidsToFind)
     {
         Logging.Log("Trying to find device using LibUsbDotNet on Linux / MacOS...", LogLevel.Debug);
@@ -700,6 +725,10 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
         return await StorageBackend.FindPartitionWithLunAsync(partitionName, specifiedLun);
     }
 
+    private const int SaharaImageTransferTimeoutMilliseconds = 2000;
+    private const int ReenumerationAttempts = 20;
+    private const int ReenumerationPollIntervalMilliseconds = 500;
+
     private bool IsQualcommEdlDevice(
         string devicePath,
         string _,
@@ -739,7 +768,6 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 Logging.Log("Device is in Sahara mode. Uploading loader...");
                 await UploadLoaderViaSaharaAsync();
                 Logging.Log("Waiting for device to re-enumerate in Firehose mode...", LogLevel.Debug);
-                await Task.Delay(500);
 
                 // Clear old path/state and find the device again
                 _devicePath = null;
@@ -747,7 +775,23 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 _firehoseClient = null;
                 _saharaClient = null;
                 CurrentMode = DeviceMode.Unknown;
-                if (!FindDevice()) // Find the potentially new device path
+
+                var reenumerated = false;
+                for (var attempt = 0; attempt < ReenumerationAttempts; attempt++)
+                {
+                    await Task.Delay(ReenumerationPollIntervalMilliseconds);
+                    if (FindDevice()) // Find the potentially new device path
+                    {
+                        reenumerated = true;
+                        break;
+                    }
+
+                    Logging.Log(
+                        $"Device not visible yet after loader upload (attempt {attempt + 1}/{ReenumerationAttempts}).",
+                        LogLevel.Debug);
+                }
+
+                if (!reenumerated)
                 {
                     throw new TodoException("Device did not re-enumerate in Firehose mode after loader upload, or could not be found.");
                 }
@@ -885,7 +929,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 {
                     Logging.Log("Sahara version < 3, attempting to get HWID and RKH.", LogLevel.Debug);
                     var hwid = _saharaClient.GetHwid();
-                    Logging.Log($"HWID: {Convert.ToHexString(hwid)}", LogLevel.Debug);
+                    Logging.Log($"HWID: {Convert.ToHexString(hwid)}");
                     HardwareId.ParseHwid(hwid);
                 }
                 else
@@ -899,7 +943,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                         Logging.Log(
                             $"Sahara v3 chip info: BinaryVersion=0x{chipInfo.BinaryVersion:X8}, SOC_HW_VERSION=0x{chipInfo.SocHardwareVersion:X8}, JTAG_ID=0x{chipInfo.JtagId:X8}, OEM_ID=0x{chipInfo.RawOemId:X8}, PRODUCT_ID={(chipInfo.ProductId.HasValue ? $"0x{chipInfo.ProductId.Value:X8}" : "not returned")}.",
                             LogLevel.Debug);
-                        Logging.Log($"HWID: {Convert.ToHexString(hwid)}", LogLevel.Debug);
+                        Logging.Log($"HWID: {Convert.ToHexString(hwid)}");
                         HardwareId.ParseHwid(hwid);
                     }
                     catch (QualcommSaharaUnexpectedPacketException)
@@ -916,7 +960,7 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
                 var rkhs = _saharaClient.GetRkHs();
                 for (var i = 0; i < rkhs.Length; i++)
                 {
-                    Logging.Log($"RKH[{i}]: {Convert.ToHexString(rkhs[i])}", LogLevel.Debug);
+                    Logging.Log($"RKH[{i}]: {Convert.ToHexString(rkhs[i])}");
                 }
             }
             catch (QualcommSaharaUnexpectedPacketException ex)
@@ -933,6 +977,16 @@ internal sealed class EdlManager(GlobalOptionsBinder globalOptions) : IDisposabl
             {
                 Logging.Log($"Failed to get device info via Sahara: {ex.Message}", LogLevel.Warning);
             }
+
+            if (_transport.TimeoutMilliseconds < SaharaImageTransferTimeoutMilliseconds)
+            {
+                Logging.Log(
+                    $"Raising Sahara transport timeout from {_transport.TimeoutMilliseconds} ms to {SaharaImageTransferTimeoutMilliseconds} ms for image transfer.",
+                    LogLevel.Debug);
+                _transport.TimeoutMilliseconds = SaharaImageTransferTimeoutMilliseconds;
+            }
+
+            _saharaClient.TransportReconnector = ReopenEdlTransport;
 
             Logging.Log("Switching to image transfer mode...", LogLevel.Debug);
             _saharaClient.SwitchMode(QualcommSaharaMode.ImageTxPending);
