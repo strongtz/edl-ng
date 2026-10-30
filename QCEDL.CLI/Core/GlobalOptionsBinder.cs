@@ -38,6 +38,7 @@ internal sealed class GlobalOptionsBinder(
 
         return new EdlOptions
         {
+            Backend = OperatingSystem.IsWindows() ? TransportBackend.Serial : TransportBackend.LibUsb,
             LoaderPath = bindingContext.ParseResult.GetValueForOption(loaderOption)?.FullName,
             Vid = bindingContext.ParseResult.GetValueForOption(vidOption),
             Pid = bindingContext.ParseResult.GetValueForOption(pidOption),

@@ -563,7 +563,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             return [];
         }
 
-        var backend = ResolveBackend(options.Backend, isWindows);
+        var backend = ResolveBackend(options.Backend, isWindows, isMac);
         return backend == TransportBackend.Serial
             ? isLinux ? EnumerateLinuxSerial(options)
                 : isWindows ? EnumerateWindowsSerial(options)
@@ -763,7 +763,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             return false;
         }
 
-        var backend = ResolveBackend(globalOptions.Backend, isWindows);
+        var backend = ResolveBackend(globalOptions.Backend, isWindows, isMac);
         Logging.Log($"Transport backend: {backend} (requested: {globalOptions.Backend})", LogLevel.Debug);
 
         if (backend == TransportBackend.Serial)
@@ -806,11 +806,11 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         return false;
     }
 
-    private static TransportBackend ResolveBackend(TransportBackend requested, bool isWindows)
+    private static TransportBackend ResolveBackend(TransportBackend requested, bool isWindows, bool isMac)
     {
         return requested != TransportBackend.Auto
             ? requested
-            : isWindows ? TransportBackend.Serial : TransportBackend.LibUsb;
+            : isWindows || isMac ? TransportBackend.LibUsb : TransportBackend.Serial;
     }
 
     private IQualcommTransport OpenTransport()

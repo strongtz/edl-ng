@@ -30,7 +30,7 @@ Built with .NET 9, `edl-ng` ships two front-ends — a `System.CommandLine` CLI 
   * Get detailed storage information (sector size, LUN count).
 * **Flexible Device Detection:**
   * Specify USB VID/PID; pin a specific libusb device by bus/addr when multiple EDL devices are plugged in.
-  * Uses the native Windows QDLoader COM interface or LibUsbDotNet. Linux/macOS default to libusb; the GUI also supports an explicitly selected serial port.
+  * The CLI uses the native Windows QDLoader COM interface or LibUsbDotNet; Linux/macOS use libusb. The GUI also supports serial ports.
   * GUI auto-prompts a device picker when more than one candidate matches.
 * **Direct-Mode Backends (skip USB / Sahara / Firehose):**
   * `--hostdev-as-target <path>` — read/write a SPI NOR node or a raw image file directly.
