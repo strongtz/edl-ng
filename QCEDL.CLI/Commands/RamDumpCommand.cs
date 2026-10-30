@@ -2,6 +2,8 @@ using System.CommandLine;
 using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 using Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
 
 namespace QCEDL.CLI.Commands;
@@ -42,7 +44,7 @@ internal sealed class RamDumpCommand
     }
 
     private static async Task<int> ExecuteAsync(
-        GlobalOptionsBinder globalOptions,
+        EdlOptions globalOptions,
         DirectoryInfo outputDirectory,
         string? segmentFilter)
     {

@@ -1,0 +1,19 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:svc="clr-namespace:QCEDL.GUI.Services"
+             x:Class="QCEDL.GUI.App"
+             Name="edl-ng"
+             RequestedThemeVariant="Default">
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <NativeMenuItem Header="{l:Localize Menu_Help_About}"
+                            Command="{x:Static svc:AppCommands.ShowAbout}" />
+        </NativeMenu>
+    </NativeMenu.Menu>
+    <Application.Styles>
+        <StyleInclude Source="avares://qcedl-gui/Themes/Tokens.axaml" />
+        <StyleInclude Source="avares://qcedl-gui/Themes/Controls.axaml" />
+        <StyleInclude Source="avares://qcedl-gui/Themes/Styles.axaml" />
+    </Application.Styles>
+</Application>

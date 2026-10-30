@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018, Rene Lergner - @Heathcliff74xda
+// Copyright (c) 2018, Rene Lergner - @Heathcliff74xda
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -562,6 +562,20 @@ public class QualcommSahara(IQualcommTransport transport)
 
                     LibraryLogger.Debug("Device expects additional Sahara images; waiting for the next request.");
                     continue;
+                }
+                else if ((uint)commandId == 0x6D783F3Cu) // "<?xm" in little-endian — Firehose XML hello
+                {
+                    // The uploaded programmer has started and is already speaking Firehose.
+                    // On fast re-enumeration paths (common on macOS IOKit) the XML reaches our
+                    // read endpoint before the Sahara read times out, so we'd otherwise fail
+                    // here racily. Treat it as "loader is up" and bail out of the Sahara loop.
+                    if (imagesTransferredCount > 0)
+                    {
+                        LibraryLogger.Debug("Firehose XML received on Sahara endpoint — programmer is up, exiting Sahara loop.");
+                        return true;
+                    }
+                    LibraryLogger.Error("Firehose XML received before any image was transferred — device was already in Firehose mode.");
+                    return false;
                 }
                 else if (commandId == QualcommSaharaCommand.Done)
                 {

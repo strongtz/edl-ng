@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             x:Class="QCEDL.GUI.Views.OverviewView"
+             x:DataType="vm:OverviewViewModel">
+    <StackPanel Spacing="28" MaxWidth="1040">
+        <StackPanel Spacing="10">
+            <TextBlock Classes="label" Text="{l:Localize Overview_Label}" />
+            <TextBlock Classes="display" Text="{l:Localize Overview_Display}" />
+            <TextBlock Classes="bodyLarge" Text="{Binding TagLine}" />
+        </StackPanel>
+
+        <Border Classes="card elevated">
+            <StackPanel Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h3" Text="{l:Localize Overview_ConnectionHeader}" VerticalAlignment="Center" />
+                    <Border Classes="chip" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Connection.ModeText}" />
+                    </Border>
+                </StackPanel>
+                <TextBlock Classes="body" Text="{Binding ConnectionSummary}" />
+                <TextBlock Classes="caption" Text="{l:Localize Overview_ConnectionCaption}" />
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="20">
+            <Border Grid.Column="0" Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="feature" Text="{l:Localize Overview_PartitionsTitle}" />
+                    <TextBlock Classes="body" Text="{l:Localize Overview_PartitionsBody}" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="feature" Text="{l:Localize Overview_RawProgramTitle}" />
+                    <TextBlock Classes="body" Text="{l:Localize Overview_RawProgramBody}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </StackPanel>
+</UserControl>

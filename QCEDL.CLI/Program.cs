@@ -2,7 +2,7 @@
 using System.Globalization;
 using QCEDL.CLI.Commands;
 using QCEDL.CLI.Core;
-using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
 // --- Define Global Options ---

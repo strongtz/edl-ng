@@ -1,6 +1,8 @@
 using System.CommandLine;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 
@@ -38,7 +40,7 @@ internal sealed class ResetCommand
     }
 
     private static async Task<int> ExecuteAsync(
-        GlobalOptionsBinder globalOptions,
+        EdlOptions globalOptions,
         PowerValue powerMode,
         uint delayInSeconds)
     {

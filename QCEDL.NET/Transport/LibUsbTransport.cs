@@ -26,6 +26,8 @@ public sealed class LibUsbTransport : IQualcommTransport
 
     public TransportBackend Backend => TransportBackend.LibUsb;
 
+    public string? UsbSerialNumber { get; private set; }
+
     public int TimeoutMilliseconds
     {
         get => _timeoutMilliseconds;
@@ -57,11 +59,20 @@ public sealed class LibUsbTransport : IQualcommTransport
         {
             var (vid, pid) = ExtractVidPid(deviceIdOrPath);
             LibraryLogger.Debug($"Searching LibUsb for VID=0x{vid:X4}, PID=0x{pid:X4}");
-            var finder = new UsbDeviceFinder { Vid = vid, Pid = pid };
-            _device = Context?.Find(finder) as UsbDevice
+            var (bus, address) = ParseDeviceLocation(deviceIdOrPath);
+            _device = FindDevice(vid, pid, bus, address)
                 ?? throw new IOException($"LibUsb device VID=0x{vid:X4}, PID=0x{pid:X4} was not found.");
 
             _device.Open();
+            try
+            {
+                var serial = _device.Info?.SerialNumber;
+                UsbSerialNumber = string.IsNullOrWhiteSpace(serial) ? null : serial;
+            }
+            catch (Exception ex)
+            {
+                LibraryLogger.Debug($"Could not read the open device USB serial: {ex.Message}");
+            }
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 _device.SetConfiguration(1);
@@ -174,6 +185,42 @@ public sealed class LibUsbTransport : IQualcommTransport
             _device = null;
             _disposed = true;
         }
+    }
+
+    internal static (byte? Bus, byte? Address) ParseDeviceLocation(string path)
+    {
+        var bus = Regex.Match(path, @"(?:^|,)bus_([^,]*)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        var address = Regex.Match(path, @"(?:^|,)addr_([^,]*)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!bus.Success && !address.Success)
+        {
+            return (null, null);
+        }
+        return !bus.Success || !address.Success
+            || !byte.TryParse(bus.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var busNumber)
+            || !byte.TryParse(address.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var deviceAddress)
+            ? throw new ArgumentException("A pinned USB target requires a valid bus and address.", nameof(path))
+            : (busNumber, deviceAddress);
+    }
+
+    internal static UsbDevice? FindDevice(int vid, int pid, byte? bus, byte? address)
+    {
+        if (Context is null)
+        {
+            return null;
+        }
+        if (bus.HasValue && address.HasValue)
+        {
+            foreach (var candidate in Context.List())
+            {
+                if (candidate is UsbDevice device && device.VendorId == vid && device.ProductId == pid
+                    && device.BusNumber == bus.Value && device.Address == address.Value)
+                {
+                    return device;
+                }
+            }
+            return null;
+        }
+        return Context.Find(new UsbDeviceFinder { Vid = vid, Pid = pid }) as UsbDevice;
     }
 
     private int EffectiveTimeout => Math.Max(TimeoutMilliseconds, 1);

@@ -1,0 +1,18 @@
+# Qualcomm Emergency Download (EDL) — udev rules for edl-ng
+# Installs with the application package; activate by reloading udev after install:
+#   sudo udevadm control --reload
+#   sudo udevadm trigger
+#
+# Grants read/write access to the "wheel" group. Add your user to that group
+# (e.g. `sudo usermod -aG wheel $USER` then log out/in) to open the device
+# without sudo.
+
+# USB: EDL (Emergency Download) and SDM8xx/SDM6xx boot (Qualcomm HS-USB QDLoader)
+SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="9008", MODE="0660", GROUP="wheel"
+SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="900e", MODE="0660", GROUP="wheel"
+
+# USB-serial and CDC-ACM endpoints exposed by the same devices
+KERNEL=="ttyUSB[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", MODE="0660", GROUP="wheel"
+KERNEL=="ttyUSB[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="900e", MODE="0660", GROUP="wheel"
+KERNEL=="ttyACM[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", MODE="0660", GROUP="wheel"
+KERNEL=="ttyACM[0-9]*", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="900e", MODE="0660", GROUP="wheel"

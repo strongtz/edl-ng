@@ -1,0 +1,65 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+        xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+        x:Class="QCEDL.GUI.Views.AboutDialog"
+        x:DataType="vm:AboutDialogViewModel"
+        Title="{l:Localize Menu_About_Title}"
+        Width="560"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Border Background="{DynamicResource BrushParchment}" Padding="28">
+        <StackPanel Spacing="16">
+            <TextBlock Classes="h2" Text="{l:Localize Menu_About_Title}" />
+            <TextBlock Classes="body" Text="{l:Localize Menu_About_Message}" TextWrapping="Wrap" />
+            <Button Classes="link"
+                    Content="{l:Localize Menu_About_LinkText}"
+                    Tag="https://github.com/strongtz/edl-ng"
+                    Click="OnLinkClick" />
+
+            <Separator />
+
+            <TextBlock Classes="overline" Text="{l:Localize About_LicenseLabel}" />
+            <TextBlock Classes="body" Text="{l:Localize About_LicenseText}" TextWrapping="Wrap" />
+            <Button Classes="link"
+                    Content="{l:Localize About_ViewLicense}"
+                    Tag="edl-ng"
+                    Click="OnViewLicenseClick" />
+
+            <Separator />
+
+            <TextBlock Classes="overline" Text="{l:Localize About_DependenciesLabel}" />
+            <TextBlock Classes="caption"
+                       Text="{l:Localize About_DependenciesCaption}"
+                       TextWrapping="Wrap" />
+            <ScrollViewer MaxHeight="240" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Dependencies}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DependencyInfo">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                                <Button Grid.Column="0"
+                                        Classes="link"
+                                        HorizontalAlignment="Left"
+                                        Content="{Binding Name}"
+                                        Tag="{Binding Url}"
+                                        Click="OnLinkClick" />
+                                <Button Grid.Column="1"
+                                        Classes="link"
+                                        HorizontalAlignment="Right"
+                                        Content="{Binding License}"
+                                        Tag="{Binding LicenseKey}"
+                                        Click="OnViewLicenseClick" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Classes="ghost" Content="{l:Localize Menu_About_Ok}" Click="OnClose" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

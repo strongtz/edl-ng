@@ -2,6 +2,8 @@ using System.CommandLine;
 using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 
 namespace QCEDL.CLI.Commands;
 
@@ -16,7 +18,7 @@ internal sealed class EraseAllCommand
         return command;
     }
 
-    private static async Task<int> ExecuteAsync(GlobalOptionsBinder globalOptions)
+    private static async Task<int> ExecuteAsync(EdlOptions globalOptions)
     {
         Logging.Log("Executing 'erase-all' command...", LogLevel.Trace);
 

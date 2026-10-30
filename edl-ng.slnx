@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
     <Configurations>
         <Platform Name="AnyCPU"/>
         <Platform Name="ARM64"/>
@@ -29,6 +29,11 @@
         <Platform Solution="*|AnyCPU" Project="AnyCPU"/>
         <Platform Solution="*|ARM64" Project="ARM64"/>
         <Platform Solution="*|x64" Project="x64"/>
+    </Project>
+    <Project Path="QCEDL.GUI\QCEDL.GUI.csproj" Type="Classic C#">
+        <Platform Solution="*|AnyCPU" Project="AnyCPU"/>
+        <Platform Solution="*|ARM64" Project="AnyCPU"/>
+        <Platform Solution="*|x64" Project="AnyCPU"/>
     </Project>
     <Project Path="QCEDL.NET.Tests\QCEDL.NET.Tests.csproj" Type="Classic C#">
         <Platform Solution="*|AnyCPU" Project="AnyCPU"/>

@@ -3,6 +3,7 @@ namespace Qualcomm.EmergencyDownload.Transport;
 public enum TransportBackend
 {
     WindowsQud,
+    Serial,
     LibUsb
 }
 

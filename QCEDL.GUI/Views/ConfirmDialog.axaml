@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+        x:Class="QCEDL.GUI.Views.ConfirmDialog"
+        x:DataType="vm:ConfirmDialogViewModel"
+        Title="{Binding Title}"
+        Width="520"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Border Background="{DynamicResource BrushParchment}" Padding="28">
+        <StackPanel Spacing="18">
+            <TextBlock Classes="h2" Text="{Binding Title}" />
+            <TextBlock Classes="body" Text="{Binding Message}" TextWrapping="Wrap" />
+
+            <Button Classes="link"
+                    IsVisible="{Binding HasLink}"
+                    Content="{Binding LinkText}"
+                    Click="OnLinkClick" />
+
+            <StackPanel Spacing="8" IsVisible="{Binding RequiresTyping}">
+                <TextBlock Classes="caption" Text="{Binding TypeToConfirmPrompt}" />
+                <TextBox Name="ConfirmInput" Text="{Binding TypedConfirmation, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Classes="ghost"
+                        Content="{Binding CancelLabel}"
+                        IsVisible="{Binding ShowCancel}"
+                        Click="OnCancel" />
+                <Button Name="ConfirmButton"
+                        Classes="danger"
+                        Content="{Binding ConfirmLabel}"
+                        IsEnabled="{Binding CanConfirm}"
+                        Click="OnConfirm" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

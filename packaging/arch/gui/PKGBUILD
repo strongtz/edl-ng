@@ -1,0 +1,45 @@
+# Maintainer: Xilin Wu <wuxilin123@gmail.com>
+pkgname=qcedl-gui
+# pkgver is rewritten by CI (sed) before makepkg; the placeholder makes local
+# `makepkg` invocations fail loudly instead of shipping a stale version.
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Avalonia-based GUI front-end for edl-ng (Qualcomm EDL toolchain)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/strongtz/edl-ng"
+license=('MIT')
+depends=('libusb' 'fontconfig' 'libx11' 'libice' 'libsm' 'libxi' 'libxcursor' 'libxrandr')
+options=(!strip !debug !lto)
+# The CI workflow drops a pre-built publish tree next to this PKGBUILD as
+#   publish/              - self-contained dotnet publish output (contains `qcedl-gui`)
+#   LICENSE               - project license
+#   qcedl-gui.desktop     - desktop entry
+#   udev/                 - udev rules from resources/udev/
+# and invokes makepkg with --holdver.
+source=()
+sha256sums=()
+
+package() {
+    install -dm755 "$pkgdir/usr/lib/$pkgname"
+    cp -a "$startdir/publish/." "$pkgdir/usr/lib/$pkgname/"
+    chmod 755 "$pkgdir/usr/lib/$pkgname/qcedl-gui"
+
+    install -dm755 "$pkgdir/usr/bin"
+    cat > "$pkgdir/usr/bin/$pkgname" <<'EOF'
+#!/bin/sh
+exec /usr/lib/qcedl-gui/qcedl-gui "$@"
+EOF
+    chmod 755 "$pkgdir/usr/bin/$pkgname"
+
+    install -Dm644 "$startdir/qcedl-gui.desktop" "$pkgdir/usr/share/applications/qcedl-gui.desktop"
+    install -Dm644 "$startdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    for sz in 16 32 48 64 128 256 512; do
+        src="$startdir/icons/edl-ng-$sz.png"
+        [ -f "$src" ] || continue
+        install -Dm644 "$src" "$pkgdir/usr/share/icons/hicolor/${sz}x${sz}/apps/qcedl-gui.png"
+    done
+    for f in "$startdir"/udev/*.rules; do
+        [ -e "$f" ] || continue
+        install -Dm644 "$f" "$pkgdir/usr/lib/udev/rules.d/$(basename "$f")"
+    done
+}

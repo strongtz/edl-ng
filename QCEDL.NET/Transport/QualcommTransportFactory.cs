@@ -7,6 +7,7 @@ public static class QualcommTransportFactory
         return backend switch
         {
             TransportBackend.WindowsQud => new WindowsQudTransport(target),
+            TransportBackend.Serial => new SerialPortTransport(target),
             TransportBackend.LibUsb => new LibUsbTransport(target),
             _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, null)
         };

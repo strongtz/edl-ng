@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+        xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+        x:Class="QCEDL.GUI.Views.LicenseViewerDialog"
+        x:DataType="vm:LicenseViewerViewModel"
+        Title="{Binding Title}"
+        Width="720" Height="540"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Border Background="{DynamicResource BrushParchment}" Padding="24">
+        <DockPanel LastChildFill="True">
+            <TextBlock DockPanel.Dock="Top" Classes="h2" Text="{Binding Title}" Margin="0,0,0,12" />
+
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                        HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button Classes="ghost"
+                        Content="{l:Localize Menu_About_Ok}"
+                        Click="OnClose" />
+            </StackPanel>
+
+            <Border Background="{DynamicResource BrushIvory}"
+                    BorderBrush="{DynamicResource BrushBorderLight}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="4">
+                <TextBox Text="{Binding Body, Mode=OneWay}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         FontFamily="{DynamicResource FontMono}"
+                         FontSize="13"
+                         Foreground="{DynamicResource BrushTextPrimary}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         VerticalAlignment="Stretch"
+                         HorizontalAlignment="Stretch"
+                         VerticalContentAlignment="Top"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+            </Border>
+        </DockPanel>
+    </Border>
+</Window>

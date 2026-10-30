@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="QCEDL.GUI.Views.RawProgramView"
+             x:Name="Root"
+             x:DataType="vm:RawProgramViewModel">
+    <StackPanel Spacing="20" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Raw_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Raw_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Raw_Body}" />
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Raw_ExecTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Raw_ExecCaption}" />
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="{l:Localize Raw_AddFiles}" Command="{Binding AddXmlCommand}" IsEnabled="{Binding CanInteract}" />
+                    <Button Content="{l:Localize Raw_ClearFiles}" Command="{Binding ClearXmlCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+
+                <Border Background="{DynamicResource BrushParchment}"
+                        BorderBrush="{DynamicResource BrushBorderWarm}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusComfortable}"
+                        Padding="14"
+                        MinHeight="96">
+                    <Panel>
+                        <TextBlock Classes="caption"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource BrushTextTertiary}"
+                                   Text="{l:Localize Raw_NoFilesPlaceholder}"
+                                   IsVisible="{Binding !HasXmlFiles}" />
+                        <ListBox ItemsSource="{Binding XmlFiles}"
+                                 MaxHeight="180"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 IsVisible="{Binding HasXmlFiles}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="x:String">
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                        <TextBlock Grid.Column="0" Classes="mono" Text="{Binding}" TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="1" Classes="link small" Content="{l:Localize Raw_RemoveFile}"
+                                                Command="{Binding #Root.((vm:RawProgramViewModel)DataContext).RemoveXmlCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Panel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="danger" Content="{l:Localize Raw_ExecButton}" Command="{Binding ExecCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+
+                <StackPanel Spacing="6" IsVisible="{Binding IsExecBusy}">
+                    <ProgressBar Value="{Binding ExecProgressPercent, Mode=OneWay}" Minimum="0" Maximum="100" />
+                    <TextBlock Classes="mono" FontSize="13" Foreground="{DynamicResource BrushTextTertiary}" Text="{Binding ExecProgressText}" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding ExecStatus}" IsVisible="{Binding ExecStatus, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Raw_DumpTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Raw_DumpCaption}" />
+
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Raw_DumpLunLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding DumpLun}" Width="140" HorizontalAlignment="Left" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="body" Text="{l:Localize Raw_DumpDirLabel}" VerticalAlignment="Center" />
+                    <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Grid.Column="0" Text="{Binding DumpOutputDir}" PlaceholderText="{l:Localize Raw_DumpDirPlaceholder}" />
+                        <Button Grid.Column="1" Content="{l:Localize Conn_Browse}" Command="{Binding BrowseDumpDirCommand}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="body" Text="{l:Localize Raw_DumpSkipLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DumpSkip}" PlaceholderText="{l:Localize Raw_DumpSkipPlaceholder}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Classes="body" Text="{l:Localize Raw_DumpXmlOnlyLabel}" VerticalAlignment="Center" />
+                    <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding DumpGenXmlOnly}" Content="{l:Localize Raw_DumpXmlOnlyHint}" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="primary" Content="{l:Localize Raw_DumpButton}" Command="{Binding DumpCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+
+                <StackPanel Spacing="6" IsVisible="{Binding IsDumpBusy}">
+                    <ProgressBar Value="{Binding DumpProgressPercent, Mode=OneWay}" Minimum="0" Maximum="100" />
+                    <TextBlock Classes="mono" FontSize="13" Foreground="{DynamicResource BrushTextTertiary}" Text="{Binding DumpProgressText}" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding DumpStatus}" IsVisible="{Binding DumpStatus, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

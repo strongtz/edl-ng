@@ -2,6 +2,8 @@ using System.CommandLine;
 using System.Diagnostics;
 using QCEDL.CLI.Core;
 using QCEDL.CLI.Helpers;
+using Qualcomm.EmergencyDownload.Core;
+using Qualcomm.EmergencyDownload.Helpers;
 
 namespace QCEDL.CLI.Commands;
 
@@ -53,7 +55,7 @@ internal sealed class ReadSectorCommand
     }
 
     private static async Task<int> ExecuteAsync(
-        GlobalOptionsBinder globalOptions,
+        EdlOptions globalOptions,
         ulong startSector,
         ulong sectorsToRead,
         FileInfo outputFile,
@@ -65,7 +67,7 @@ internal sealed class ReadSectorCommand
     }
 
     private static async Task<int> ExecuteReadLunAsync(
-        GlobalOptionsBinder globalOptions,
+        EdlOptions globalOptions,
         FileInfo outputFile,
         uint lun)
     {
@@ -76,7 +78,7 @@ internal sealed class ReadSectorCommand
     }
 
     private static async Task<int> ExecuteReadSectorsAsync(
-        GlobalOptionsBinder globalOptions,
+        EdlOptions globalOptions,
         ulong startSector,
         ulong sectorsToRead,
         FileInfo outputFile,

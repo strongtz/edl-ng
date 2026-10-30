@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:svc="clr-namespace:QCEDL.GUI.Services"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             x:Class="QCEDL.GUI.Views.LogsView"
+             x:DataType="vm:LogsViewModel">
+    <StackPanel Spacing="16" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Logs_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Logs_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Logs_Body}" />
+        </StackPanel>
+
+        <Border Classes="card dark" Padding="16">
+            <Grid RowDefinitions="*,Auto">
+                <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" Height="420">
+                    <ItemsControl ItemsSource="{Binding Sink.Entries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="svc:LogEntry">
+                                <Grid ColumnDefinitions="90,60,*" Margin="0,1">
+                                    <TextBlock Grid.Column="0" FontFamily="{DynamicResource FontMono}"
+                                               Foreground="{DynamicResource BrushTextOnDark}"
+                                               FontSize="12" Text="{Binding TimeText}" />
+                                    <TextBlock Grid.Column="1" FontFamily="{DynamicResource FontMono}"
+                                               Foreground="{DynamicResource BrushCoral}"
+                                               FontSize="12" Text="{Binding LevelText}" />
+                                    <TextBlock Grid.Column="2" FontFamily="{DynamicResource FontMono}"
+                                               Foreground="{DynamicResource BrushTextInverse}"
+                                               FontSize="12" TextWrapping="Wrap" Text="{Binding Message}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

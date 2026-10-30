@@ -1,0 +1,182 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+        xmlns:v="clr-namespace:QCEDL.GUI.Views"
+        xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+        xmlns:svc="clr-namespace:QCEDL.GUI.Services"
+        x:Class="QCEDL.GUI.Views.MainWindow"
+        x:DataType="vm:ShellViewModel"
+        Title="{l:Localize App_Title}"
+        Icon="avares://qcedl-gui/Assets/edl-ng.ico"
+        Width="1180" Height="760"
+        MinWidth="920" MinHeight="560">
+    <Window.KeyBindings>
+        <!--
+            Window-level shortcuts. Mirrors the NativeMenu gestures so keyboard nav works on
+            Windows/Linux (where the macOS-native menu isn't hosting accelerators). On macOS
+            these fire alongside the NativeMenu Cmd+N entries — harmless duplicates.
+        -->
+        <KeyBinding Gesture="Ctrl+1" Command="{Binding NavigateCommand}" CommandParameter="Nav_Overview" />
+        <KeyBinding Gesture="Ctrl+2" Command="{Binding NavigateCommand}" CommandParameter="Nav_Connection" />
+        <KeyBinding Gesture="Ctrl+3" Command="{Binding NavigateCommand}" CommandParameter="Nav_Partitions" />
+        <KeyBinding Gesture="Ctrl+4" Command="{Binding NavigateCommand}" CommandParameter="Nav_Sectors" />
+        <KeyBinding Gesture="Ctrl+5" Command="{Binding NavigateCommand}" CommandParameter="Nav_RawProgram" />
+        <KeyBinding Gesture="Ctrl+6" Command="{Binding NavigateCommand}" CommandParameter="Nav_Advanced" />
+        <KeyBinding Gesture="Ctrl+7" Command="{Binding NavigateCommand}" CommandParameter="Nav_Logs" />
+        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding NavigateCommand}" CommandParameter="Nav_Settings" />
+        <KeyBinding Gesture="F1" Command="{x:Static svc:AppCommands.OpenDocs}" />
+    </Window.KeyBindings>
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <NativeMenuItem Header="{l:Localize Menu_View}">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="{l:Localize Nav_Overview}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Overview"
+                                        Gesture="Cmd+1" />
+                        <NativeMenuItem Header="{l:Localize Nav_Connection}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Connection"
+                                        Gesture="Cmd+2" />
+                        <NativeMenuItem Header="{l:Localize Nav_Partitions}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Partitions"
+                                        Gesture="Cmd+3" />
+                        <NativeMenuItem Header="{l:Localize Nav_Sectors}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Sectors"
+                                        Gesture="Cmd+4" />
+                        <NativeMenuItem Header="{l:Localize Nav_RawProgram}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_RawProgram"
+                                        Gesture="Cmd+5" />
+                        <NativeMenuItem Header="{l:Localize Nav_Advanced}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Advanced"
+                                        Gesture="Cmd+6" />
+                        <NativeMenuItem Header="{l:Localize Nav_Logs}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Logs"
+                                        Gesture="Cmd+7" />
+                        <NativeMenuItem Header="{l:Localize Nav_Settings}"
+                                        Command="{Binding NavigateCommand}"
+                                        CommandParameter="Nav_Settings"
+                                        Gesture="Cmd+OemComma" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+            <NativeMenuItem Header="{l:Localize Menu_Device}">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="{l:Localize Menu_Device_Provision}"
+                                        Command="{Binding GoAdvancedCommand}" />
+                        <NativeMenuItem Header="{l:Localize Menu_Device_UploadLoader}"
+                                        Command="{Binding GoAdvancedCommand}" />
+                        <NativeMenuItem Header="{l:Localize Menu_Device_Reset}"
+                                        Command="{Binding GoAdvancedCommand}" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+            <NativeMenuItem Header="{l:Localize Menu_Help}">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="{l:Localize Menu_Help_Documentation}"
+                                        Command="{x:Static svc:AppCommands.OpenDocs}"
+                                        Gesture="Cmd+Shift+OemQuestion" />
+                        <NativeMenuItem Header="{l:Localize Menu_Help_About}"
+                                        Command="{x:Static svc:AppCommands.ShowAbout}" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+        </NativeMenu>
+    </NativeMenu.Menu>
+    <Grid ColumnDefinitions="240,*">
+
+        <!-- Left rail -->
+        <Border Grid.Column="0" Classes="nav">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Top" Margin="20,24,20,16" Spacing="2">
+                    <TextBlock Classes="h2" Text="{l:Localize App_Brand}" />
+                    <TextBlock Classes="caption" Text="{l:Localize App_Subtitle}" />
+                </StackPanel>
+                <Separator DockPanel.Dock="Top" Margin="16,0,16,8" />
+                <ListBox
+                    Name="NavList"
+                    ItemsSource="{Binding NavigationItems}"
+                    SelectedItem="{Binding Selected}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="8,0">
+                    <ListBox.Styles>
+                        <Style Selector="ListBox#NavList > ListBoxItem">
+                            <Setter Property="Margin" Value="0,1" />
+                            <Setter Property="Padding" Value="14,10" />
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="vm:NavigationItem">
+                            <TextBlock Text="{Binding Title}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- Main pane -->
+        <TransitioningContentControl Grid.Column="1"
+                                     Content="{Binding Selected.Content}"
+                                     ClipToBounds="True">
+            <TransitioningContentControl.PageTransition>
+                <CrossFade Duration="0:0:0.25" />
+            </TransitioningContentControl.PageTransition>
+            <TransitioningContentControl.DataTemplates>
+                <DataTemplate DataType="vm:OverviewViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:OverviewView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:ConnectionViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:ConnectionView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:PartitionsViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:PartitionsView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:SectorsViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:SectorsView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:RawProgramViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:RawProgramView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:AdvancedViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:AdvancedView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:LogsViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:LogsView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:SettingsViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:SettingsView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+                <DataTemplate DataType="vm:PlaceholderViewModel">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <v:PlaceholderView Margin="36,28" />
+                    </ScrollViewer>
+                </DataTemplate>
+            </TransitioningContentControl.DataTemplates>
+        </TransitioningContentControl>
+    </Grid>
+</Window>

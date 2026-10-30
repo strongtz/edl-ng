@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:svc="clr-namespace:QCEDL.GUI.Services"
+             xmlns:globalization="clr-namespace:System.Globalization;assembly=System.Runtime"
+             xmlns:helpers="clr-namespace:Qualcomm.EmergencyDownload.Helpers;assembly=QCEDL.NET"
+             x:Class="QCEDL.GUI.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+    <StackPanel Spacing="20" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Settings_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Settings_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Settings_Body}" />
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Settings_LanguageCardTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Settings_LanguageCardCaption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Settings_LanguageLabel}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="0" Grid.Column="1"
+                              ItemsSource="{Binding Languages}"
+                              SelectedItem="{Binding SelectedLanguage}"
+                              MinWidth="240" HorizontalAlignment="Left">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="globalization:CultureInfo">
+                                <TextBlock Text="{Binding NativeName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Settings_ThemeCardTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Settings_ThemeCardCaption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Settings_ThemeLabel}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="0" Grid.Column="1"
+                              ItemsSource="{Binding Themes}"
+                              SelectedItem="{Binding SelectedTheme}"
+                              MinWidth="240" HorizontalAlignment="Left">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="svc:AppTheme">
+                                <TextBlock Text="{Binding Converter={x:Static l:AppThemeDisplayConverter.Instance}}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Settings_LoggingCardTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Settings_LoggingCardCaption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Settings_LogLevelLabel}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="0" Grid.Column="1"
+                              ItemsSource="{Binding LogLevels}"
+                              SelectedItem="{Binding SelectedLogLevel}"
+                              MinWidth="240" HorizontalAlignment="Left">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="helpers:LogLevel">
+                                <TextBlock Text="{Binding}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

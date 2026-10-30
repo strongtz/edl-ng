@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QCEDL.GUI.ViewModels"
+             xmlns:l="clr-namespace:QCEDL.GUI.Markup"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="QCEDL.GUI.Views.AdvancedView"
+             x:DataType="vm:AdvancedViewModel">
+    <StackPanel Spacing="20" MaxWidth="1040">
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="{l:Localize Adv_Label}" />
+            <TextBlock Classes="h1" Text="{l:Localize Adv_Heading}" />
+            <TextBlock Classes="body" Text="{l:Localize Adv_Body}" />
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Adv_ProvisionTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Adv_ProvisionCaption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto" ColumnSpacing="14">
+                    <TextBlock Grid.Column="0" Classes="body" Text="{l:Localize Adv_ProvisionFileLabel}" VerticalAlignment="Center" />
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Grid.Column="0" Text="{Binding ProvisionXmlPath}" PlaceholderText="{l:Localize Adv_ProvisionFilePlaceholder}" />
+                        <Button Grid.Column="1" Content="{l:Localize Conn_Browse}" Command="{Binding BrowseProvisionCommand}" />
+                    </Grid>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="danger" Content="{l:Localize Adv_ProvisionButton}" Command="{Binding ProvisionCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+                <ProgressBar IsVisible="{Binding IsProvisionBusy}" IsIndeterminate="True" />
+                <TextBlock Classes="caption" Text="{Binding ProvisionStatus}" IsVisible="{Binding ProvisionStatus, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Adv_UploadTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Adv_UploadCaption}" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="primary" Content="{l:Localize Adv_UploadButton}" Command="{Binding UploadLoaderCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+                <ProgressBar IsVisible="{Binding IsUploadBusy}" IsIndeterminate="True" />
+                <TextBlock Classes="caption" Text="{Binding UploadStatus}" IsVisible="{Binding UploadStatus, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h3" Text="{l:Localize Adv_ResetTitle}" />
+                <TextBlock Classes="caption" Text="{l:Localize Adv_ResetCaption}" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="14">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="body" Text="{l:Localize Adv_ResetModeLabel}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding ResetModes}" SelectedItem="{Binding ResetMode}" Width="220" HorizontalAlignment="Left" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="body" Text="{l:Localize Adv_ResetDelayLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ResetDelay}" Width="140" HorizontalAlignment="Left" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="danger" Content="{l:Localize Adv_ResetButton}" Command="{Binding ResetCommand}" IsEnabled="{Binding CanInteract}" />
+                </StackPanel>
+                <ProgressBar IsVisible="{Binding IsResetBusy}" IsIndeterminate="True" />
+                <TextBlock Classes="caption" Text="{Binding ResetStatus}" IsVisible="{Binding ResetStatus, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

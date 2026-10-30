@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="App_Title" xml:space="preserve"><value>edl-ng — クアルコム EDL</value></data>
+  <data name="App_Brand" xml:space="preserve"><value>edl-ng</value></data>
+  <data name="App_Subtitle" xml:space="preserve"><value>クアルコム 緊急ダウンロード</value></data>
+
+  <data name="Nav_Overview" xml:space="preserve"><value>概要</value></data>
+  <data name="Nav_Connection" xml:space="preserve"><value>接続</value></data>
+  <data name="Nav_Partitions" xml:space="preserve"><value>パーティション</value></data>
+  <data name="Nav_Sectors" xml:space="preserve"><value>セクター</value></data>
+  <data name="Nav_RawProgram" xml:space="preserve"><value>ロープログラム</value></data>
+  <data name="Nav_Advanced" xml:space="preserve"><value>詳細</value></data>
+  <data name="Nav_Logs" xml:space="preserve"><value>ログ</value></data>
+  <data name="Nav_Settings" xml:space="preserve"><value>設定</value></data>
+
+  <data name="Placeholder_ComingSoon" xml:space="preserve"><value>近日公開</value></data>
+  <data name="Placeholder_Sectors_Title" xml:space="preserve"><value>セクター</value></data>
+  <data name="Placeholder_Sectors_Description" xml:space="preserve"><value>LBA 範囲の読み取り / 書き込み / 消去。gui-todos.md フェーズ 2 で追跡中。</value></data>
+  <data name="Placeholder_RawProgram_Title" xml:space="preserve"><value>ロープログラム</value></data>
+  <data name="Placeholder_RawProgram_Description" xml:space="preserve"><value>rawprogramN.xml + patchN.xml の書き込みフローを実行、または LUN を rawprogram ファイルとしてダンプします。gui-todos.md フェーズ 3 で追跡中。</value></data>
+  <data name="Placeholder_Advanced_Title" xml:space="preserve"><value>詳細</value></data>
+  <data name="Placeholder_Advanced_Description" xml:space="preserve"><value>provision、upload-loader、reset。gui-todos.md フェーズ 3 で追跡中。</value></data>
+
+  <data name="Overview_Label" xml:space="preserve"><value>概要</value></data>
+  <data name="Overview_Display" xml:space="preserve"><value>デバイスと丁寧に対話する方法。</value></data>
+  <data name="Overview_TagLine" xml:space="preserve"><value>クアルコム EDL ツールチェーンのための、静かで読みやすいフロントエンド。</value></data>
+  <data name="Overview_ConnectionHeader" xml:space="preserve"><value>接続</value></data>
+  <data name="Overview_ConnectionCaption" xml:space="preserve"><value>「接続」へ移動してターゲットを設定し、セッションを開始してください。破壊的な操作(書き込み / 消去 / リセット)は常に事前に確認します。</value></data>
+  <data name="Overview_PartitionsTitle" xml:space="preserve"><value>パーティション</value></data>
+  <data name="Overview_PartitionsBody" xml:space="preserve"><value>GPT を確認し、名前付きパーティションを読み書きして、rawprogram マニフェストを書き出します。</value></data>
+  <data name="Overview_RawProgramTitle" xml:space="preserve"><value>ロープログラム</value></data>
+  <data name="Overview_RawProgramBody" xml:space="preserve"><value>rawprogramN.xml + patchN.xml のフラッシュフローを実行、または現在のデバイスを rawprogram セットとしてダンプします。</value></data>
+  <data name="Overview_ConnectedFormat" xml:space="preserve"><value>接続済み — {0}</value></data>
+
+  <data name="Conn_Label" xml:space="preserve"><value>接続</value></data>
+  <data name="Conn_Heading" xml:space="preserve"><value>ターゲットとセッション</value></data>
+  <data name="Conn_Body" xml:space="preserve"><value>デバイスへの接続方法を選択します: USB 経由の サハラ/ファイアホース、または直接ホストデバイスバックエンド。GUI は CLI のグローバルオプションを反映します。</value></data>
+  <data name="Conn_ProgrammerCardTitle" xml:space="preserve"><value>プログラマー とトランスポート</value></data>
+  <data name="Conn_ProgrammerCardCaption" xml:space="preserve"><value>libusb(WinUSB / LibUsbDotNet)またはシリアルドライバを選択します。自動では ウィンドウズ で libusb、リナックス/macOS でシリアルを選択します。</value></data>
+  <data name="Conn_Loader" xml:space="preserve"><value>ローダー(.elf / .xml)</value></data>
+  <data name="Conn_LoaderPlaceholder" xml:space="preserve"><value>ファイアホース プログラマー または qsahara_device_programmer.xml のパス</value></data>
+  <data name="Conn_LoaderPickTitle" xml:space="preserve"><value>Firehose ローダーを選択(.elf / .melf / .xml)</value></data>
+  <data name="Conn_Browse" xml:space="preserve"><value>参照…</value></data>
+  <data name="Conn_Backend" xml:space="preserve"><value>バックエンド</value></data>
+  <data name="Conn_VidHex" xml:space="preserve"><value>USB VID(16 進)</value></data>
+  <data name="Conn_VidPlaceholder" xml:space="preserve"><value>05C6</value></data>
+  <data name="Conn_PidHex" xml:space="preserve"><value>USB PID(16 進)</value></data>
+  <data name="Conn_PidPlaceholder" xml:space="preserve"><value>9008</value></data>
+  <data name="Conn_SerialDevice" xml:space="preserve"><value>シリアルデバイス</value></data>
+  <data name="Conn_SerialPlaceholder" xml:space="preserve"><value>/dev/ttyUSB0、/dev/tty.usbserial-…、または ウィンドウズ/リナックス で自動検出</value></data>
+  <data name="Conn_Memory" xml:space="preserve"><value>メモリ</value></data>
+  <data name="Conn_Slot" xml:space="preserve"><value>スロット</value></data>
+  <data name="Conn_DirectCardTitle" xml:space="preserve"><value>ダイレクトモード</value></data>
+  <data name="Conn_DirectCardCaption" xml:space="preserve"><value>ホストブロックデバイスやファイルイメージへの書き込み時に、USB / ファイアホース を完全にバイパスします。</value></data>
+  <data name="Conn_DirectEnabled" xml:space="preserve"><value>ダイレクトモードを有効化</value></data>
+  <data name="Conn_HostDevice" xml:space="preserve"><value>ホストデバイス</value></data>
+  <data name="Conn_HostDevicePlaceholder" xml:space="preserve"><value>/dev/mtd0 または /path/to/file.img</value></data>
+  <data name="Conn_ImageSize" xml:space="preserve"><value>イメージサイズ</value></data>
+  <data name="Conn_ImageSizePlaceholder" xml:space="preserve"><value>32M / 1G / 512K(ファイル作成時のみ)</value></data>
+  <data name="Conn_RadxaWos" xml:space="preserve"><value>Radxa WoS</value></data>
+  <data name="Conn_RadxaCheckbox" xml:space="preserve"><value>Radxa Windows-on-Snapdragon SPI NOR バックエンドを使用(ウィンドウズ のみ)</value></data>
+  <data name="Conn_StatusTitle" xml:space="preserve"><value>状態</value></data>
+  <data name="Conn_ModeLabel" xml:space="preserve"><value>モード</value></data>
+  <data name="Conn_StatusFieldLabel" xml:space="preserve"><value>ステータス</value></data>
+  <data name="Conn_StepDiscover" xml:space="preserve"><value>STEP 01 · 検出</value></data>
+  <data name="Conn_StepSession" xml:space="preserve"><value>STEP 02 · セッション</value></data>
+  <data name="Conn_ConnectButton" xml:space="preserve"><value>接続</value></data>
+  <data name="Conn_ProbeButton" xml:space="preserve"><value>モード検出</value></data>
+  <data name="Conn_DisconnectButton" xml:space="preserve"><value>切断</value></data>
+  <data name="Conn_StatusNotConnected" xml:space="preserve"><value>未接続です。</value></data>
+  <data name="Conn_ModeUnknown" xml:space="preserve"><value>不明</value></data>
+  <data name="Conn_ModeDirect" xml:space="preserve"><value>ダイレクト</value></data>
+  <data name="Conn_ConnectFailedFormat" xml:space="preserve"><value>接続に失敗しました: {0}</value></data>
+  <data name="Conn_ProbeFailedFormat" xml:space="preserve"><value>検出に失敗しました: {0}</value></data>
+  <data name="Conn_LogProbing" xml:space="preserve"><value>デバイスモードを検出しています…</value></data>
+  <data name="Conn_StatusDetectedFormat" xml:space="preserve"><value>検出: {0}</value></data>
+  <data name="Conn_LogDirectSession" xml:space="preserve"><value>ダイレクトモードセッション(ホストデバイス / Radxa WoS)。USB ハンドシェイクは不要です。</value></data>
+  <data name="Conn_StatusDirectReady" xml:space="preserve"><value>ダイレクトモードの準備ができました。</value></data>
+  <data name="Conn_LogElevationLinuxHint" xml:space="preserve"><value>EDL デバイスのオープンが拒否されました。edl-ng に同梱の udev ルール(docs/linux-udev.md 参照)をインストールすると、sudo なしでアクセスできます。</value></data>
+  <data name="Conn_LogConnecting" xml:space="preserve"><value>デバイスに接続しています(サハラ → ファイアホース)…</value></data>
+  <data name="Conn_StatusFirehoseConnected" xml:space="preserve"><value>ファイアホース モードで接続しました。</value></data>
+  <data name="Conn_StatusDisconnected" xml:space="preserve"><value>切断しました。</value></data>
+  <data name="Conn_LogSessionClosed" xml:space="preserve"><value>セッションを閉じました。</value></data>
+
+  <data name="Conn_DevicesCardTitle" xml:space="preserve"><value>デバイスとセッション</value></data>
+  <data name="Conn_DevicesCardCaption" xml:space="preserve"><value>まず EDL デバイスを検索し、一覧で確認してから接続します。複数接続時で未選択の場合は Connect 時に選択ダイアログが表示されます。</value></data>
+  <data name="Conn_ScanDevicesButton" xml:space="preserve"><value>デバイスを検索</value></data>
+  <data name="Conn_ClearDeviceSelection" xml:space="preserve"><value>選択を解除</value></data>
+  <data name="Conn_DevicesEmpty" xml:space="preserve"><value>まだ検索していません。「デバイスを検索」を押してください。</value></data>
+  <data name="Conn_DevicesNoneFound" xml:space="preserve"><value>選択中のバックエンドで EDL デバイスが見つかりません。</value></data>
+  <data name="Conn_DevicesFoundFormat" xml:space="preserve"><value>{0} 台の候補デバイスを検出しました。</value></data>
+  <data name="Conn_DeviceSelectedFormat" xml:space="preserve"><value>選択中のデバイス: {0}</value></data>
+  <data name="Conn_LogMultipleFoundPrompt" xml:space="preserve"><value>複数のデバイスを検出しました — ユーザーに選択を求めます。</value></data>
+  <data name="Conn_LogSelectionCancelled" xml:space="preserve"><value>デバイス選択をキャンセルしました。</value></data>
+
+  <data name="DeviceChooser_Title" xml:space="preserve"><value>デバイスを選択</value></data>
+  <data name="DeviceChooser_Prompt" xml:space="preserve"><value>現在のトランスポート バックエンドで複数の EDL デバイスが見つかりました。使用するものを選んでください。</value></data>
+  <data name="DeviceChooser_Confirm" xml:space="preserve"><value>このデバイスを使う</value></data>
+  <data name="DeviceChooser_Cancel" xml:space="preserve"><value>キャンセル</value></data>
+
+  <data name="Parts_Label" xml:space="preserve"><value>パーティション</value></data>
+  <data name="Parts_Heading" xml:space="preserve"><value>GPT インスペクター</value></data>
+  <data name="Parts_Body" xml:space="preserve"><value>デバイスが報告するすべての LUN(または指定の LUN)をスキャンし、GUID パーティションテーブルを読み取ります。</value></data>
+  <data name="Parts_LunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Parts_LunPlaceholder" xml:space="preserve"><value>all</value></data>
+  <data name="Parts_ScanButton" xml:space="preserve"><value>スキャン</value></data>
+  <data name="Parts_HeaderLun" xml:space="preserve"><value>LUN</value></data>
+  <data name="Parts_HeaderIndex" xml:space="preserve"><value>#</value></data>
+  <data name="Parts_HeaderName" xml:space="preserve"><value>名前</value></data>
+  <data name="Parts_HeaderFirstLba" xml:space="preserve"><value>開始 LBA</value></data>
+  <data name="Parts_HeaderLastLba" xml:space="preserve"><value>終了 LBA</value></data>
+  <data name="Parts_HeaderSize" xml:space="preserve"><value>サイズ</value></data>
+  <data name="Parts_StatusNotScanned" xml:space="preserve"><value>未スキャンです。</value></data>
+  <data name="Parts_ErrorFormat" xml:space="preserve"><value>エラー: {0}</value></data>
+  <data name="Parts_LogScanFailedFormat" xml:space="preserve"><value>GPT スキャンに失敗しました: {0}</value></data>
+  <data name="Parts_LogNoGptFormat" xml:space="preserve"><value>LUN {0}: GPT が見つかりませんでした。</value></data>
+  <data name="Parts_LogScanErrorFormat" xml:space="preserve"><value>LUN {0} スキャンエラー: {1}</value></data>
+  <data name="Parts_StatusFoundFormat" xml:space="preserve"><value>{0} 個のパーティションが見つかりました。</value></data>
+
+  <data name="Logs_Label" xml:space="preserve"><value>ログ</value></data>
+  <data name="Logs_Heading" xml:space="preserve"><value>ライブ出力</value></data>
+  <data name="Logs_Body" xml:space="preserve"><value>共有ロガーから転送される、プロトコル層のすべての出力。GUI をターミナルから起動した場合、同じストリームが標準出力にも書き込まれます。</value></data>
+
+  <data name="Settings_Label" xml:space="preserve"><value>設定</value></data>
+  <data name="Settings_Heading" xml:space="preserve"><value>環境設定</value></data>
+  <data name="Settings_Body" xml:space="preserve"><value>GUI を設定します。変更はすぐに反映されます。</value></data>
+  <data name="Settings_LanguageCardTitle" xml:space="preserve"><value>言語</value></data>
+  <data name="Settings_LanguageCardCaption" xml:space="preserve"><value>表示言語を選択します。選択はセッション間で保存されます。</value></data>
+  <data name="Settings_LanguageLabel" xml:space="preserve"><value>言語</value></data>
+  <data name="Settings_LoggingCardTitle" xml:space="preserve"><value>ログ</value></data>
+  <data name="Settings_LoggingCardCaption" xml:space="preserve"><value>プロトコル層のログの詳細度を設定します。Trace が最も詳細で、Error が最も静かです。</value></data>
+  <data name="Settings_LogLevelLabel" xml:space="preserve"><value>ログレベル</value></data>
+  <data name="Settings_ThemeCardTitle" xml:space="preserve"><value>外観</value></data>
+  <data name="Settings_ThemeCardCaption" xml:space="preserve"><value>ライト/ダークテーマを選択するか、システム設定に従います。変更は即座に反映されます。</value></data>
+  <data name="Settings_ThemeLabel" xml:space="preserve"><value>テーマ</value></data>
+  <data name="Settings_Theme_System" xml:space="preserve"><value>システムに従う</value></data>
+  <data name="Settings_Theme_Light" xml:space="preserve"><value>ライト</value></data>
+  <data name="Settings_Theme_Dark" xml:space="preserve"><value>ダーク</value></data>
+
+  <data name="Progress_Format" xml:space="preserve"><value>{0:F1} / {1:F1} MiB ({2:F0}%)</value></data>
+  <data name="Confirm_DefaultOk" xml:space="preserve"><value>続行</value></data>
+  <data name="Confirm_DefaultCancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="Confirm_TypeToConfirmFormat" xml:space="preserve"><value>確認のため「{0}」と入力してください。</value></data>
+
+  <data name="Parts_Ops_Title" xml:space="preserve"><value>パーティション操作</value></data>
+  <data name="Parts_Ops_Caption" xml:space="preserve"><value>名前付きパーティションの読み取り、書き込み、消去を行います。上の行をクリックすると値が入力されます。</value></data>
+  <data name="Parts_Ops_PartitionLabel" xml:space="preserve"><value>パーティション</value></data>
+  <data name="Parts_Ops_PartitionPlaceholder" xml:space="preserve"><value>例: boot、userdata</value></data>
+  <data name="Parts_Ops_LunLabel" xml:space="preserve"><value>LUN(任意)</value></data>
+  <data name="Parts_Ops_ReadButton" xml:space="preserve"><value>読み取り…</value></data>
+  <data name="Parts_Ops_WriteButton" xml:space="preserve"><value>書き込み…</value></data>
+  <data name="Parts_Ops_EraseButton" xml:space="preserve"><value>消去…</value></data>
+  <data name="Parts_Ops_SavePickerTitle" xml:space="preserve"><value>パーティションイメージの保存先…</value></data>
+  <data name="Parts_Ops_OpenPickerTitle" xml:space="preserve"><value>書き込むイメージを選択</value></data>
+  <data name="Parts_Ops_ConfirmWriteTitle" xml:space="preserve"><value>パーティションに書き込み</value></data>
+  <data name="Parts_Ops_ConfirmWriteMessageFormat" xml:space="preserve"><value>「{1}」({2} バイト)をパーティション「{0}」に書き込みます。既存の内容は上書きされます。</value></data>
+  <data name="Parts_Ops_ConfirmEraseTitle" xml:space="preserve"><value>パーティションの消去</value></data>
+  <data name="Parts_Ops_ConfirmEraseMessageFormat" xml:space="preserve"><value>パーティション「{0}」のすべてのセクタを消去します。データは復元できません。</value></data>
+  <data name="Parts_Ops_PartitionNotFoundFormat" xml:space="preserve"><value>スキャンしたいずれの LUN にもパーティション「{0}」は見つかりません。</value></data>
+  <data name="Parts_Ops_StatusReadingFormat" xml:space="preserve"><value>「{0}」を読み取り中…</value></data>
+  <data name="Parts_Ops_StatusWritingFormat" xml:space="preserve"><value>「{0}」に書き込み中…</value></data>
+  <data name="Parts_Ops_StatusErasingFormat" xml:space="preserve"><value>「{0}」を消去中…</value></data>
+  <data name="Parts_Ops_StatusDoneFormat" xml:space="preserve"><value>完了 —「{0}」所要時間 {1:F2} 秒。</value></data>
+  <data name="Parts_Ops_StatusFailedFormat" xml:space="preserve"><value>失敗 — {0}</value></data>
+
+  <data name="Sectors_Label" xml:space="preserve"><value>セクタ</value></data>
+  <data name="Sectors_Heading" xml:space="preserve"><value>セクタ範囲</value></data>
+  <data name="Sectors_Body" xml:space="preserve"><value>指定 LUN 上の連続する LBA を読み取り、書き込み、または消去します。書き込みと消去には確認文字列の入力が必要です。</value></data>
+  <data name="Sectors_LunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Sectors_StartLabel" xml:space="preserve"><value>開始 LBA</value></data>
+  <data name="Sectors_CountLabel" xml:space="preserve"><value>セクタ数</value></data>
+  <data name="Sectors_ReadButton" xml:space="preserve"><value>読み取り</value></data>
+  <data name="Sectors_ReadLunButton" xml:space="preserve"><value>LUN 全体を読み取り</value></data>
+  <data name="Sectors_WriteButton" xml:space="preserve"><value>書き込み</value></data>
+  <data name="Sectors_WriteLunButton" xml:space="preserve"><value>LUN 全体に書き込み</value></data>
+  <data name="Sectors_EraseButton" xml:space="preserve"><value>消去</value></data>
+  <data name="Sectors_ConfirmWriteLunTitle" xml:space="preserve"><value>LUN 全体に書き込み</value></data>
+  <data name="Sectors_ConfirmWriteLunMessageFormat" xml:space="preserve"><value>「{0}」({1} バイト)を LUN {2} の LBA 0 から書き込みます。LUN 容量は {3} バイトで、イメージ全体が既存データを上書きします。</value></data>
+  <data name="Sectors_WriteLunTooLargeFormat" xml:space="preserve"><value>入力ファイル({0} バイト)が LUN 容量({1} バイト)を超えています。</value></data>
+  <data name="Sectors_SaveTitle" xml:space="preserve"><value>セクタデータの保存先…</value></data>
+  <data name="Sectors_OpenTitle" xml:space="preserve"><value>データファイルを選択</value></data>
+  <data name="Sectors_ConfirmWriteTitle" xml:space="preserve"><value>セクタへの書き込み</value></data>
+  <data name="Sectors_ConfirmWriteMessageFormat" xml:space="preserve"><value>「{0}」({1} バイト)を LUN {2}、開始 LBA {3} に書き込みます。既存のセクタは上書きされます。</value></data>
+  <data name="Sectors_ConfirmEraseTitle" xml:space="preserve"><value>セクタの消去</value></data>
+  <data name="Sectors_ConfirmEraseMessageFormat" xml:space="preserve"><value>LUN {0} の LBA {1} から {2} セクタを消去します。データは復元できません。</value></data>
+  <data name="Sectors_StatusReadingFormat" xml:space="preserve"><value>LUN {0} @ LBA {1}({2} セクタ)を読み取り中…</value></data>
+  <data name="Sectors_StatusWritingFormat" xml:space="preserve"><value>LUN {0} @ LBA {1} に書き込み中…</value></data>
+  <data name="Sectors_StatusErasingFormat" xml:space="preserve"><value>LUN {0} @ LBA {1}({2} セクタ)を消去中…</value></data>
+  <data name="Sectors_StatusDoneFormat" xml:space="preserve"><value>完了 — {0} セクタを {1:F2} 秒で処理。</value></data>
+  <data name="Sectors_ErrorFormat" xml:space="preserve"><value>エラー: {0}</value></data>
+
+  <data name="Raw_Label" xml:space="preserve"><value>RAWPROGRAM</value></data>
+  <data name="Raw_Heading" xml:space="preserve"><value>マニフェスト書き込み</value></data>
+  <data name="Raw_Body" xml:space="preserve"><value>接続中のデバイスに rawprogramN.xml + patchN.xml のセットを書き込むか、現在のデバイスを rawprogram マニフェストとして書き出して、後で再書き込みできるようにします。破壊的な操作には入力確認が必要です。</value></data>
+  <data name="Raw_ExecTitle" xml:space="preserve"><value>rawprogram + patch を実行</value></data>
+  <data name="Raw_ExecCaption" xml:space="preserve"><value>rawprogramN.xml / patchN.xml ファイル(ワイルドカード可)を選択します。LUN 番号が一致するファイルは自動的にペアになります。</value></data>
+  <data name="Raw_AddFiles" xml:space="preserve"><value>XML を追加…</value></data>
+  <data name="Raw_ClearFiles" xml:space="preserve"><value>クリア</value></data>
+  <data name="Raw_RemoveFile" xml:space="preserve"><value>削除</value></data>
+  <data name="Raw_NoFilesPlaceholder" xml:space="preserve"><value>XML ファイルが追加されていません。「ファイルを追加…」から rawprogram/patch XML を選択してください。</value></data>
+  <data name="Raw_PickXmlTitle" xml:space="preserve"><value>rawprogram / patch XML ファイルを選択</value></data>
+  <data name="Raw_ExecButton" xml:space="preserve"><value>書き込み…</value></data>
+  <data name="Raw_ExecNoFiles" xml:space="preserve"><value>XML ファイルが選択されていません。</value></data>
+  <data name="Raw_ExecNoRawFiles" xml:space="preserve"><value>選択内に rawprogramN.xml がありません。</value></data>
+  <data name="Raw_ConfirmExecTitle" xml:space="preserve"><value>rawprogram マニフェストを書き込み</value></data>
+  <data name="Raw_ConfirmExecMessageFormat" xml:space="preserve"><value>次のマニフェストを書き込みます: {0}。既存のパーティションは上書きされます。</value></data>
+  <data name="Raw_ExecRunning" xml:space="preserve"><value>rawprogram マニフェストを書き込み中…</value></data>
+  <data name="Raw_ExecDoneFormat" xml:space="preserve"><value>完了 — rawprogram は {0:F2} 秒で終了しました。</value></data>
+  <data name="Raw_ErrorFormat" xml:space="preserve"><value>エラー: {0}</value></data>
+
+  <data name="Raw_DumpTitle" xml:space="preserve"><value>rawprogram をダンプ</value></data>
+  <data name="Raw_DumpCaption" xml:space="preserve"><value>指定 LUN 上の全パーティションをフォルダに書き出し、同じ場所に rawprogram{lun}.xml と patch{lun}.xml を生成します。</value></data>
+  <data name="Raw_DumpLunLabel" xml:space="preserve"><value>LUN</value></data>
+  <data name="Raw_DumpDirLabel" xml:space="preserve"><value>出力フォルダ</value></data>
+  <data name="Raw_DumpDirPlaceholder" xml:space="preserve"><value>/path/to/backup または C:\backup</value></data>
+  <data name="Raw_DumpSkipLabel" xml:space="preserve"><value>スキップするパーティション</value></data>
+  <data name="Raw_DumpSkipPlaceholder" xml:space="preserve"><value>カンマ区切り(例: userdata,super)</value></data>
+  <data name="Raw_DumpXmlOnlyLabel" xml:space="preserve"><value>XML のみ</value></data>
+  <data name="Raw_DumpXmlOnlyHint" xml:space="preserve"><value>rawprogram{lun}.xml + patch{lun}.xml のみを生成し、イメージは出力しません</value></data>
+  <data name="Raw_DumpButton" xml:space="preserve"><value>ダンプ</value></data>
+  <data name="Raw_DumpNoDir" xml:space="preserve"><value>先に出力フォルダを選択してください。</value></data>
+  <data name="Raw_DumpRunning" xml:space="preserve"><value>パーティションをダンプ中…</value></data>
+  <data name="Raw_DumpDoneFormat" xml:space="preserve"><value>完了 — ダンプは {0:F2} 秒で終了しました。</value></data>
+  <data name="Raw_PickDirTitle" xml:space="preserve"><value>出力フォルダを選択</value></data>
+
+  <data name="Adv_Label" xml:space="preserve"><value>高度</value></data>
+  <data name="Adv_Heading" xml:space="preserve"><value>デバイスライフサイクル</value></data>
+  <data name="Adv_Body" xml:space="preserve"><value>UFS プロビジョニング、単体のローダアップロード、電源コマンド。これらはどれも低レイヤの操作で、通常は 1 台につき 1 回だけ行います。</value></data>
+  <data name="Adv_ProvisionTitle" xml:space="preserve"><value>UFS プロビジョニング</value></data>
+  <data name="Adv_ProvisionCaption" xml:space="preserve"><value>UFS プロビジョニング XML を実行します。不可逆で、デバイスの LUN 構成が書き換わります。</value></data>
+  <data name="Adv_ProvisionFileLabel" xml:space="preserve"><value>XML ファイル</value></data>
+  <data name="Adv_ProvisionFilePlaceholder" xml:space="preserve"><value>provision.xml</value></data>
+  <data name="Adv_ProvisionButton" xml:space="preserve"><value>プロビジョニング…</value></data>
+  <data name="Adv_ProvisionPickTitle" xml:space="preserve"><value>UFS プロビジョニング XML を選択</value></data>
+  <data name="Adv_ProvisionNoFile" xml:space="preserve"><value>先にプロビジョニング XML を選択してください。</value></data>
+  <data name="Adv_ConfirmProvisionTitle" xml:space="preserve"><value>UFS プロビジョニングを実行</value></data>
+  <data name="Adv_ConfirmProvisionMessageFormat" xml:space="preserve"><value>「{0}」を使って UFS デバイスをプロビジョニングします。この操作は不可逆で、LUN 構成が書き換わります。</value></data>
+  <data name="Adv_ProvisionRunning" xml:space="preserve"><value>UFS プロビジョニング実行中…</value></data>
+  <data name="Adv_ProvisionDoneFormat" xml:space="preserve"><value>完了 — プロビジョニングは {0:F2} 秒で終了しました。</value></data>
+
+  <data name="Adv_UploadTitle" xml:space="preserve"><value>ローダアップロード(Sahara のみ)</value></data>
+  <data name="Adv_UploadCaption" xml:space="preserve"><value>Sahara ハンドシェイクを行い、設定済みの Firehose プログラマをアップロードします。その後の Firehose 操作には進みません。「接続」でローダパスを設定しておいてください。</value></data>
+  <data name="Adv_UploadButton" xml:space="preserve"><value>ローダをアップロード</value></data>
+  <data name="Adv_UploadNoLoader" xml:space="preserve"><value>先に「接続」でローダパスを設定してください。</value></data>
+  <data name="Adv_UploadWrongModeFormat" xml:space="preserve"><value>デバイスが Sahara モードではありません(現在: {0})。ローダをアップロードできません。</value></data>
+  <data name="Adv_UploadRunning" xml:space="preserve"><value>ローダをアップロード中…</value></data>
+  <data name="Adv_UploadDoneFormat" xml:space="preserve"><value>完了 — ローダのアップロードは {0:F2} 秒で終了しました。</value></data>
+
+  <data name="Adv_ResetTitle" xml:space="preserve"><value>リセット / 電源</value></data>
+  <data name="Adv_ResetCaption" xml:space="preserve"><value>Firehose 電源コマンド(リセット、電源オフ、EDL 復帰)を送信します。指定した遅延のあとに実行されます。</value></data>
+  <data name="Adv_ResetModeLabel" xml:space="preserve"><value>モード</value></data>
+  <data name="Adv_ResetDelayLabel" xml:space="preserve"><value>遅延(秒)</value></data>
+  <data name="Adv_ResetButton" xml:space="preserve"><value>送信…</value></data>
+  <data name="Adv_ConfirmResetTitle" xml:space="preserve"><value>電源コマンドを送信</value></data>
+  <data name="Adv_ConfirmResetMessageFormat" xml:space="preserve"><value>「{0}」を {1} 秒の遅延で送信します。デバイスは Firehose モードを抜けます。</value></data>
+  <data name="Adv_ResetRunning" xml:space="preserve"><value>電源コマンド送信中…</value></data>
+  <data name="Adv_ResetDoneFormat" xml:space="preserve"><value>完了 — 電源コマンドは {0:F2} 秒で送信されました。</value></data>
+  <data name="Adv_ResetFailedFormat" xml:space="preserve"><value>電源コマンド「{0}」がデバイスに拒否されました(NAK)。</value></data>
+  <data name="Adv_ResetBadDelayFormat" xml:space="preserve"><value>遅延値が不正です: 「{0}」。0 以上の整数を指定してください。</value></data>
+
+  <data name="Adv_ErrorFormat" xml:space="preserve"><value>エラー: {0}</value></data>
+
+  <data name="Menu_View" xml:space="preserve"><value>表示</value></data>
+  <data name="Menu_Device" xml:space="preserve"><value>デバイス</value></data>
+  <data name="Menu_Device_Provision" xml:space="preserve"><value>UFS プロビジョン…</value></data>
+  <data name="Menu_Device_UploadLoader" xml:space="preserve"><value>ローダーをアップロード</value></data>
+  <data name="Menu_Device_Reset" xml:space="preserve"><value>リセット / 電源…</value></data>
+  <data name="Menu_Help" xml:space="preserve"><value>ヘルプ</value></data>
+  <data name="Menu_Help_Documentation" xml:space="preserve"><value>ドキュメント</value></data>
+  <data name="Menu_Help_About" xml:space="preserve"><value>edl-ng について</value></data>
+  <data name="Menu_About_Title" xml:space="preserve"><value>edl-ng について</value></data>
+  <data name="Menu_About_Message" xml:space="preserve"><value>edl-ng は、Qualcomm Emergency Download (EDL) モード向けのクロスプラットフォームツールチェーンです。USB 経由で Sahara / Firehose プロトコルと通信します。</value></data>
+  <data name="Menu_About_LinkText" xml:space="preserve"><value>github.com/strongtz/edl-ng</value></data>
+  <data name="About_LicenseLabel" xml:space="preserve"><value>ライセンス</value></data>
+  <data name="About_LicenseText" xml:space="preserve"><value>edl-ng は MIT ライセンスで公開されています。
+Copyright © 2025 Xilin Wu およびコントリビューター。</value></data>
+  <data name="About_DependenciesLabel" xml:space="preserve"><value>依存ライブラリ</value></data>
+  <data name="About_DependenciesCaption" xml:space="preserve"><value>本ビルドには以下のサードパーティ コンポーネントが含まれています。名前をクリックするとプロジェクト ページを開きます。</value></data>
+  <data name="About_ViewLicense" xml:space="preserve"><value>ライセンス全文を表示…</value></data>
+  <data name="License_NotFoundFormat" xml:space="preserve"><value>このビルドには '{0}' のライセンス本文が含まれていません。</value></data>
+  <data name="Menu_About_Ok" xml:space="preserve"><value>閉じる</value></data>
+</root>

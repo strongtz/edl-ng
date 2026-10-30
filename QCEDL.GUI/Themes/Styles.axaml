@@ -1,0 +1,276 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Class-based style variants layered on top of the base ControlThemes in
+        Controls.axaml. Put in-view `Classes="..."` to opt into these looks.
+    -->
+
+    <!-- ═══ Window / UserControl defaults ═══════════════════════════════════ -->
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{DynamicResource BrushParchment}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource FontSans}" />
+        <Setter Property="FontSize" Value="15" />
+    </Style>
+
+    <Style Selector="UserControl">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSans}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}" />
+    </Style>
+
+    <!-- ═══ §3 Typography ═══════════════════════════════════════════════════ -->
+    <Style Selector="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource FontSans}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <Style Selector="TextBlock.display">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="56" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LineHeight" Value="74" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.section">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="44" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LineHeight" Value="60" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.h1">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="32" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LineHeight" Value="44" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.h2">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LineHeight" Value="36" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.h3">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LineHeight" Value="30" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.feature">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LineHeight" Value="26" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.bodySerif">
+        <Setter Property="FontFamily" Value="{DynamicResource FontSerif}" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="LineHeight" Value="27" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.bodyLarge">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="LineHeight" Value="29" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.body">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="LineHeight" Value="24" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.caption">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="19" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextTertiary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LetterSpacing" Value="0.6" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextTertiary}" />
+    </Style>
+
+    <Style Selector="TextBlock.overline">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LetterSpacing" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextTertiary}" />
+    </Style>
+
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LetterSpacing" Value="-0.2" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}" />
+    </Style>
+
+    <!-- Colour modifiers — stack with any size class. -->
+    <Style Selector="TextBlock.muted">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}" />
+    </Style>
+    <Style Selector="TextBlock.dim">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextTertiary}" />
+    </Style>
+    <Style Selector="TextBlock.brand">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTerracotta}" />
+    </Style>
+    <Style Selector="TextBlock.danger">
+        <Setter Property="Foreground" Value="{DynamicResource BrushError}" />
+    </Style>
+    <Style Selector="TextBlock.inverse">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextInverse}" />
+    </Style>
+
+    <!-- ═══ §4 Button variants ══════════════════════════════════════════════
+         Base Button theme defines the Warm Sand workhorse in Controls.axaml.
+         These class selectors re-skin it for other roles. -->
+
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource BrushTerracotta}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextInverse}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushTerracotta}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusGenerous}" />
+        <Setter Property="Padding" Value="18,10" />
+        <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushCoral}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushCoral}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushTerracotta}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushTerracotta}" />
+    </Style>
+
+    <Style Selector="Button.dark">
+        <Setter Property="Background" Value="{DynamicResource BrushDeepDark}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextOnDark}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDark}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusGenerous}" />
+        <Setter Property="Padding" Value="17,10" />
+    </Style>
+    <Style Selector="Button.dark:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushDarkSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDark}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource BrushTextInverse}" />
+    </Style>
+
+    <Style Selector="Button.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushSurfaceHover}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushSurfacePressed}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Button.danger">
+        <Setter Property="Background" Value="{DynamicResource BrushError}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextInverse}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushError}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusGenerous}" />
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BrushDangerHover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushDangerHover}" />
+    </Style>
+
+    <Style Selector="Button.small">
+        <Setter Property="Padding" Value="8,4,12,4" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="Button.link">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTerracotta}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.link:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource BrushCoral}" />
+    </Style>
+
+    <!-- ═══ §4 Cards / containers ═══════════════════════════════════════════ -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource BrushIvory}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderLight}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusComfortable}" />
+        <Setter Property="Padding" Value="22" />
+    </Style>
+    <Style Selector="Border.card.elevated">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusVeryRounded}" />
+        <Setter Property="BoxShadow" Value="{DynamicResource ShadowWhisper}" />
+        <Setter Property="Padding" Value="26" />
+    </Style>
+    <Style Selector="Border.card.hero">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusHero}" />
+        <Setter Property="Padding" Value="32" />
+    </Style>
+    <Style Selector="Border.card.flat">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.card.dark">
+        <Setter Property="Background" Value="{DynamicResource BrushDarkSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDark}" />
+    </Style>
+    <Style Selector="Border.card.dark TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextOnDark}" />
+    </Style>
+    <Style Selector="Border.card.dark TextBlock.h1, Border.card.dark TextBlock.h2, Border.card.dark TextBlock.h3, Border.card.dark TextBlock.display">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextInverse}" />
+    </Style>
+
+    <Style Selector="Border.chip">
+        <Setter Property="Background" Value="{DynamicResource BrushWarmSand}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushRingWarm}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusHighly}" />
+        <Setter Property="Padding" Value="10,4" />
+    </Style>
+    <Style Selector="Border.chip > TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextCharcoal}" />
+    </Style>
+
+    <Style Selector="Border.nav">
+        <Setter Property="Background" Value="{DynamicResource BrushParchment}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderLight}" />
+        <Setter Property="BorderThickness" Value="0,0,1,0" />
+    </Style>
+
+</Styles>

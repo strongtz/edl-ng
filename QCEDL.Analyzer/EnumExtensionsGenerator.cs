@@ -24,6 +24,10 @@ internal sealed class EnumExtensionsGenerator : IIncrementalGenerator
             foreach (var (enumDecl, model) in enums)
             {
                 var enumSymbol = (INamedTypeSymbol)model.GetDeclaredSymbol(enumDecl)!;
+                if (enumSymbol.ContainingType is not null)
+                {
+                    continue;
+                }
                 GenerateExtensionForEnum(enumSymbol, spc);
             }
         });
@@ -55,7 +59,8 @@ internal sealed class EnumExtensionsGenerator : IIncrementalGenerator
 
         _ = sb.AppendLine("}");
 
-        var hintName = $"{enumSymbol.Name}_ToStringFast.g.cs";
+        var hintPrefix = string.IsNullOrEmpty(@namespace) ? enumSymbol.Name : $"{@namespace}.{enumSymbol.Name}";
+        var hintName = $"{hintPrefix}_ToStringFast.g.cs";
         spc.AddSource(hintName, SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 

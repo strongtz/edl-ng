@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=edl-ng GUI
+GenericName=Qualcomm EDL Tool
+Comment=Flash, read, and manage Qualcomm devices in Emergency Download mode
+Exec=qcedl-gui
+Icon=qcedl-gui
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true
+StartupWMClass=qcedl-gui
+Keywords=qualcomm;edl;firehose;sahara;flash;

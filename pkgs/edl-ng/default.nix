@@ -23,6 +23,11 @@ buildDotnetModule {
 
   executables = [ "edl-ng" ];
 
+  postInstall = ''
+    install -Dm0644 ${../../resources/udev/99-edl-ng.rules} \
+      $out/lib/udev/rules.d/99-edl-ng.rules
+  '';
+
   dotnet-sdk = dotnetCorePackages.sdk_9_0;
 
   meta = {
