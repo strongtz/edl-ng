@@ -21,3 +21,5 @@ jobs:
         run: dotnet restore
       - name: Format
         run: dotnet format --verify-no-changes --verbosity diagnostic
+      - name: Test
+        run: dotnet test --configuration Release --no-restore

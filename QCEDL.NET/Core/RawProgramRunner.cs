@@ -41,8 +41,9 @@ public static class RawProgramRunner
         var resolved = new List<FileInfo>();
         var cwd = Environment.CurrentDirectory;
 
-        foreach (var pattern in patterns)
+        foreach (var rawPattern in patterns)
         {
+            var pattern = PathHelper.ExpandTilde(rawPattern);
             var dirName = Path.GetDirectoryName(pattern);
             var fileNamePattern = Path.GetFileName(pattern);
             var searchDir = string.IsNullOrEmpty(dirName) ? cwd : Path.GetFullPath(Path.Combine(cwd, dirName));
@@ -266,6 +267,7 @@ public static class RawProgramRunner
             else
             {
                 var imageFile = new FileInfo(Path.Combine(rawFile.DirectoryName ?? string.Empty, filename));
+                imageFile = imageFile.ResolveLinkTarget(true) as FileInfo ?? imageFile;
                 if (!imageFile.Exists)
                 {
                     Logging.Log($"Image '{imageFile.FullName}' (Label: {label}) not found.", LogLevel.Error);

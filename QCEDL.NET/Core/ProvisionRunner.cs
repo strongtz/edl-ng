@@ -69,7 +69,8 @@ public static class ProvisionRunner
             index++;
             var payload = $"<?xml version=\"1.0\" ?><data>{ufsEl.ToString(SaveOptions.DisableFormatting)}</data>";
             Logging.Log($"Sending UFS command {index}/{ufsElements.Count}");
-            var ok = await Task.Run(() => manager.Firehose.SendRawXmlAndGetResponse(payload), ct);
+            var responseTimeout = (string?)ufsEl.Attribute("commit") == "1" ? 120000 : 5000;
+            var ok = await Task.Run(() => manager.Firehose.SendRawXmlAndGetResponse(payload, responseTimeout), ct);
             if (!ok)
             {
                 Logging.Log($"UFS command {index} NAK/failed. {success}/{ufsElements.Count} succeeded before failure.", LogLevel.Error);

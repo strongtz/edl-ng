@@ -74,6 +74,20 @@ internal sealed class QualcommFirehoseXmlPackets
         };
     }
 
+    public static Data GetErasePacket(StorageType storageType, uint luNi, uint slot, uint sectorSize)
+    {
+        return new()
+        {
+            Erase = new()
+            {
+                PhysicalPartitionNumber = luNi,
+                StorageType = storageType,
+                Slot = slot,
+                SectorSizeInBytes = sectorSize
+            }
+        };
+    }
+
     public static Data GetPowerPacket(PowerValue powerValue = PowerValue.Reset, uint delayInSeconds = 1)
     {
         return new()

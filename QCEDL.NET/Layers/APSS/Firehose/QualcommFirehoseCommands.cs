@@ -13,6 +13,7 @@ namespace Qualcomm.EmergencyDownload.Layers.APSS.Firehose;
 
 public static class QualcommFirehoseCommands
 {
+    private const int MaxPhysicalPartitionsToProbe = 8;
     public static bool Configure(this QualcommFirehose firehose, StorageType storageType, bool skipStorageInit = false)
     {
         LibraryLogger.Debug($"Configuring (Memory: {storageType}, SkipStorageInit: {skipStorageInit})");
@@ -22,7 +23,7 @@ public static class QualcommFirehoseCommands
                 skipStorageInit)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var gotResponse = false;
 
@@ -81,7 +82,7 @@ public static class QualcommFirehoseCommands
             }
 
             // Call GetResponse with the specific amount we want for this chunk
-            var chunk = firehose.Serial.GetResponse(null, length: currentReadLength);
+            var chunk = firehose.Transport.GetResponse(null, length: currentReadLength);
 
             if (chunk == null || chunk.Length == 0)
             {
@@ -115,7 +116,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetReadPacket(storageType, luNi, slot, sectorSize, firstSector, lastSector)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var rawMode = false;
         var gotResponse = false;
@@ -267,7 +268,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetReadPacket(storageType, luNi, slot, sectorSize, firstSector, lastSector)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var rawMode = false;
         var gotResponse = false;
@@ -412,14 +413,7 @@ public static class QualcommFirehoseCommands
         long bytesReadSoFar = 0;
         int readChunkSize;
 
-        if (firehose.Serial.ActiveCommunicationMode == CommunicationMode.SerialPort)
-        {
-            readChunkSize = 1024 * 32; // 32KB
-        }
-        else
-        {
-            readChunkSize = 1024 * 1024; // 1MB
-        }
+        readChunkSize = 1024 * 1024; // QUD and libusb both support requests up to 1 MiB.
 
         var sw = Stopwatch.StartNew();
 
@@ -431,9 +425,9 @@ public static class QualcommFirehoseCommands
             byte[] actualChunkRead;
             try
             {
-                // QualcommSerial.GetResponse reads what's available up to Length or times out.
+                // GetResponse reads what's available up to Length or times out.
                 // It doesn't guarantee filling the buffer if less data arrives before timeout.
-                actualChunkRead = firehose.Serial.GetResponse(null, length: currentChunkToRequest);
+                actualChunkRead = firehose.Transport.GetResponse(null, length: currentChunkToRequest);
             }
             catch (TimeoutException)
             {
@@ -517,7 +511,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetProgramPacket(storageType, luNi, slot, sectorSize, startSector,
                 numSectorsToWrite, filenameForXml)
         ]);
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(programCommandXml));
         var rawModeEnabled = false;
         var initialResponseReceived = false;
         // LOOP 1: Wait for rawmode="true" ACK
@@ -591,17 +585,17 @@ public static class QualcommFirehoseCommands
             if (storageType == StorageType.Spinor)
             {
                 // For SPINOR, we just use a long enough timeout
-                LibraryLogger.Debug("Setting Firehose serial timeout to 300 s for SPINOR.");
-                firehose.Serial.SetTimeOut(300000);
+                LibraryLogger.Debug("Setting Firehose transport timeout to 300 s for SPINOR.");
+                firehose.Transport.TimeoutMilliseconds = 300000;
             }
             else
             {
                 // For other storage types, we can use the default timeout
-                LibraryLogger.Trace($"Using default Firehose serial timeout for {storageType}.");
-                firehose.Serial.SetTimeOut(10000);
+                LibraryLogger.Trace($"Using default Firehose transport timeout for {storageType}.");
+                firehose.Transport.TimeoutMilliseconds = 10000;
             }
 
-            firehose.Serial.SendLargeRawData(dataToWrite);
+            firehose.Transport.SendLargeRawData(dataToWrite);
         }
         catch (Exception ex)
         {
@@ -610,7 +604,7 @@ public static class QualcommFirehoseCommands
         }
 
         LibraryLogger.Debug("Raw data sent.");
-        firehose.Serial.SendZeroLengthPacket();
+        firehose.Transport.SendZeroLengthPacket();
 
         // LOOP 2: Wait for final ACK/NAK after data transfer
         var finalAckReceived = false;
@@ -705,7 +699,7 @@ public static class QualcommFirehoseCommands
                 numSectorsForXml, filenameForXml)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(programCommandXml));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(programCommandXml));
 
         var rawModeEnabled = false;
         var initialResponseReceived = false;
@@ -787,11 +781,11 @@ public static class QualcommFirehoseCommands
         {
             if (storageType == StorageType.Spinor)
             {
-                firehose.Serial.SetTimeOut(300000); // 5 minutes for SPINOR
+                firehose.Transport.TimeoutMilliseconds = 300000; // 5 minutes for SPINOR
             }
             else
             {
-                firehose.Serial.SetTimeOut(30000); // 30 seconds for other types
+                firehose.Transport.TimeoutMilliseconds = 30000; // 30 seconds for other types
             }
 
             while (totalBytesSent < totalBytesToStreamIncludingPadding)
@@ -830,7 +824,7 @@ public static class QualcommFirehoseCommands
                     Buffer.BlockCopy(chunkBuffer, 0, chunkToSend, 0, bytesActuallyReadFromStream);
                 }
 
-                firehose.Serial.SendLargeRawData(chunkToSend);
+                firehose.Transport.SendLargeRawData(chunkToSend);
 
                 totalBytesSent += chunkToSend.Length;
                 progressCallback?.Invoke(totalBytesSent, totalBytesToStreamIncludingPadding);
@@ -862,7 +856,7 @@ public static class QualcommFirehoseCommands
             return false;
         }
 
-        firehose.Serial.SendZeroLengthPacket();
+        firehose.Transport.SendZeroLengthPacket();
 
         // LOOP 2: Wait for final ACK/NAK after data transfer
         var finalAckReceived = false;
@@ -942,7 +936,84 @@ public static class QualcommFirehoseCommands
                 numSectorsToErase)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
+        return ExecuteEraseCommand(firehose, eraseCommandXml);
+    }
+
+    public static bool ErasePhysicalPartition(this QualcommFirehose firehose, StorageType storageType, uint luNi,
+        uint slot, uint sectorSize)
+    {
+        return ErasePhysicalPartition(firehose, storageType, luNi, slot, sectorSize, expectedFailure: false);
+    }
+
+    private static bool ErasePhysicalPartition(QualcommFirehose firehose, StorageType storageType, uint luNi,
+        uint slot, uint sectorSize, bool expectedFailure)
+    {
+        LibraryLogger.Debug(
+            $"ERASE PHYSICAL PARTITION: LUN{luNi}, Slot: {slot}, SectorSize: {sectorSize}");
+
+        var eraseCommandXml = QualcommFirehoseXml.BuildCommandPacket([
+            QualcommFirehoseXmlPackets.GetErasePacket(storageType, luNi, slot, sectorSize)
+        ]);
+
+        return ExecuteEraseCommand(firehose, eraseCommandXml, expectedFailure);
+    }
+
+    public static bool EraseAll(this QualcommFirehose firehose, StorageType storageType, uint slot,
+        uint sectorSize, int? physicalPartitionCount)
+    {
+        if (physicalPartitionCount <= 0)
+        {
+            physicalPartitionCount = null;
+        }
+
+        if (physicalPartitionCount.HasValue)
+        {
+            LibraryLogger.Debug(
+                $"Erase all: device reports {physicalPartitionCount.Value} physical partition(s).");
+
+            for (var partition = 0; partition < physicalPartitionCount.Value; partition++)
+            {
+                if (!firehose.ErasePhysicalPartition(storageType, (uint)partition, slot, sectorSize))
+                {
+                    LibraryLogger.Error($"Failed to erase physical partition {partition}.");
+                    return false;
+                }
+
+                LibraryLogger.Info($"Successfully erased physical partition {partition}.");
+            }
+
+            return true;
+        }
+
+        LibraryLogger.Warning(
+            $"Erase all: physical partition count is unavailable. Probing partitions 0-{MaxPhysicalPartitionsToProbe - 1}.");
+
+        for (var partition = 0; partition < MaxPhysicalPartitionsToProbe; partition++)
+        {
+            var success = ErasePhysicalPartition(firehose, storageType, (uint)partition, slot, sectorSize,
+                expectedFailure: partition > 0);
+            if (!success)
+            {
+                if (partition == 0)
+                {
+                    LibraryLogger.Error("Failed to erase physical partition 0.");
+                    return false;
+                }
+
+                LibraryLogger.Debug($"Erase all probe stopped after physical partition {partition - 1}.");
+                return true;
+            }
+
+            LibraryLogger.Info($"Successfully erased physical partition {partition}.");
+        }
+
+        return true;
+    }
+
+    private static bool ExecuteEraseCommand(QualcommFirehose firehose, string eraseCommandXml,
+        bool expectedFailure = false)
+    {
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(eraseCommandXml));
 
         var finalAckOrNakReceived = false;
         var logReceived = false;
@@ -950,7 +1021,7 @@ public static class QualcommFirehoseCommands
         var attempts = 0;
 
         // Erasing SPINOR can take a while
-        firehose.Serial.SetTimeOut(10000);
+        firehose.Transport.TimeoutMilliseconds = 10000;
         const int maxAttempts = 100;
 
         while (!finalAckOrNakReceived && attempts < maxAttempts)
@@ -1000,7 +1071,15 @@ public static class QualcommFirehoseCommands
                     }
                     else if (data.Response.Value == "NAK")
                     {
-                        LibraryLogger.Error($"Erase command NAKed. Details: {data.Response.Value}");
+                        if (expectedFailure)
+                        {
+                            LibraryLogger.Debug("Erase command NAKed while probing for another physical partition.");
+                        }
+                        else
+                        {
+                            LibraryLogger.Error($"Erase command NAKed. Details: {data.Response.Value}");
+                        }
+
                         success = false;
                     }
                     else
@@ -1039,7 +1118,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetPowerPacket(powerValue, delayInSeconds)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var gotResponse = false;
 
@@ -1065,9 +1144,8 @@ public static class QualcommFirehoseCommands
         }
 
         // Workaround for problem
-        // SerialPort is sometimes not disposed correctly when the device is already removed.
-        // So explicitly dispose here
-        firehose.Serial.Close();
+        // Explicitly dispose after the device is removed by the power command.
+        firehose.Transport.Dispose();
 
         return true;
     }
@@ -1082,7 +1160,7 @@ public static class QualcommFirehoseCommands
             QualcommFirehoseXmlPackets.GetStorageInfoPacket(storageType, physicalPartitionNumber, slot)
         ]);
 
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(command03));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(command03));
 
         var gotResponse = false;
 
@@ -1150,96 +1228,73 @@ public static class QualcommFirehoseCommands
         }
     }
 
-    public static bool SendRawXmlAndGetResponse(this QualcommFirehose firehose, string xmlCommand)
+    public static bool SendRawXmlAndGetResponse(this QualcommFirehose firehose, string xmlCommand,
+        int timeoutMilliseconds = 10000)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMilliseconds);
         LibraryLogger.Debug($"Sending Raw XML: {xmlCommand}");
-        firehose.Serial.SendData(Encoding.UTF8.GetBytes(xmlCommand));
+        firehose.Transport.SendData(Encoding.UTF8.GetBytes(xmlCommand));
 
-        var finalAckOrNakReceived = false;
-        var success = false;
-        var attempts = 0;
-        const int maxAttempts = 10;
-
-        while (!finalAckOrNakReceived && attempts < maxAttempts)
+        var originalTimeout = firehose.Transport.TimeoutMilliseconds;
+        var timer = Stopwatch.StartNew();
+        try
         {
-            attempts++;
-            Data[] datas;
-            try
+            // Log traffic is normal progress, not a failed attempt. Bound the entire
+            // response wait by elapsed time, including a continuous stream of logs.
+            while (timer.ElapsedMilliseconds < timeoutMilliseconds)
             {
-                datas = firehose.GetFirehoseResponseDataPayloads(waitTilFooter: true);
-            }
-            catch (TimeoutException)
-            {
-                LibraryLogger.Warning($"Timeout waiting for response to raw XML (Attempt {attempts}/{maxAttempts}).");
-                if (attempts < maxAttempts)
+                var remaining = timeoutMilliseconds - (int)timer.ElapsedMilliseconds;
+                if (remaining <= 0)
                 {
-                    Thread.Sleep(200);
+                    break;
                 }
 
-                continue;
-            }
-            catch (BadMessageException bme)
-            {
-                LibraryLogger.Warning(
-                    $"Bad message received for raw XML (Attempt {attempts}/{maxAttempts}): {bme.Message}");
-                if (attempts < maxAttempts)
+                Data[] datas;
+                try
                 {
-                    Thread.Sleep(200);
+                    datas = firehose.GetFirehoseResponseDataPayloads(waitTilFooter: true,
+                        timeoutMilliseconds: remaining);
                 }
-
-                continue;
-            }
-
-            if (datas.Length == 0 && !finalAckOrNakReceived)
-            {
-                LibraryLogger.Warning($"No data received in response to raw XML (Attempt {attempts}/{maxAttempts}).");
-                if (attempts < maxAttempts)
+                catch (Exception ex) when (ex is TimeoutException or BadMessageException)
                 {
-                    Thread.Sleep(200);
-                }
-
-                continue;
-            }
-
-            foreach (var data in datas)
-            {
-                if (data.Log != null)
-                {
-                    LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
-                }
-                else if (data.Response != null)
-                {
-                    if (data.Response.Value == "ACK")
+                    LibraryLogger.Debug($"Waiting for raw XML response: {ex.Message}");
+                    remaining = timeoutMilliseconds - (int)timer.ElapsedMilliseconds;
+                    if (remaining > 0)
                     {
-                        LibraryLogger.Debug($"Raw XML command ACKed. RawMode: {data.Response.RawMode}");
-                        success = true;
-                        finalAckOrNakReceived = true;
-                        break;
+                        Thread.Sleep(Math.Min(20, remaining));
                     }
-
-                    if (data.Response.Value == "NAK")
-                    {
-                        LibraryLogger.Error("Raw XML command NAKed.");
-                        success = false;
-                        finalAckOrNakReceived = true;
-                        break;
-                    }
-
-                    LibraryLogger.Warning($"Unexpected response value for raw XML: {data.Response.Value}");
+                    continue;
                 }
-                else
+
+                foreach (var data in datas)
                 {
-                    LibraryLogger.Warning("Received data payload without Log or Response element for raw XML command.");
+                    if (data.Log != null)
+                    {
+                        LibraryLogger.Debug("DEVPRG LOG: " + data.Log.Value);
+                    }
+                    if (data.Response != null)
+                    {
+                        if (data.Response.Value == "ACK")
+                        {
+                            LibraryLogger.Debug($"Raw XML command ACKed. RawMode: {data.Response.RawMode}");
+                            return true;
+                        }
+                        if (data.Response.Value == "NAK")
+                        {
+                            LibraryLogger.Error("Raw XML command NAKed.");
+                            return false;
+                        }
+                        LibraryLogger.Warning($"Unexpected response value for raw XML: {data.Response.Value}");
+                    }
                 }
             }
-        }
 
-        if (!finalAckOrNakReceived)
-        {
-            LibraryLogger.Error("Failed to get ACK/NAK after sending raw XML command and multiple attempts.");
+            LibraryLogger.Error($"Timed out waiting for ACK/NAK after sending raw XML command ({timeoutMilliseconds} ms).");
             return false;
         }
-
-        return success;
+        finally
+        {
+            firehose.Transport.TimeoutMilliseconds = originalTimeout;
+        }
     }
 }

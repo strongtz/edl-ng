@@ -235,6 +235,10 @@ public sealed partial class ConnectionViewModel : ViewModelBase
         var effectiveSerialPath = selectedSerialPath ??
             (string.IsNullOrWhiteSpace(SerialDevicePath) ? null : SerialDevicePath);
 
+        var effectiveBackend = Backend == TransportBackend.Auto && SelectedCandidate is not null
+            ? SelectedCandidate.Backend
+            : Backend;
+
         _service.Options = new EdlOptions
         {
             LoaderPath = LoaderPath,
@@ -246,9 +250,9 @@ public sealed partial class ConnectionViewModel : ViewModelBase
             HostDevAsTarget = DirectEnabled && !string.IsNullOrWhiteSpace(HostDevTarget) ? HostDevTarget : null,
             ImgSize = DirectEnabled && !string.IsNullOrWhiteSpace(ImgSize) ? ImgSize : null,
             RadxaWosPlatform = DirectEnabled && RadxaWos && IsWindows,
-            Backend = Backend,
-            SerialDevicePath = Backend == TransportBackend.Serial ? effectiveSerialPath : null,
-            UsbDeviceId = Backend != TransportBackend.Serial ? selectedUsbId : null,
+            Backend = effectiveBackend,
+            SerialDevicePath = effectiveBackend == TransportBackend.Serial ? effectiveSerialPath : null,
+            UsbDeviceId = effectiveBackend != TransportBackend.Serial ? selectedUsbId : null,
         };
 
         if (resetSession)

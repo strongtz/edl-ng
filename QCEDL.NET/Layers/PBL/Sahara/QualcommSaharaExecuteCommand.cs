@@ -9,5 +9,6 @@ internal enum QualcommSaharaExecuteCommand : uint
     SwitchDmss = 0x04,
     SwitchStreaming = 0x05,
     ReadDebugData = 0x06,
-    GetSoftwareVersionSbl = 0x07
+    GetSoftwareVersionSbl = 0x07,
+    ReadChipIdV3 = 0x0A
 }

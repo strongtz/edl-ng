@@ -14,6 +14,7 @@ using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml;
 using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 using Qualcomm.EmergencyDownload.Layers.PBL.Sahara;
 using Qualcomm.EmergencyDownload.Transport;
+using WireTransportBackend = Qualcomm.EmergencyDownload.Transport.TransportBackend;
 
 namespace Qualcomm.EmergencyDownload.Core;
 
@@ -21,7 +22,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 {
     private string? _devicePath;
     private Guid? _deviceGuid;
-    private QualcommSerial? _serialPort;
+    private IQualcommTransport? _transport;
     private QualcommSahara? _saharaClient;
     private QualcommFirehose? _firehoseClient;
     internal IStorageBackend? XstorageBackend;
@@ -38,6 +39,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
     // Default USB device IDs
     private static readonly int DefaultVid = 0x05C6;
     private static readonly int[] DefaultPids = [0x9008, 0x900E];
+    private const int RamDumpPid = 0x900E;
 
     private byte[]? _initialSaharaHelloPacket;
 
@@ -56,6 +58,24 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
     public bool IsRadxaWosMode => globalOptions.RadxaWosPlatform;
     public bool IsDirectMode => IsHostDeviceMode || IsRadxaWosMode;
 
+    private static void ResetSaharaStateMachineAfterUnexpectedPacket(
+        QualcommSahara saharaClient,
+        string context)
+    {
+        Logging.Log(
+            $"{context} received an unexpected Sahara packet. Sending RESET_STATE_MACHINE before aborting.",
+            LogLevel.Warning);
+        try
+        {
+            saharaClient.ResetStateMachine();
+            Logging.Log("Sahara RESET_STATE_MACHINE packet written to the transport.", LogLevel.Debug);
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"Failed to send Sahara RESET_STATE_MACHINE: {ex.Message}", LogLevel.Error);
+        }
+    }
+
     public string GetTargetDescription(uint lun)
     {
         return IsHostDeviceMode
@@ -70,18 +90,13 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
     private EdlOptions GlobalOptions => globalOptions;
 
-    private string ResolveTransportPath()
-    {
-        return _devicePath ?? throw new InvalidOperationException("Device path not resolved yet.");
-    }
-
-    private void CapturePinnedUsbSerial()
+    private void CapturePinnedUsbSerial(IQualcommTransport transport)
     {
         if (_pinnedUsbSerial != null)
         {
             return;
         }
-        var sn = _serialPort?.UsbSerialNumber;
+        var sn = (transport as LibUsbTransport)?.UsbSerialNumber;
         if (!string.IsNullOrWhiteSpace(sn))
         {
             _pinnedUsbSerial = sn;
@@ -203,6 +218,50 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<QualcommSaharaRamDumpRegion>> CollectRamDumpAsync(
+        string outputDirectory,
+        string? segmentFilter = null,
+        Action<QualcommSaharaRamDumpProgress>? progress = null)
+    {
+        EnsureValidDirectMode();
+        if (IsDirectMode)
+        {
+            throw new InvalidOperationException(
+                "Sahara ramdump requires a Qualcomm USB device and cannot use a direct storage backend.");
+        }
+
+        _transport?.Dispose();
+        _transport = null;
+        _saharaClient = null;
+        _firehoseClient = null;
+        _devicePath = null;
+        _deviceGuid = null;
+        _initialSaharaHelloPacket = null;
+        CurrentMode = DeviceMode.Unknown;
+
+        int[] ramDumpPids = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : [RamDumpPid];
+        if (!FindDevice(ramDumpPids))
+        {
+            throw new IOException(
+                $"No Qualcomm ramdump device was found for PID(s): {string.Join(", ", ramDumpPids.Select(pid => $"0x{pid:X4}"))}.");
+        }
+
+        _transport = OpenTransport();
+        _saharaClient = new(_transport);
+        CurrentMode = DeviceMode.SaharaMemoryDebug;
+
+        try
+        {
+            return await Task.Run(() =>
+                _saharaClient.CollectRamDump(outputDirectory, segmentFilter, progress));
+        }
+        catch
+        {
+            CurrentMode = DeviceMode.Error;
+            throw;
+        }
+    }
+
 
     /// <summary>
     /// Attempts to detect the current operating mode of the connected EDL device.
@@ -211,7 +270,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
     /// <returns>The detected DeviceMode.</returns>
     public async Task<DeviceMode> DetectCurrentModeAsync(bool forceReconnect = false)
     {
-        if (CurrentMode != DeviceMode.Unknown && _serialPort != null && !forceReconnect)
+        if (CurrentMode != DeviceMode.Unknown && _transport != null && !forceReconnect)
         {
             Logging.Log($"Using cached device mode: {CurrentMode}", LogLevel.Debug);
             return CurrentMode;
@@ -229,8 +288,8 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
         if (forceReconnect)
         {
-            _serialPort?.Dispose();
-            _serialPort = null;
+            _transport?.Dispose();
+            _transport = null;
             _saharaClient = null;
             _firehoseClient = null;
             CurrentMode = DeviceMode.Unknown;
@@ -239,32 +298,29 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         }
 
         Logging.Log("Probing device mode...", LogLevel.Debug);
-        QualcommSerial? probeSerial = null;
+        IQualcommTransport? probeTransport = null;
         var detectedMode = DeviceMode.Unknown;
         byte[]? initialReadBuffer = null;
+        var passiveReadTimedOut = false;
 
         try
         {
-            probeSerial = new(ResolveTransportPath());
-            if (_pinnedUsbSerial == null && !string.IsNullOrWhiteSpace(probeSerial.UsbSerialNumber))
-            {
-                _pinnedUsbSerial = probeSerial.UsbSerialNumber;
-                Logging.Log($"LibUsbDotNet: captured iSerial='{_pinnedUsbSerial}' from probe handle.", LogLevel.Debug);
-            }
-            probeSerial.SetTimeOut(500); // Short timeout for initial read attempt
+            probeTransport = OpenTransport();
+            probeTransport.TimeoutMilliseconds = 500; // Short timeout for initial read attempt
             // --- Probe 1: Passive Read ---
             Logging.Log("Attempting passive read...", LogLevel.Debug);
             try
             {
                 // Try reading a small amount.
                 Logging.Log("Reading initial data from device...", LogLevel.Debug);
-                initialReadBuffer = probeSerial.GetResponse(null, 48); // Read up to 48 bytes raw
+                initialReadBuffer = probeTransport.GetResponse(null, 48); // Read up to 48 bytes raw
                 Logging.Log("Initial read completed.", LogLevel.Debug);
             }
             catch (TimeoutException)
             {
                 Logging.Log("Passive read timed out (no initial data from device).", LogLevel.Debug);
                 initialReadBuffer = null;
+                passiveReadTimedOut = true;
             }
             catch (BadMessageException)
             {
@@ -297,9 +353,9 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
                     _initialSaharaHelloPacket = initialReadBuffer;
 
-                    _serialPort = probeSerial; // Keep the probeSerial as the main _serialPort
-                    probeSerial = null; // Nullify probeSerial so it's not disposed in finally if kept
-                    _saharaClient = new(_serialPort);
+                    _transport = probeTransport;
+                    probeTransport = null;
+                    _saharaClient = new(_transport);
                     CurrentMode = detectedMode;
 
                 }
@@ -315,30 +371,69 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 }
             }
 
+            // Modern Qualcomm USB serial drivers may discard the initial Sahara HELLO before
+            // it reaches the application. Match qdl by speculatively responding immediately
+            // after the first QUD read timeout, before sending any Firehose probe traffic.
+            if (detectedMode == DeviceMode.Unknown && passiveReadTimedOut && probeTransport != null &&
+                probeTransport.Backend == WireTransportBackend.WindowsQud)
+            {
+                Logging.Log("Initial Windows QUD read timed out. Attempting discarded HELLO recovery...", LogLevel.Debug);
+                probeTransport.TimeoutMilliseconds = 2000;
+                var saharaProbeClient = new QualcommSahara(probeTransport);
+                var handshakeResult = await Task.Run(() =>
+                    saharaProbeClient.ProbeCommandMode(initialReadAlreadyTimedOut: true));
+
+                if (handshakeResult == QualcommSaharaHandshakeResult.Sahara)
+                {
+                    Logging.Log("Discarded HELLO recovery successful. Detected Mode: Sahara");
+                    detectedMode = DeviceMode.Sahara;
+                    _transport = probeTransport;
+                    probeTransport = null;
+                    _saharaClient = saharaProbeClient;
+                    CurrentMode = DeviceMode.Sahara;
+                }
+                else if (handshakeResult == QualcommSaharaHandshakeResult.Firehose)
+                {
+                    Logging.Log("Discarded HELLO recovery received Firehose XML. Detected Mode: Firehose");
+                    detectedMode = DeviceMode.Firehose;
+                }
+                else if (handshakeResult == QualcommSaharaHandshakeResult.UnexpectedSaharaPacket)
+                {
+                    ResetSaharaStateMachineAfterUnexpectedPacket(
+                        saharaProbeClient,
+                        "Discarded HELLO recovery");
+                    detectedMode = DeviceMode.Error;
+                }
+                else
+                {
+                    Logging.Log("Discarded HELLO recovery was inconclusive.", LogLevel.Debug);
+                }
+            }
+
             // --- Probe 2: Active Firehose NOP (If Passive Read Failed/Inconclusive) ---
             if (detectedMode == DeviceMode.Unknown)
             {
-                var serialForFirehoseProbe = _serialPort ?? probeSerial;
-                if (serialForFirehoseProbe == null)
+                var transportForFirehoseProbe = _transport ?? probeTransport;
+                if (transportForFirehoseProbe == null)
                 {
-                    Logging.Log("No serial port available for Firehose NOP probe.", LogLevel.Error);
+                    Logging.Log("No transport available for Firehose NOP probe.", LogLevel.Error);
                 }
                 else
                 {
                     Logging.Log("Passive read inconclusive. Attempting active Firehose NOP probe...", LogLevel.Debug);
                     try
                     {
-                        serialForFirehoseProbe.SetTimeOut(1500);
-                        var firehoseProbe = new QualcommFirehose(serialForFirehoseProbe);
+                        transportForFirehoseProbe.TimeoutMilliseconds = 1500;
+                        var firehoseProbe = new QualcommFirehose(transportForFirehoseProbe);
                         var nopCommand = QualcommFirehoseXml.BuildCommandPacket([new() { Nop = new() }]);
-                        firehoseProbe.Serial.SendData(Encoding.UTF8.GetBytes(nopCommand));
+                        firehoseProbe.Transport.SendData(Encoding.UTF8.GetBytes(nopCommand));
                         var datas = await Task.Run(() => firehoseProbe.GetFirehoseResponseDataPayloads());
                         if (datas.Length > 0)
                         {
                             Logging.Log("Firehose NOP probe successful. Detected Mode: Firehose", LogLevel.Debug);
                             detectedMode = DeviceMode.Firehose;
 
-                            Logging.Log("Flushing serial output...", LogLevel.Debug);
+                            Logging.Log("Flushing transport output...", LogLevel.Debug);
                             // Logging.Log("Reading initial data from device...", LogLevel.Debug);
                             // FlushForResponse();
                             var gotResponse = false;
@@ -378,29 +473,41 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             // --- Probe 3: Active Sahara Handshake (If Still Unknown) ---
             if (detectedMode == DeviceMode.Unknown)
             {
-                var serialForSaharaProbe = _serialPort ?? probeSerial;
-                if (serialForSaharaProbe == null)
+                var transportForSaharaProbe = _transport ?? probeTransport;
+                if (transportForSaharaProbe == null)
                 {
-                    Logging.Log("No serial port available for Sahara handshake probe.", LogLevel.Error);
+                    Logging.Log("No transport available for Sahara handshake probe.", LogLevel.Error);
                 }
                 else
                 {
                     Logging.Log("Probes inconclusive. Attempting *full* Sahara handshake as last resort...");
                     try
                     {
-                        serialForSaharaProbe.SetTimeOut(2000);
-                        var saharaProbeClient = new QualcommSahara(serialForSaharaProbe);
+                        transportForSaharaProbe.TimeoutMilliseconds = 2000;
+                        var saharaProbeClient = new QualcommSahara(transportForSaharaProbe);
                         // Pass null to CommandHandshake as we don't have a pre-read packet here
-                        if (await Task.Run(() => saharaProbeClient.CommandHandshake()))
+                        var handshakeResult = await Task.Run(() => saharaProbeClient.ProbeCommandMode());
+                        if (handshakeResult == QualcommSaharaHandshakeResult.Sahara)
                         {
                             Logging.Log("Full Sahara handshake probe successful. Detected Mode: Sahara");
                             detectedMode = DeviceMode.Sahara;
                             // If successful, this becomes the main connection
-                            _serialPort = serialForSaharaProbe;
-                            probeSerial = null; // Don't dispose it
+                            _transport = transportForSaharaProbe;
+                            probeTransport = null; // Don't dispose it
                             _saharaClient = saharaProbeClient;
                             CurrentMode = DeviceMode.Sahara;
-                            try { _saharaClient.ResetSahara(); } catch { /* Ignore reset errors */ }
+                        }
+                        else if (handshakeResult == QualcommSaharaHandshakeResult.Firehose)
+                        {
+                            Logging.Log("Sahara probe received Firehose XML. Detected Mode: Firehose");
+                            detectedMode = DeviceMode.Firehose;
+                        }
+                        else if (handshakeResult == QualcommSaharaHandshakeResult.UnexpectedSaharaPacket)
+                        {
+                            ResetSaharaStateMachineAfterUnexpectedPacket(
+                                saharaProbeClient,
+                                "Full Sahara handshake");
+                            detectedMode = DeviceMode.Error;
                         }
                         else
                         {
@@ -422,10 +529,9 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         }
         finally
         {
-            // Dispose probeSerial ONLY if it wasn't kept as the main _serialPort
-            if (probeSerial != null && probeSerial != _serialPort)
+            if (probeTransport != null && probeTransport != _transport)
             {
-                probeSerial.Dispose();
+                probeTransport.Dispose();
             }
         }
 
@@ -457,7 +563,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             return [];
         }
 
-        var backend = ResolveBackend(options.Backend, isWindows, isMac);
+        var backend = ResolveBackend(options.Backend, isWindows);
         return backend == TransportBackend.Serial
             ? isLinux ? EnumerateLinuxSerial(options)
                 : isWindows ? EnumerateWindowsSerial(options)
@@ -468,7 +574,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
     private static List<DeviceCandidate> EnumerateLibUsb(EdlOptions options)
     {
-        if (QualcommSerial.LibUsbContext == null)
+        if (LibUsbTransport.Context == null)
         {
             return [];
         }
@@ -479,7 +585,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         var results = new List<DeviceCandidate>();
         try
         {
-            foreach (var candidate in QualcommSerial.LibUsbContext.List())
+            foreach (var candidate in LibUsbTransport.Context.List())
             {
                 if (candidate is not UsbDevice dev || dev.VendorId != vid)
                 {
@@ -607,9 +713,9 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         try
         {
             var seen = new HashSet<int>();
-            foreach (var (pathName, busName, devInst) in UsbExtensions.GetDeviceInfos(ComPortGuid))
+            foreach (var (pathName, busName, devInst, portName) in UsbExtensions.GetDeviceInfos(ComPortGuid))
             {
-                if (pathName is null)
+                if (pathName is null || string.IsNullOrEmpty(portName))
                 {
                     continue;
                 }
@@ -624,7 +730,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                     continue;
                 }
                 results.Add(new DeviceCandidate(
-                    pathName,
+                    $@"\\.\{portName}",
                     string.IsNullOrEmpty(busName) ? pathName : busName,
                     $"Path: {pathName}",
                     TransportBackend.Serial));
@@ -642,9 +748,10 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
     /// </summary>
     /// <returns>True if a device is found, false otherwise.</returns>
     /// <exception cref="Exception">Throws if multiple devices are found without specific selection criteria.</exception>
-    private bool FindDevice()
+    private bool FindDevice(int[]? requestedPids = null)
     {
         Logging.Log("Searching for Qualcomm EDL device...", LogLevel.Trace);
+        var pidsToFind = requestedPids ?? (globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : DefaultPids);
 
         var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         var isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
@@ -656,7 +763,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             return false;
         }
 
-        var backend = ResolveBackend(globalOptions.Backend, isWindows, isMac);
+        var backend = ResolveBackend(globalOptions.Backend, isWindows);
         Logging.Log($"Transport backend: {backend} (requested: {globalOptions.Backend})", LogLevel.Debug);
 
         if (backend == TransportBackend.Serial)
@@ -676,7 +783,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
             if (isWindows)
             {
-                return FindDeviceWindowsSerial();
+                return FindDeviceWindowsSerial(pidsToFind);
             }
 
             if (isMac)
@@ -689,7 +796,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         }
 
         // LibUsb backend (cross-platform via LibUsbDotNet).
-        if (FindDeviceViaLibUsb())
+        if (FindDeviceViaLibUsb(pidsToFind))
         {
             Logging.Log("Found device using LibUsbDotNet.");
             return true;
@@ -699,25 +806,38 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         return false;
     }
 
-    private static TransportBackend ResolveBackend(TransportBackend requested, bool isWindows, bool isMac)
+    private static TransportBackend ResolveBackend(TransportBackend requested, bool isWindows)
     {
         return requested != TransportBackend.Auto
             ? requested
-            : isWindows || isMac ? TransportBackend.LibUsb : TransportBackend.Serial;
+            : isWindows ? TransportBackend.Serial : TransportBackend.LibUsb;
     }
 
-    private bool FindDeviceViaLibUsb()
+    private IQualcommTransport OpenTransport()
+    {
+        if (string.IsNullOrEmpty(_devicePath) || !_deviceGuid.HasValue)
+        {
+            throw new InvalidOperationException("No EDL transport target has been selected.");
+        }
+
+        var backend = _deviceGuid == ComPortGuid
+            ? RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? WireTransportBackend.WindowsQud : WireTransportBackend.Serial
+            : WireTransportBackend.LibUsb;
+        var transport = QualcommTransportFactory.Open(_devicePath, backend);
+        CapturePinnedUsbSerial(transport);
+        return transport;
+    }
+
+    private bool FindDeviceViaLibUsb(IReadOnlyCollection<int> pidsToFind)
     {
         Logging.Log("Trying to find device using LibUsbDotNet...", LogLevel.Debug);
-        if (QualcommSerial.LibUsbContext == null)
+        if (LibUsbTransport.Context == null)
         {
             Logging.Log("LibUsbDotNet context not initialized. Cannot use LibUsb backend.", LogLevel.Warning);
             return false;
         }
 
         var vidToFind = globalOptions.Vid ?? DefaultVid;
-        var pidsToFind = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : DefaultPids;
-
         try
         {
             var pinningInEffect = _initialPinApplied || !string.IsNullOrWhiteSpace(globalOptions.UsbDeviceId);
@@ -727,7 +847,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 !string.IsNullOrWhiteSpace(globalOptions.UsbDeviceId) &&
                 TryParseUsbDeviceId(globalOptions.UsbDeviceId, out var pinnedVid, out var pinnedPid, out var pinnedBus, out var pinnedAddr))
             {
-                foreach (var candidate in QualcommSerial.LibUsbContext.List())
+                foreach (var candidate in LibUsbTransport.Context.List())
                 {
                     if (candidate is UsbDevice dev &&
                         dev.VendorId == pinnedVid &&
@@ -753,7 +873,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             {
                 UsbDevice? bySerialMatch = null;
                 var candidatesSeen = 0;
-                foreach (var candidate in QualcommSerial.LibUsbContext.List())
+                foreach (var candidate in LibUsbTransport.Context.List())
                 {
                     if (candidate is not UsbDevice dev || dev.VendorId != vidToFind || !pidsToFind.Contains(dev.ProductId))
                     {
@@ -792,7 +912,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 // Initial pin was requested but we never captured an iSerial (read failed or descriptor missing).
                 // If >1 device is present now, refuse to guess.
                 var candidatesSeen = 0;
-                foreach (var candidate in QualcommSerial.LibUsbContext.List())
+                foreach (var candidate in LibUsbTransport.Context.List())
                 {
                     if (candidate is UsbDevice dev && dev.VendorId == vidToFind && pidsToFind.Contains(dev.ProductId))
                     {
@@ -816,18 +936,19 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                     Pid = pidToFind
                 };
 
-                if (QualcommSerial.LibUsbContext.Find(finder) is UsbDevice usbDevice)
+                var usbDevice = LibUsbTransport.Context.Find(finder);
+                if (usbDevice != null)
                 {
                     // Match main's historical path format (no bus/addr) when the caller hasn't
-                    // explicitly pinned. `QualcommSerial.FindLibUsbDevice` takes the `Find(finder)`
+                    // explicitly pinned. `LibUsbTransport.FindDevice` takes the `Find(finder)`
                     // fast path when bus/addr are absent from the path; the `List()`-enumeration
                     // fallback has different endpoint/timeout behavior on macOS IOKit that causes
                     // the post-loader Sahara read to receive the Firehose hello instead of timing out.
                     // Bus/addr are only needed when disambiguating multiple EDL devices — logged
                     // for diagnostics either way.
                     _devicePath = $"usb:vid_{vidToFind:X4},pid_{pidToFind:X4}";
-                    _deviceGuid = WinUsbGuid; // Use WinUSBGuid to signify LibUsbDotNet backend to QualcommSerial
-                    Logging.Log($"LibUsbDotNet found device: VID={vidToFind:X4}, PID={pidToFind:X4} @ bus {usbDevice.BusNumber} addr {usbDevice.Address}. Path set to: {_devicePath}", LogLevel.Debug);
+                    _deviceGuid = WinUsbGuid;
+                    Logging.Log($"LibUsbDotNet found device: VID={vidToFind:X4}, PID={pidToFind:X4}. Path set to: {_devicePath}", LogLevel.Debug);
                     return true;
                 }
 
@@ -1058,20 +1179,33 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         return true;
     }
 
-    private bool FindDeviceWindowsSerial()
+    private bool FindDeviceWindowsSerial(IReadOnlyCollection<int> pidsToFind)
     {
         Logging.Log("Searching for Qualcomm EDL device on Windows (Qualcomm Serial Driver / COM port)...");
 
-        var potentialDevices = new List<(string DevicePath, string BusName, int DevInst)>();
-        foreach (var (pathName, busName, devInst) in UsbExtensions.GetDeviceInfos(ComPortGuid))
+        // Store DevInst and the interface GUID it was found with
+        var potentialDevices =
+            new List<(string DevicePath, string BusName, Guid InterfaceGuid, int DevInst, string OpenPath)>();
+        // Search by COMPortGuid
+        foreach (var (pathName, busName, devInst, portName) in UsbExtensions.GetDeviceInfos(ComPortGuid))
         {
             Logging.Log($"Found device via COMPortGuid: {pathName} on bus {busName} (DevInst: {devInst})", LogLevel.Debug);
-            if (pathName is not null && IsQualcommEdlDevice(pathName, busName))
+            if (pathName is not null && !string.IsNullOrEmpty(portName) &&
+                IsQualcommEdlDevice(pathName, busName, pidsToFind))
             {
-                potentialDevices.Add((pathName, busName, devInst));
+                potentialDevices.Add((pathName, busName, ComPortGuid, devInst, $@"\\.\{portName}"));
             }
         }
-
+        // Search by WinUSBGuid
+        foreach (var (pathName, busName, devInst, _) in UsbExtensions.GetDeviceInfos(WinUsbGuid))
+        {
+            Logging.Log($"Found device via WinUSBGuid: {pathName} on bus {busName} (DevInst: {devInst})", LogLevel.Debug);
+            if (pathName is not null && IsQualcommEdlDevice(pathName, busName, pidsToFind))
+            {
+                potentialDevices.Add((pathName, busName, WinUsbGuid, devInst, pathName));
+            }
+        }
+        // De-duplicate based on DevInst
         var uniqueEdlDevices = potentialDevices
             .GroupBy(d => d.DevInst)
             .Select(g => g.First())
@@ -1085,17 +1219,20 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
         if (uniqueEdlDevices.Count > 1)
         {
-            Logging.Log($"Multiple ({uniqueEdlDevices.Count}) unique EDL serial devices found.", LogLevel.Warning);
-            foreach (var (devicePath, busName, _) in uniqueEdlDevices)
+            Logging.Log($"Multiple ({uniqueEdlDevices.Count}) unique EDL devices found. Please specify which device to use.", LogLevel.Error);
+            foreach (var (devicePath, busName, interfaceGuid, _, _) in uniqueEdlDevices)
             {
                 Logging.Log($"  - Path: {devicePath}, Bus: {busName}", LogLevel.Warning);
             }
-            Logging.Log($"Picking the first device: {uniqueEdlDevices[0].DevicePath}", LogLevel.Warning);
+            return false;
         }
 
-        var (finalDevicePath, finalBusName, finalDevInst) = uniqueEdlDevices.First();
-        _devicePath = finalDevicePath;
-        _deviceGuid = ComPortGuid;
+        var (finalDevicePath, finalBusName, finalInterfaceGuid, finalDevInst, finalOpenPath) =
+            uniqueEdlDevices.First();
+        Logging.Log($"Qualcomm EDL device selected: {finalDevicePath} on bus {finalBusName} (Interface: {(finalInterfaceGuid == ComPortGuid ? "COM Port" : "WinUSB")}, DevInst: {finalDevInst})", LogLevel.Debug);
+
+        _devicePath = finalOpenPath;
+        _deviceGuid = finalInterfaceGuid;
 
         Logging.Log($"Found device: {_devicePath}");
         Logging.Log("  Interface: Serial Port");
@@ -1131,10 +1268,12 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         return await StorageBackend.FindPartitionWithLunAsync(partitionName, specifiedLun);
     }
 
-    private bool IsQualcommEdlDevice(string devicePath, string _)
+    private bool IsQualcommEdlDevice(
+        string devicePath,
+        string _,
+        IReadOnlyCollection<int> targetPids)
     {
         var targetVid = globalOptions.Vid ?? DefaultVid;
-        var targetPids = globalOptions.Pid.HasValue ? [globalOptions.Pid.Value] : DefaultPids;
 
         var isQualcomm = devicePath.Contains($"VID_{targetVid:X4}&", StringComparison.OrdinalIgnoreCase);
         var isEdl = targetPids.Any(pid => devicePath.Contains($"&PID_{pid:X4}", StringComparison.OrdinalIgnoreCase));
@@ -1158,10 +1297,9 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         {
             case DeviceMode.Firehose:
                 Logging.Log("Device is in Firehose mode. Establishing connection...", LogLevel.Debug);
-                _serialPort?.Dispose();
-                _serialPort = new(ResolveTransportPath());
-                CapturePinnedUsbSerial();
-                _firehoseClient = new(_serialPort);
+                _transport?.Dispose();
+                _transport = OpenTransport();
+                _firehoseClient = new(_transport);
                 _firehoseConfigured = false;
                 CurrentMode = DeviceMode.Firehose;
                 break;
@@ -1173,7 +1311,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
                 // Clear old path/state and find the device again
                 _devicePath = null;
-                _serialPort = null;
+                _transport = null;
                 _firehoseClient = null;
                 _saharaClient = null;
                 CurrentMode = DeviceMode.Unknown;
@@ -1186,9 +1324,8 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 }
                 // Now establish the Firehose connection
                 Logging.Log("Connecting to re-enumerated device in Firehose mode...", LogLevel.Debug);
-                _serialPort = new(ResolveTransportPath());
-                CapturePinnedUsbSerial();
-                _firehoseClient = new(_serialPort);
+                _transport = OpenTransport();
+                _firehoseClient = new(_transport);
 
                 FlushForResponse();
 
@@ -1249,7 +1386,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             throw new FileNotFoundException($"Loader file not found: {globalOptions.LoaderPath}");
         }
 
-        if (_saharaClient == null || _serialPort == null)
+        if (_saharaClient == null || _transport == null)
         {
             Logging.Log("Sahara client not pre-established, creating new connection.", LogLevel.Debug);
             if (string.IsNullOrEmpty(_devicePath))
@@ -1260,10 +1397,9 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 }
             }
 
-            _serialPort?.Dispose();
-            _serialPort = new(ResolveTransportPath());
-            CapturePinnedUsbSerial();
-            _saharaClient = new(_serialPort);
+            _transport?.Dispose();
+            _transport = OpenTransport();
+            _saharaClient = new(_transport);
             _initialSaharaHelloPacket = null;
         }
         else
@@ -1271,24 +1407,13 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             Logging.Log("Using pre-established Sahara connection.", LogLevel.Debug);
         }
 
-        if (_deviceGuid == ComPortGuid && _initialSaharaHelloPacket == null) // Only if using COM port and not using pre-read packet
-        {
-            Logging.Log("Device is COM Port and no pre-read HELLO. Sending ResetStateMachine command to device...", LogLevel.Debug);
-            try
-            {
-                var resetStateMachineCmd = QualcommSahara.BuildCommandPacket(QualcommSaharaCommand.ResetStateMachine);
-                _serialPort.SendData(resetStateMachineCmd);
-                await Task.Delay(50);
-            }
-            catch (Exception rsmEx)
-            {
-                Logging.Log($"Failed to send ResetStateMachine for COM port: {rsmEx.Message}", LogLevel.Warning);
-            }
-        }
-
         try
         {
-            Logging.Log("Attempting Sahara handshake...", LogLevel.Debug);
+            Logging.Log(
+                _saharaClient.IsCommandModeReady
+                    ? "Reusing the established Sahara command-mode session."
+                    : "Attempting Sahara handshake...",
+                LogLevel.Debug);
             if (!_saharaClient.CommandHandshake(_initialSaharaHelloPacket))
             {
                 Logging.Log("Initial Sahara handshake failed, attempting reset and retry...", LogLevel.Warning);
@@ -1315,21 +1440,48 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             }
             _initialSaharaHelloPacket = null;
 
-            var deviceVersion = _saharaClient.DetectedDeviceSaharaVersion;
-
             try
             {
                 var sn = _saharaClient.GetSerialNumber();
                 Logging.Log($"Serial Number: {Convert.ToHexString(sn)}");
+                var deviceVersion = _saharaClient.DetectedDeviceSaharaVersion;
+                if (_saharaClient.IsDeviceSaharaVersionInferred)
+                {
+                    Logging.Log(
+                        $"Sahara protocol version inferred as {deviceVersion} from the 8-byte SERIAL_NUM_READ response (Chip ID 0x{_saharaClient.DetectedDeviceChipId!.Value:X8}).",
+                        LogLevel.Debug);
+                }
+
                 if (deviceVersion < 3)
                 {
                     Logging.Log("Sahara version < 3, attempting to get HWID and RKH.", LogLevel.Debug);
                     var hwid = _saharaClient.GetHwid();
+                    Logging.Log($"HWID: {Convert.ToHexString(hwid)}", LogLevel.Debug);
                     HardwareId.ParseHwid(hwid);
                 }
                 else
                 {
-                    Logging.Log("Sahara version >= 3, skipping HWID retrieval.", LogLevel.Debug);
+                    Logging.Log("Sahara version >= 3, retrieving HWID via CMD10 Get Fuse Information.",
+                        LogLevel.Debug);
+                    try
+                    {
+                        var chipInfo = _saharaClient.GetV3ChipInfo();
+                        var hwid = chipInfo.ToHwidBytes();
+                        Logging.Log(
+                            $"Sahara v3 chip info: BinaryVersion=0x{chipInfo.BinaryVersion:X8}, SOC_HW_VERSION=0x{chipInfo.SocHardwareVersion:X8}, JTAG_ID=0x{chipInfo.JtagId:X8}, OEM_ID=0x{chipInfo.RawOemId:X8}, PRODUCT_ID={(chipInfo.ProductId.HasValue ? $"0x{chipInfo.ProductId.Value:X8}" : "not returned")}.",
+                            LogLevel.Debug);
+                        Logging.Log($"HWID: {Convert.ToHexString(hwid)}", LogLevel.Debug);
+                        HardwareId.ParseHwid(hwid);
+                    }
+                    catch (QualcommSaharaUnexpectedPacketException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.Log($"Failed to retrieve Sahara v3 HWID via CMD10: {ex.Message}",
+                            LogLevel.Warning);
+                    }
                 }
 
                 var rkhs = _saharaClient.GetRkHs();
@@ -1337,6 +1489,16 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 {
                     Logging.Log($"RKH[{i}]: {Convert.ToHexString(rkhs[i])}", LogLevel.Debug);
                 }
+            }
+            catch (QualcommSaharaUnexpectedPacketException ex)
+            {
+                Logging.Log(
+                    $"Sahara command-mode query received a terminal protocol response: {ex.Message}",
+                    LogLevel.Error);
+                ResetSaharaStateMachineAfterUnexpectedPacket(
+                    _saharaClient,
+                    "Sahara command-mode query");
+                throw;
             }
             catch (Exception ex)
             {
@@ -1356,7 +1518,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 Logging.Log($"Uploading loader: {globalOptions.LoaderPath}");
             }
 
-            var success = await Task.Run(() => _saharaClient.LoadProgrammer(globalOptions.LoaderPath));
+            var success = await _saharaClient.LoadProgrammer(globalOptions.LoaderPath);
 
             if (!success)
             {
@@ -1373,8 +1535,8 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         finally
         {
             Logging.Log("Closing Sahara connection after loader upload attempt.", LogLevel.Debug);
-            _serialPort?.Close();
-            _serialPort = null;
+            _transport?.Dispose();
+            _transport = null;
             _saharaClient = null;
         }
     }
@@ -1447,6 +1609,53 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         await StorageBackend.EraseSectorsAsync(lun, startSector, sectorCount, progressCallback);
     }
 
+    public async Task EraseAllAsync()
+    {
+        EnsureValidDirectMode();
+        if (IsDirectMode)
+        {
+            throw new NotSupportedException(
+                "erase-all is only supported for USB Firehose targets; direct storage backends are not supported.");
+        }
+
+        await EnsureFirehoseModeAsync();
+        if (!_firehoseConfigured)
+        {
+            await ConfigureFirehoseAsync();
+        }
+
+        var storageType = globalOptions.MemoryType ?? StorageType.Ufs;
+        Root? storageInfo = null;
+        try
+        {
+            storageInfo = await Task.Run(() => Firehose.GetStorageInfo(storageType, 0, globalOptions.Slot));
+        }
+        catch (Exception ex)
+        {
+            Logging.Log(
+                $"Could not determine the physical partition count. Falling back to probing partitions 0-7. Error: {ex.Message}",
+                LogLevel.Warning);
+        }
+
+        int? physicalPartitionCount = storageInfo?.StorageInfo?.NumPhysical > 0
+            ? storageInfo.StorageInfo.NumPhysical
+            : null;
+        var sectorSize = storageInfo?.StorageInfo?.BlockSize > 0
+            ? (uint)storageInfo.StorageInfo.BlockSize
+            : GetSectorSize();
+
+        var success = await Task.Run(() => Firehose.EraseAll(
+            storageType,
+            globalOptions.Slot,
+            sectorSize,
+            physicalPartitionCount));
+
+        if (!success)
+        {
+            throw new InvalidOperationException("Failed to erase all physical partitions.");
+        }
+    }
+
     public uint GetSectorSize(uint lun = 0)
     {
         return StorageBackend.GetDefaultSectorSize(lun);
@@ -1464,12 +1673,12 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
         {
             if (disposing)
             {
-                _serialPort?.Dispose();
+                _transport?.Dispose();
                 _hostDeviceManager?.Dispose();
                 _radxaWoSManager?.Dispose();
             }
 
-            _serialPort = null;
+            _transport = null;
             _saharaClient = null;
             _firehoseClient = null;
             _hostDeviceManager = null;
@@ -1604,8 +1813,8 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
         public async Task<byte[]> ReadSectorsAsync(uint lun, ulong startSector, uint sectorCount)
         {
-            ValidateLbaRange(startSector, sectorCount);
             var geometry = await GetGeometryAsync(lun);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
 
             await EnsureReadyAsync();
 
@@ -1633,8 +1842,8 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
                 return;
             }
 
-            ValidateLbaRange(startSector, sectorCount);
             var geometry = await GetGeometryAsync(lun);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
 
             await EnsureReadyAsync();
 
@@ -1667,7 +1876,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
             var storageInfo = await GetDeviceInfoAsync(lun);
             var sectorSize = DetermineSectorSize(storageInfo, logFallback: true);
-            ulong? totalBlocks = storageInfo?.StorageInfo?.TotalBlocks > 0 ? (ulong)storageInfo.StorageInfo.TotalBlocks : null;
+            ulong? totalBlocks = storageInfo?.StorageInfo?.TotalBlocks > 0 ? storageInfo.StorageInfo.TotalBlocks : null;
 
             var geometry = new StorageGeometry(sectorSize, totalBlocks);
             _geometryCache[lun] = geometry;
@@ -1683,10 +1892,15 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
 
         public async Task EraseSectorsAsync(uint lun, ulong startSector, ulong sectorCount, Action<long, long>? progressCallback)
         {
-            ValidateLbaRange(startSector, sectorCount);
+            var geometry = await GetGeometryAsync(lun);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
+            if (sectorCount > uint.MaxValue)
+            {
+                throw new ArgumentException("Erase length exceeds Firehose limit (uint32 sectors).", nameof(sectorCount));
+            }
+
             await EnsureReadyAsync();
 
-            var geometry = await GetGeometryAsync(lun);
             var start = (uint)startSector;
             var count = (uint)sectorCount;
 
@@ -1726,7 +1940,7 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             }
 
             var sectorCount = totalBytes / geometry.SectorSize;
-            ValidateLbaRange(startSector, sectorCount);
+            ValidateLbaRange(startSector, sectorCount, geometry.TotalSectors);
 
             if (startSector > uint.MaxValue)
             {
@@ -1882,17 +2096,27 @@ public sealed class EdlManager(EdlOptions globalOptions) : IDisposable
             StorageType.Spinor or StorageType.Ufs or StorageType.Nand or _ => 4096,
         };
 
-        private static void ValidateLbaRange(ulong startSector, ulong sectorCount)
+        private static void ValidateLbaRange(ulong startSector, ulong sectorCount, ulong? totalSectors)
         {
             if (sectorCount == 0)
             {
                 throw new ArgumentException("Sector count must be greater than zero", nameof(sectorCount));
             }
 
-            var lastSector = startSector + sectorCount - 1;
-            if (startSector > uint.MaxValue || lastSector > uint.MaxValue)
+            // Check by subtraction so an overflowing startSector + sectorCount cannot
+            // wrap around and accidentally pass validation.
+            if (startSector > uint.MaxValue || sectorCount - 1 > uint.MaxValue - startSector)
             {
                 throw new ArgumentException("Sector range exceeds uint.MaxValue, which is not supported by the current Firehose implementation.");
+            }
+
+            if (totalSectors is > 0 &&
+                (startSector >= totalSectors.Value || sectorCount > totalSectors.Value - startSector))
+            {
+                var lastSector = startSector + sectorCount - 1;
+                throw new ArgumentOutOfRangeException(
+                    nameof(sectorCount),
+                    $"Sector range LBA {startSector}-{lastSector} exceeds storage bounds (valid LBA range: 0-{totalSectors.Value - 1}, total blocks: {totalSectors.Value}).");
             }
         }
 

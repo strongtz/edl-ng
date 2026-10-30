@@ -8,11 +8,31 @@ using Qualcomm.EmergencyDownload.Layers.APSS.Firehose.Xml.Elements;
 // --- Define Global Options ---
 var loaderOption = new Option<FileInfo>(
     aliases: ["--loader", "-l"],
-    description: "Path to the Firehose programmer (e.g., qsahara_device_programmer.xml, xbl_s_devprg_ns.melf or prog_firehose_*.elf).")
+    description: "Path to the Firehose programmer (e.g., qsahara_device_programmer.xml, xbl_s_devprg_ns.melf or prog_firehose_*.elf).",
+    parseArgument: result =>
+    {
+        if (result.Tokens.Count == 0)
+        {
+            result.ErrorMessage = "Missing value for --loader.";
+            return null!;
+        }
+
+        // Expand a leading "~" ourselves: the shell does not expand it in
+        // forms like "--loader=~/foo", so it would otherwise reach us literally.
+        // We also do the existence check here (instead of ExistingOnly()), since
+        // that validator inspects the raw, unexpanded token.
+        var path = PathHelper.ExpandTilde(result.Tokens[0].Value);
+        if (!File.Exists(path))
+        {
+            result.ErrorMessage = $"File does not exist: '{result.Tokens[0].Value}'.";
+            return null!;
+        }
+
+        return new FileInfo(path);
+    })
 {
     IsRequired = false
 }; // Initially false, commands that need it can enforce it or EdlManager can check
-loaderOption.ExistingOnly();
 
 var vidOption = new Option<int?>(
     name: "--vid",
@@ -127,6 +147,7 @@ rootCommand.AddGlobalOption(radxaWosOption);
 
 // --- Define Commands (Add more commands here later) ---
 rootCommand.AddCommand(UploadLoaderCommand.Create(globalOptionsBinder));
+rootCommand.AddCommand(RamDumpCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ResetCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(PrintGptCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ReadPartitionCommand.Create(globalOptionsBinder));
@@ -137,6 +158,7 @@ rootCommand.AddCommand(WritePartitionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(WriteSectorCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ErasePartitionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(EraseSectorCommand.Create(globalOptionsBinder));
+rootCommand.AddCommand(EraseAllCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(ProvisionCommand.Create(globalOptionsBinder));
 rootCommand.AddCommand(RawProgramCommand.Create(globalOptionsBinder));
 // ... etc ...

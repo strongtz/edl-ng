@@ -13,6 +13,7 @@ Built with .NET 9, `edl-ng` ships two front-ends — a `System.CommandLine` CLI 
 * **Sahara Protocol Support:**
   * Upload Firehose programmers (`.elf` files).
   * Device information retrieval (Serial Number, HWID, RKH).
+  * Collect 64-bit crash dumps from devices in Sahara MemoryDebug mode (normally USB PID `0x900E`).
 * **Firehose Protocol Support:**
   * Automatic Firehose configuration.
   * **GPT Management:** Print GUID Partition Table.
@@ -29,7 +30,7 @@ Built with .NET 9, `edl-ng` ships two front-ends — a `System.CommandLine` CLI 
   * Get detailed storage information (sector size, LUN count).
 * **Flexible Device Detection:**
   * Specify USB VID/PID; pin a specific libusb device by bus/addr when multiple EDL devices are plugged in.
-  * Uses COM ports on Windows or LibUsbDotNet (for all platforms, especially Linux/macOS).
+  * Uses the native Windows QDLoader COM interface or LibUsbDotNet. Linux/macOS default to libusb; the GUI also supports an explicitly selected serial port.
   * GUI auto-prompts a device picker when more than one candidate matches.
 * **Direct-Mode Backends (skip USB / Sahara / Firehose):**
   * `--hostdev-as-target <path>` — read/write a SPI NOR node or a raw image file directly.
@@ -66,6 +67,7 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 ### Supported Commands
 
 * `upload-loader`: Connects in Sahara mode and uploads the specified Firehose loader. (e.g., qsahara_device_programmer.xml, xbl_s_devprg_ns.melf or prog_firehose_*.elf)
+* `ramdump [-o <directory>] [segment-filter]`: Collects Sahara 64-bit crashdump regions. The output directory defaults to the current directory.
 * `printgpt`: Reads and prints the GPT from the device.
 * `read-part <partition_name> <filename>`: Reads a partition to a file.
 * `read-sector <start_sector> <num_sectors> <filename>`: Reads sectors to a file.
@@ -75,6 +77,7 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
 * `write-sector <start_sector> <filename>`: Writes data from a file to sectors.
 * `erase-part <partition_name>`: Erases a partition by name from the device.
 * `erase-sector <start_sector> <sectors>`: Erases a specified number of sectors from a given LUN and start LBA.
+* `erase-all`: Erases every physical partition on the Firehose storage device.
 * `provision <xmlfile>`: Performs UFS provisioning using an XML file.
 * `rawprogram <xmlfile_patterns>`: Processes rawprogramN.xml and patchN.xml files for flashing.
 * `reset`: Resets or powers off the device.
@@ -88,6 +91,24 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
     ```bash
     edl-ng --loader prog_firehose_ddr.elf --memory UFS rawprogram rawprogram*.xml patch*.xml
     ```
+
+* **Collect all regions from a `0x900E` crashdump device:**
+
+    ```bash
+    edl-ng ramdump -o ./ramdump
+    ```
+
+    To collect selected regions, pass a comma-separated, case-sensitive filter supporting `*` and `?`:
+
+    ```bash
+    edl-ng ramdump -o ./ramdump OCIMEM,CODERAM,DDR*
+    ```
+
+    Each region is written to `<filename>.partial` and replaces the final file only after the region is complete.
+    A failed transfer leaves the partial file for diagnosis while preserving any existing completed dump. KELF is
+    downloaded as an ordinary region, but `edl-ng` does not currently parse it or generate `minidump.elf`. The
+    command searches for PID `0x900E` by default; use the global `--vid`/`--pid` options for targets using different
+    identifiers. A Firehose loader is not required for ramdump collection.
 
 * **Print GPT from LUN 0 (UFS memory):**
 
@@ -127,6 +148,15 @@ Run `edl-ng --help` for a full list of commands and options, or refer to the spe
     edl-ng --loader prog_firehose_ddr.elf --memory UFS write-sector 0 lun0.bin --lun 0
     ```
 
+* **Erase the entire storage device:**
+
+    ```bash
+    edl-ng --loader prog_firehose_ddr.elf --memory UFS erase-all
+    ```
+
+    This operation starts immediately and irreversibly erases every physical partition reported by the device. On
+    eMMC targets this can include hardware boot partitions.
+
 * **Reboot the device:**
 
     ```bash
@@ -149,7 +179,7 @@ Devices with vendor customized DevPrg may not be supported as well.
 * **.NET 9 SDK** (no need to install .NET runtime if using pre-built binaries).
 * **Qualcomm USB Drivers:**
   * **Windows:** Both Qualcomm® USB Driver (QUD) and WinUSB driver (Zadig) are supported.
-  * **Linux/macOS:** `libusb` is used. You may also need to configure udev rules on Linux to allow user access to the device.
+  * **Linux/macOS:** Only `libusb` is supported. You may also need to configure udev rules on Linux to allow user access to the device.
 * **Firehose Programmer:** An appropriate `.elf` programmer file for your specific device (e.g., `prog_firehose_*.elf` or `xbl_s_devprg_ns.melf`).
 
 ## Building
